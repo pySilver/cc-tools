@@ -1,0 +1,7 @@
+{
+  "name": "code-review",
+  "description": "Analyze app code for agentic smells: overly complex patterns and verbose/stale AI-speak docstrings and comments (code-hygiene skill).",
+  "author": {
+    "name": "Silver"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "name": "planning",
+  "description": "Pre-code design gates: ADR review (adr-review agent) and refining implementation plans against Codex (refine-plan-against-codex skill).",
+  "author": {
+    "name": "Silver"
+  }
+}

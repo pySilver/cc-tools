@@ -1,0 +1,7 @@
+{
+  "name": "git",
+  "description": "Finalize a feature branch: rebase onto the default branch, squash to one commit, verify, and optionally force-push (finalize-feature-branch skill).",
+  "author": {
+    "name": "Silver"
+  }
+}

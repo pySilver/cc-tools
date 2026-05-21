@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "cc-tools",
+  "owner": {
+    "name": "Silver"
+  },
+  "description": "Personal collection of Claude Code agents and skills.",
+  "plugins": [
+    {
+      "name": "planning",
+      "source": "./plugins/planning",
+      "description": "Pre-code design gates: ADR review and refining implementation plans against Codex."
+    },
+    {
+      "name": "code-review",
+      "source": "./plugins/code-review",
+      "description": "Analyze app code for agentic smells: overly complex patterns and verbose/stale AI-speak comments."
+    },
+    {
+      "name": "git",
+      "source": "./plugins/git",
+      "description": "Finalize a feature branch: rebase onto default, squash, verify, and optionally force-push."
+    },
+    {
+      "name": "research",
+      "source": "./plugins/research",
+      "description": "Research topics online via web search and page fetching."
+    }
+  ]
+}
