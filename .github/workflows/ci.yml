@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pyyaml
+        run: pip install pyyaml
+
+      - name: Validate YAML frontmatter in markdown files
+        run: |
+          python3 -c "
+          import yaml, sys, os
+
+          failed = False
+          for root, dirs, files in os.walk('.'):
+              if '.git' in root:
+                  continue
+              for f in files:
+                  if not f.endswith('.md'):
+                      continue
+                  path = os.path.join(root, f)
+                  with open(path) as fh:
+                      content = fh.read()
+                  if not content.startswith('---\n'):
+                      continue
+                  end = content.find('\n---\n', 4)
+                  if end == -1:
+                      continue
+                  frontmatter = content[4:end]
+                  try:
+                      yaml.safe_load(frontmatter)
+                  except yaml.YAMLError as e:
+                      print(f'FAIL: {path}')
+                      print(f'  {e}')
+                      failed = True
+
+          if failed:
+              sys.exit(1)
+          print('All markdown frontmatter is valid YAML')
+          "
+
+      - name: ShellCheck
+        run: |
+          find . -name '*.sh' -not -path './.git/*' -print0 | xargs -0 shellcheck
+
+      - name: Validate marketplace + plugin manifests
+        run: |
+          python3 -c "
+          import json, os, re, sys
+
+          KEBAB = re.compile(r'^[a-z0-9]+(-[a-z0-9]+)*$')
+          failed = False
+          seen = set()
+
+          with open('.claude-plugin/marketplace.json') as fh:
+              market = json.load(fh)
+
+          for entry in market.get('plugins', []):
+              name = entry.get('name')
+              source = entry.get('source', '')
+              plugin_dir = os.path.normpath(source)
+              if not os.path.isdir(plugin_dir):
+                  print(f'FAIL: {name}: source dir missing: {plugin_dir}')
+                  failed = True
+                  continue
+              manifest_path = os.path.join(plugin_dir, '.claude-plugin', 'plugin.json')
+              if not os.path.isfile(manifest_path):
+                  print(f'FAIL: {name}: plugin.json missing: {manifest_path}')
+                  failed = True
+                  continue
+              with open(manifest_path) as fh:
+                  plugin = json.load(fh)
+              pname = plugin.get('name')
+              if not pname or not KEBAB.match(pname):
+                  print(f'FAIL: {manifest_path}: name not kebab-case: {pname!r}')
+                  failed = True
+              if pname != name:
+                  print(f'FAIL: {manifest_path}: name {pname!r} != marketplace entry {name!r}')
+                  failed = True
+              if pname in seen:
+                  print(f'FAIL: duplicate plugin name: {pname!r}')
+                  failed = True
+              seen.add(pname)
+
+          if failed:
+              sys.exit(1)
+          print(f'All {len(seen)} plugin manifest(s) valid')
+          "
+
+      - name: Run shell tests
+        run: |
+          for t in tests/test-*.sh; do bash "$t"; done
+
+      - name: Run python tests
+        run: |
+          python3 tests/test-planning-state.py
