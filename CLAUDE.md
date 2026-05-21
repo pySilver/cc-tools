@@ -8,7 +8,7 @@ A **Claude Code plugin marketplace** — a catalog, not an application. It distr
 
 ## Architecture
 
-- `.claude-plugin/marketplace.json` (repo root) is the catalog. Its `name` is `cc-tools`; each entry in `plugins[]` points at a plugin via a **relative `source` path** (`./plugins/<name>`). Relative sources only resolve when the marketplace is added from git (e.g. `pySilver/cc-tools`), not from a raw `marketplace.json` URL.
+- `.claude-plugin/marketplace.json` (repo root) is the catalog. Its `name` is `silver-cc-tools`; each entry in `plugins[]` points at a plugin via a **relative `source` path** (`./plugins/<name>`). Relative sources only resolve when the marketplace is added from git (e.g. `pySilver/cc-tools`), not from a raw `marketplace.json` URL.
 - Each plugin lives in `plugins/<name>/` with its own `.claude-plugin/plugin.json` and an `agents/` and/or `skills/` directory. Plugins are grouped **by domain**, not by component type:
   - `planning` — `adr-review` agent + `refine-plan-against-codex` skill (pre-code design gates)
   - `code-review` — `code-hygiene` skill
@@ -47,7 +47,7 @@ claude --plugin-dir plugins/<name>
 
 # Install path for end users
 /plugin marketplace add pySilver/cc-tools
-/plugin install <name>@cc-tools
+/plugin install <name>@silver-cc-tools
 ```
 
 The "no version specified" warning from `claude plugin validate ./plugins/<name>` is expected and intended — see the version-less invariant above.

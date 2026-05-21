@@ -4,6 +4,10 @@ This repo ships independent Claude Code plugins that are intentionally version-l
 
 ## Unreleased
 
+### Marketplace
+
+- rename marketplace `cc-tools` → `silver-cc-tools` — avoids a name collision when adding; install is now `<plugin>@silver-cc-tools` (plugin names unchanged). Re-add the marketplace under the new name to keep getting updates.
+
 ### Tooling
 
 - add test suite (`state.py` CLI + parse internals, `extract-sentinels`) and GitHub Actions CI (frontmatter, shellcheck, manifest validation, shell + python tests)

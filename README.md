@@ -12,10 +12,10 @@ Add the marketplace, then install the plugins you want:
 
     /plugin marketplace add pySilver/cc-tools
 
-    /plugin install planning@cc-tools
-    /plugin install code-review@cc-tools
-    /plugin install git@cc-tools
-    /plugin install research@cc-tools
+    /plugin install planning@silver-cc-tools
+    /plugin install code-review@silver-cc-tools
+    /plugin install git@silver-cc-tools
+    /plugin install research@silver-cc-tools
 
 Test a plugin locally before installing:
 
