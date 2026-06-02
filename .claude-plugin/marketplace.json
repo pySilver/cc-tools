@@ -25,6 +25,12 @@
       "name": "research",
       "source": "./plugins/research",
       "description": "Research topics online via web search and page fetching."
+    },
+    {
+      "name": "basedpyright-lsp",
+      "source": "./plugins/basedpyright-lsp",
+      "description": "Python language server (basedpyright) for Claude: diagnostics + navigation, resolved from the project venv first so it matches the type-check gate.",
+      "category": "development"
     }
   ]
 }

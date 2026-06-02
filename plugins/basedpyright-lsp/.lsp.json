@@ -1,0 +1,10 @@
+{
+  "python": {
+    "command": "${CLAUDE_PLUGIN_ROOT}/bin/langserver.sh",
+    "args": ["--stdio"],
+    "extensionToLanguage": {
+      ".py": "python",
+      ".pyi": "python"
+    }
+  }
+}
