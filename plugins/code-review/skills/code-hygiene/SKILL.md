@@ -185,6 +185,14 @@ same verdict on each of these patterns:
      convey: `# Denormalized from Brand — must be re-synced when Brand.name changes`,
      race-window descriptions, ordering constraints, performance trade-offs with
      measured numbers, external-library gotchas.
+   - The label is a **branch marker in a multi-path algorithm** — a function
+     whose logic forks into alternative strategies (a matching fast path vs.
+     a fallback query, per-signal clause builders, scoring stages). Labels
+     like `# Path 1: UID fast path` or `# GTIN clauses` earn their place even
+     above 1-2 statements and even when a docstring enumerates the same
+     paths: their value is the in-place branch map, not the prose. If such a
+     label is factually wrong about the code below it, flag it for
+     CORRECTION (state the accurate fact), never for deletion.
 
 The exempt clause covers information the names cannot convey. It does not cover
 any reasonable-sounding paragraph. If removing the comment loses only verbosity,
@@ -354,6 +362,22 @@ also moved from Always-HIGH to exempt for the same reason.
   whitespace only (insert one blank after section names; never after attached
   labels), and the formatter then sets the exact count (2 before a class/def, 1
   before an assignment). See the DO-check section-divider-spacing rule.
+
+### Calibration update (2026-06-11)
+
+- **Algorithm flow labels survive a fix pass.** A fix-all pass removed
+  one-line branch labels from a multi-path matching service
+  (`# Path 1: UID fast path`, `# Path 2: Combined Vespa query`,
+  `# GTIN clauses`, `# MPN clause`) as CAT-9 paraphrase; the user reverted
+  every one. The labels map the branches of one algorithm — navigation
+  value, not paraphrase — even though each sits above 1-2 statements and
+  the docstring enumerates the same paths. CAT-9 subcase 5's exempt list
+  now names this case (branch marker in a multi-path algorithm).
+- **Wrong labels get corrected, not deleted.** One of the restored labels
+  was factually wrong (`# pHash nearestNeighbor` above an exact-match DB
+  lookup; the nearestNeighbor query lived in the other branch). For a label
+  the user wants kept, the fix is to state the accurate fact in place —
+  deletion would discard the navigation value along with the error.
 
 **HIGH** — use when one of these holds:
 - The pattern matches an "Always HIGH" subcase named under CAT-9, CAT-10, CAT-11,
