@@ -182,27 +182,48 @@ assert_contains "detect-stuck reports a.py:42 across rounds 1,2" "$stuck_out" "S
 # test 6: same recurrence but below the confidence floor -> nothing
 echo ""
 echo "test 6: detect-stuck suppresses low-confidence recurrence"
+# inline `VAR=val cmd` env-scoping (not an (export ...) subshell) so the
+# isolated state root applies per-command without shellcheck SC2030/SC2031.
 LOW_ROOT="$(mktemp -d)"
 assert_temp_dir "$LOW_ROOT"
-(
-    export REFINE_PLAN_STATE_ROOT="$LOW_ROOT"
-    LOW_DIR="$(python3 "$STATE_PY" init "$PLAN")"
-    g1="$PLAN_DIR/low-1.txt"
-    g2="$PLAN_DIR/low-2.txt"
-    write_findings "$g1" 0.2
-    write_findings "$g2" 0.2
-    python3 "$STATE_PY" record-codex-end "$LOW_DIR" 1 "$g1" 10 1
-    python3 "$STATE_PY" record-codex-end "$LOW_DIR" 2 "$g2" 10 1
-    python3 "$STATE_PY" detect-stuck "$LOW_DIR"
-) >"$PLAN_DIR/low-stuck.out"
+LOW_DIR="$(REFINE_PLAN_STATE_ROOT="$LOW_ROOT" python3 "$STATE_PY" init "$PLAN")"
+g1="$PLAN_DIR/low-1.txt"
+g2="$PLAN_DIR/low-2.txt"
+write_findings "$g1" 0.2
+write_findings "$g2" 0.2
+REFINE_PLAN_STATE_ROOT="$LOW_ROOT" python3 "$STATE_PY" record-codex-end "$LOW_DIR" 1 "$g1" 10 1
+REFINE_PLAN_STATE_ROOT="$LOW_ROOT" python3 "$STATE_PY" record-codex-end "$LOW_DIR" 2 "$g2" 10 1
+low_stuck_out="$(REFINE_PLAN_STATE_ROOT="$LOW_ROOT" python3 "$STATE_PY" detect-stuck "$LOW_DIR")"
 rm -rf "$LOW_ROOT"
-assert_empty "detect-stuck silent below CONFIDENCE_FLOOR" "$(cat "$PLAN_DIR/low-stuck.out")"
+assert_empty "detect-stuck silent below CONFIDENCE_FLOOR" "$low_stuck_out"
+
+# test 6b: a round-4 arbiter pass (the gate only runs from round 4) — codex
+# then record-arbiter-start/-end; arbiter.txt is copied + tokens stamped.
+# Uses b.py:7, not a.py:42, so the detect-stuck assertions above are unaffected.
+echo ""
+echo "test 6b: record-arbiter on round 4"
+python3 "$STATE_PY" record-codex-start "$STATE_DIR" 4
+FIND4="$PLAN_DIR/findings-4.txt"
+cat >"$FIND4" <<'JSON'
+{"verdict":"needs-attention","summary":"s","findings":[{"severity":"high","file":"b.py","line_start":7,"line_end":7,"confidence":0.9,"title":"t","body":"b","recommendation":"r"}],"next_steps":[]}
+JSON
+python3 "$STATE_PY" record-codex-end "$STATE_DIR" 4 "$FIND4" 90 4
+python3 "$STATE_PY" record-arbiter-start "$STATE_DIR" 4
+ARB4="$PLAN_DIR/arbiter-4.txt"
+cat >"$ARB4" <<'JSON'
+{"classifications":[{"index":1,"class":"prose","reason":"wording only"}],"summary":"1 prose"}
+JSON
+python3 "$STATE_PY" record-arbiter-end "$STATE_DIR" 4 "$ARB4" 20 2
+assert_file "round-04/arbiter.txt copied" "$STATE_DIR/round-04/arbiter.txt"
+assert_contains "manifest carries arbiter_tokens 20" "$(cat "$STATE_DIR/manifest.json")" '"arbiter_tokens": 20'
 
 # test 7: summary renders box-drawn table with expected rows
 echo ""
 echo "test 7: summary table"
 summary_out="$(python3 "$STATE_PY" summary "$STATE_DIR")"
 assert_contains "summary has 'Round 1 codex' row" "$summary_out" "Round 1 codex"
+assert_contains "summary has 'Round 4 arbiter' row" "$summary_out" "Round 4 arbiter"
+assert_contains "summary arbiter row shows 0r 1p digest" "$summary_out" "0r 1p"
 assert_contains "summary has 'Total' row" "$summary_out" "Total"
 assert_contains "summary uses box top-left corner" "$summary_out" "┌"
 assert_contains "summary uses box vertical bar" "$summary_out" "│"
@@ -216,6 +237,17 @@ bogus_rc=$?
 set -e
 assert_exit_nonzero "finalize bogus-status exits non-zero" "$bogus_rc"
 assert_contains "finalize error names the allowed set" "$bogus_err" "allowed:"
+
+# test 8b: finalize accepts completed_converged (the prose-drift gate's status)
+echo ""
+echo "test 8b: finalize accepts completed_converged"
+CONV_ROOT="$(mktemp -d)"
+assert_temp_dir "$CONV_ROOT"
+CONV_DIR="$(REFINE_PLAN_STATE_ROOT="$CONV_ROOT" python3 "$STATE_PY" init "$PLAN")"
+REFINE_PLAN_STATE_ROOT="$CONV_ROOT" python3 "$STATE_PY" finalize "$CONV_DIR" completed_converged
+conv_manifest="$(cat "$CONV_DIR/manifest.json")"
+rm -rf "$CONV_ROOT"
+assert_contains "finalize accepts completed_converged" "$conv_manifest" '"status": "completed_converged"'
 
 # test 9: finalize with a valid terminal status updates the manifest
 echo ""

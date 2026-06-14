@@ -61,9 +61,11 @@ Single `argparse`-driven program; subcommands:
 | `state.py record-codex-end <state-dir> <round> <findings-file> [<tokens>] [<tool-uses>]` | Stamp end + copy findings into `round-NN/findings.txt`. Computes elapsed. Token + tool-use args optional (parsed from the subagent return's `<usage>` block by the orchestrator); defaults are `0` so legacy callers keep working. |
 | `state.py record-implementer-start <state-dir> <round>` | Stamp implementer start. |
 | `state.py record-implementer-end <state-dir> <round> <summary-file> [<tokens>] [<tool-uses>]` | Stamp end + copy summary into `round-NN/implementer-summary.txt`. Token + tool-use args optional, same as codex-end. |
-| `state.py finalize <state-dir> <status>` | Mark run terminal: one of `completed_clean`, `completed_cap`, `aborted_codex_error`, `aborted_malformed_output`, `aborted_drift`, `aborted_implementer_noop`, `aborted_commit_failed`. The previous `aborted_state_corruption` status is retired — atomic `os.replace` on writes means a torn manifest is structurally impossible. |
+| `state.py record-arbiter-start <state-dir> <round>` | Stamp the round's prose-drift arbiter (subagent #3) start time. Only called from round `ARBITER_FROM_ROUND` (default 4) onward. |
+| `state.py record-arbiter-end <state-dir> <round> <arbiter-file> [<tokens>] [<tool-uses>]` | Stamp end + copy the arbiter's classification JSON into `round-NN/arbiter.txt`. Computes elapsed. Token + tool-use args optional, same as codex-end. |
+| `state.py finalize <state-dir> <status>` | Mark run terminal: one of `completed_clean`, `completed_converged`, `completed_cap`, `aborted_codex_error`, `aborted_malformed_output`, `aborted_drift`, `aborted_implementer_noop`, `aborted_commit_failed`. `completed_converged` is the prose-drift gate's success exit (gap-5). The previous `aborted_state_corruption` status is retired — atomic `os.replace` on writes means a torn manifest is structurally impossible. |
 | `state.py status <state-dir>` | Human-readable summary: total rounds, per-round elapsed, status, state-dir path, per-round findings/summary file paths. |
-| `state.py summary <state-dir>` | Box-drawn table for the final report — one row per phase (codex / implementer), severity-count Findings column (`<C> <H> <M> <L>`, lowercase enum from the JSON), tokens, elapsed. Used by the orchestrator per `orchestration.md`'s "Output (UX contract)" spec. |
+| `state.py summary <state-dir>` | Box-drawn table for the final report — one row per phase (codex / arbiter / implementer), severity-count Findings column (`<C> <H> <M> <L>`, lowercase enum from the JSON; the arbiter row shows `<R>r <P>p` real-vs-prose instead), tokens, elapsed. The arbiter row appears only when `round-NN/arbiter.txt` exists; its tokens fold into the Total. Used by the orchestrator per `orchestration.md`'s "Output (UX contract)" spec. |
 | `state.py detect-stuck <state-dir>` | One line per `file:line_start` tuple codex has flagged in 2+ rounds (parsed from each round's JSON findings, filtered to `confidence >= 0.3`). Empty output = no recurrence. Severity values are the lowercase enum. v1 matches exact `file:line_start`; content-similarity matching is a future improvement. |
 
 `state.py` also exposes `parse_findings(findings_path)` as the
@@ -93,6 +95,7 @@ Per-run state shape:
     ├── round-01/
     │   ├── findings.txt              # codex's verbatim JSON for this round
     │   ├── parse-warning.txt         # only present when degraded fallback fired
+    │   ├── arbiter.txt               # subagent #3's classification JSON (round ≥ ARBITER_FROM_ROUND only)
     │   └── implementer-summary.txt   # subagent #2's report
     ├── round-02/
     │   └── ...
@@ -104,7 +107,9 @@ Per-run state shape:
 `codex_ended_at`, `codex_elapsed_seconds`, `codex_tokens`,
 `codex_tool_uses`, `implementer_started_at`, `implementer_ended_at`,
 `implementer_elapsed_seconds`, `implementer_tokens`,
-`implementer_tool_uses`), and on terminate `ended_at`.
+`implementer_tool_uses`, and — on rounds the arbiter ran —
+`arbiter_started_at`, `arbiter_ended_at`, `arbiter_elapsed_seconds`,
+`arbiter_tokens`, `arbiter_tool_uses`), and on terminate `ended_at`.
 
 Writes are atomic (`tempfile.NamedTemporaryFile` sibling +
 `os.replace`) — a mid-write crash leaves the previous manifest intact.

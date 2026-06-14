@@ -141,5 +141,45 @@ class DeriveSlugTest(unittest.TestCase):
         self.assertEqual(state.derive_slug("auth-rewrite.md"), "auth-rewrite")
 
 
+class CountArbiterTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+
+    def _write(self, content):
+        path = os.path.join(self.tmp, "arbiter.txt")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+        return path
+
+    def test_counts_real_and_prose(self):
+        payload = {
+            "classifications": [
+                {"index": 1, "class": "real", "reason": "wrong contract"},
+                {"index": 2, "class": "prose", "reason": "wording nitpick"},
+                {"index": 3, "class": "prose", "reason": "redundant sentence"},
+            ],
+            "summary": "1 real, 2 prose",
+        }
+        self.assertEqual(state._count_arbiter(self._write(json.dumps(payload))), "1r 2p")
+
+    def test_strips_json_fence(self):
+        fenced = "```json\n" + json.dumps(
+            {"classifications": [{"index": 1, "class": "real"}]}
+        ) + "\n```\n"
+        self.assertEqual(state._count_arbiter(self._write(fenced)), "1r 0p")
+
+    def test_missing_file_is_dash(self):
+        self.assertEqual(state._count_arbiter(os.path.join(self.tmp, "nope.txt")), "—")
+
+    def test_malformed_is_dash(self):
+        self.assertEqual(state._count_arbiter(self._write("not json at all")), "—")
+
+
+class TerminalStatusesTest(unittest.TestCase):
+    def test_converged_is_terminal(self):
+        # the prose-drift gate finalizes with this status; finalize must accept it
+        self.assertIn("completed_converged", state.TERMINAL_STATUSES)
+
+
 if __name__ == "__main__":
     unittest.main()

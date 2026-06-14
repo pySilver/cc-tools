@@ -40,6 +40,7 @@ _FILE_LINE_PAT = re.compile(r"`([^`]+?):(\d+)`")
 
 TERMINAL_STATUSES = (
     "completed_clean",
+    "completed_converged",
     "completed_cap",
     "aborted_codex_error",
     "aborted_malformed_output",
@@ -383,6 +384,20 @@ def cmd_record_implementer_end(args: argparse.Namespace) -> None:
     _set_int(args.state_dir, args.round, "implementer_tool_uses", args.tool_uses)
 
 
+def cmd_record_arbiter_start(args: argparse.Namespace) -> None:
+    os.makedirs(_round_dir(args.state_dir, args.round), exist_ok=True)
+    _stamp(args.state_dir, args.round, "arbiter_started_at", iso_now())
+
+
+def cmd_record_arbiter_end(args: argparse.Namespace) -> None:
+    rdir = _round_dir(args.state_dir, args.round)
+    os.makedirs(rdir, exist_ok=True)
+    shutil.copyfile(args.arbiter_file, os.path.join(rdir, "arbiter.txt"))
+    _stamp(args.state_dir, args.round, "arbiter_ended_at", iso_now())
+    _set_int(args.state_dir, args.round, "arbiter_tokens", args.tokens)
+    _set_int(args.state_dir, args.round, "arbiter_tool_uses", args.tool_uses)
+
+
 def cmd_finalize(args: argparse.Namespace) -> None:
     if args.status not in TERMINAL_STATUSES:
         print(
@@ -475,6 +490,27 @@ def _count_findings(findings_path: str):
     return (label, total)
 
 
+def _count_arbiter(arbiter_path: str) -> str:
+    """Digest a round's arbiter.txt for the summary table: `<R>r <P>p`
+    (real vs prose classifications). Returns "—" when the file is absent
+    or unparseable — the arbiter only runs from ARBITER_FROM_ROUND
+    onward, so most early rounds have no arbiter.txt.
+    """
+    if not os.path.isfile(arbiter_path):
+        return "—"
+    try:
+        with open(arbiter_path, encoding="utf-8") as f:
+            data = json.loads(_strip_json_fence(f.read()))
+    except (OSError, json.JSONDecodeError, ValueError):
+        return "—"
+    classes = data.get("classifications") if isinstance(data, dict) else None
+    if not isinstance(classes, list) or not classes:
+        return "—"
+    real = sum(1 for c in classes if isinstance(c, dict) and c.get("class") == "real")
+    prose = sum(1 for c in classes if isinstance(c, dict) and c.get("class") == "prose")
+    return f"{real}r {prose}p"
+
+
 def cmd_summary(args: argparse.Namespace) -> None:
     m = Manifest.load(args.state_dir)
     rounds = m.get("rounds", [])
@@ -503,6 +539,22 @@ def cmd_summary(args: argparse.Namespace) -> None:
         )
         total_tokens += c_tokens
         total_elapsed += c_elapsed
+
+        arbiter_path = os.path.join(rdir, "arbiter.txt")
+        if os.path.isfile(arbiter_path):
+            arb_str = _count_arbiter(arbiter_path)
+            a_tokens = r.get("arbiter_tokens", 0) or 0
+            a_elapsed = r.get("arbiter_elapsed_seconds", 0) or 0
+            rows.append(
+                (
+                    f"Round {n} arbiter",
+                    arb_str,
+                    _fmt_tokens(a_tokens),
+                    _fmt_seconds(a_elapsed),
+                )
+            )
+            total_tokens += a_tokens
+            total_elapsed += a_elapsed
 
         summary_path = os.path.join(rdir, "implementer-summary.txt")
         if os.path.isfile(summary_path):
@@ -622,6 +674,19 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("tokens", nargs="?", type=int, default=0)
     p.add_argument("tool_uses", nargs="?", type=int, default=0)
     p.set_defaults(func=cmd_record_implementer_end)
+
+    p = sub.add_parser("record-arbiter-start")
+    p.add_argument("state_dir")
+    p.add_argument("round", type=int)
+    p.set_defaults(func=cmd_record_arbiter_start)
+
+    p = sub.add_parser("record-arbiter-end")
+    p.add_argument("state_dir")
+    p.add_argument("round", type=int)
+    p.add_argument("arbiter_file")
+    p.add_argument("tokens", nargs="?", type=int, default=0)
+    p.add_argument("tool_uses", nargs="?", type=int, default=0)
+    p.set_defaults(func=cmd_record_arbiter_end)
 
     p = sub.add_parser("finalize")
     p.add_argument("state_dir")
