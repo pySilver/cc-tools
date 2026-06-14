@@ -4,6 +4,10 @@ This repo ships independent Claude Code plugins that are intentionally version-l
 
 ## Unreleased
 
+### planning
+
+- `refine-plan-against-codex`: add a **prose-drift arbiter gate** (gap-5) that stops the loop once Codex's findings turn editorial. From round 4 (env `REFINE_PLAN_ARBITER_FROM_ROUND`, default `4`) a third independent subagent reads the plan and classifies each finding as a real defect vs a prose nitpick — needed because Codex inflates wording critiques to `high` severity, so severity/confidence can't distinguish them. A round with no real `high`/`critical` defects auto-terminates as the new `completed_converged` state and prints a report naming exactly which findings were editorial (real `high`/`critical` always keep the loop alive); prose findings are also dropped from the implementer so they never mutate the plan. Set `REFINE_PLAN_ARBITER_FROM_ROUND=1` to arbiter every round or force one more round on an already-converged plan. `state.py` gains `record-arbiter-start`/`record-arbiter-end`, the `completed_converged` status, and an arbiter row in the summary table — all covered by the test suites. (The gate's decision logic lives in the orchestrator prose contract, like the skill's other gaps, so it is not unit-tested.)
+
 ### basedpyright-lsp
 
 - add `basedpyright-lsp` plugin — registers a [basedpyright](https://docs.basedpyright.com/) Python language server for Claude (navigation + diagnostics) via a discovery wrapper that prefers the project's pinned `.venv` install over `uv run --no-sync`, then a global binary; never auto-installs. Self-hosted replacement for `pyright-lsp@claude-plugins-official`, which can't find a basedpyright that lives in a project venv.
