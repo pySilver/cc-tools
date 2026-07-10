@@ -54,11 +54,12 @@ The "no version specified" warning from `claude plugin validate ./plugins/<name>
 
 ## Testing
 
-The one substantial piece of executable code — `refine-plan-against-codex`'s `state.py` plus its `extract-sentinels.sh` — has a flat `tests/` suite of black-box bash scripts (assert helpers + hermetic `mktemp -d` dirs) and one Python `unittest` file for `state.py`'s parse internals. All tests are hermetic: no network, no `codex`, no git required.
+The one substantial piece of executable code — `refine-plan-against-codex`'s `state.py` plus its `extract-sentinels.sh` and `run-codex.sh` — has a flat `tests/` suite of black-box bash scripts (assert helpers + hermetic `mktemp -d` dirs) and one Python `unittest` file for `state.py`'s parse internals. All tests are hermetic: no network, no `codex`, no git required (the `run-codex.sh` test stubs `codex` and `git` on `PATH`).
 
 ```bash
 bash tests/test-planning-refine-state.sh        # state.py CLI lifecycle (init/resume/record/detect-stuck/summary/finalize)
 bash tests/test-planning-extract-sentinels.sh   # extract-sentinels.sh behavior
+bash tests/test-planning-run-codex.sh           # run-codex.sh model default + CODEX_MODEL/CODEX_NO_OVERRIDES overrides
 python3 tests/test-planning-state.py            # parse_findings / _actionable / derive_slug
 ```
 

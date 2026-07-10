@@ -27,7 +27,8 @@ Inherits the upstream's:
 - `codex exec --sandbox read-only` invocation shape
 - VCS detect (git vs hg) → adds `--skip-git-repo-check` for hg
 - Default `-c` overrides (model, reasoning effort, project_doc context)
-- `CODEX_NO_OVERRIDES=1` and `CODEX_MODEL=<name>` escape hatches
+- `CODEX_NO_OVERRIDES=1` and `CODEX_MODEL=<name>` escape hatches (our
+  default model is `gpt-5.6-sol`)
 
 Adds:
 - `set -euo pipefail` (upstream uses `set -e` only)

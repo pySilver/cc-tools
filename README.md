@@ -100,7 +100,7 @@ Quality gates that run *before* code is written: review the decision (ADR), then
 
 **refine-plan-against-codex** — drives an iterative external review of a single implementation plan. Each round spawns isolated subagents: one runs Codex against the plan and returns structured JSON findings, another applies only those findings (strict scope, no drift). From round 4 a third **arbiter** subagent classifies each finding as a real defect vs a prose nitpick — because on large plans Codex inflates wording critiques to `high` severity, so severity alone can't tell them apart. State and per-round commits live beside the plan; the loop terminates on a clean `approve` verdict, **prose-drift convergence** (a later round yields no real high/critical defects — auto-stops and reports exactly which findings were editorial), a no-op/stuck detection, or a 20-round cap. Run it *after* a plan draft exists and *before* execution.
 
-> **Requirements:** the `codex` CLI on `PATH`, `python3`, and the plan in a git-tracked location. Codex is slow (2–5 min/round), so prefer running it unattended. Repo-agnostic otherwise; defaults to `docs/plans/*.md` (override with `PLAN_GLOB` or an explicit path).
+> **Requirements:** the `codex` CLI on `PATH`, `python3`, and the plan in a git-tracked location. Codex is slow (2–5 min/round), so prefer running it unattended. Repo-agnostic otherwise; defaults to `docs/plans/*.md` (override with `PLAN_GLOB` or an explicit path). The codex model defaults to `gpt-5.6-sol` — set `CODEX_MODEL=<name>` in the invoking environment to override.
 
 ### code-review
 
@@ -153,11 +153,12 @@ Replaces `pyright-lsp@claude-plugins-official` (which hardcodes `pyright-langser
 
 ## Development
 
-Most of this repo is markdown, but the `refine-plan-against-codex` skill ships real executable code, so it has tests under [`tests/`](tests/) — black-box bash for `state.py`'s CLI and `extract-sentinels.sh`, plus a Python `unittest` for `state.py`'s parser internals. They're hermetic (no network, `codex`, or git needed):
+Most of this repo is markdown, but the `refine-plan-against-codex` skill ships real executable code, so it has tests under [`tests/`](tests/) — black-box bash for `state.py`'s CLI, `extract-sentinels.sh`, and the `run-codex.sh` wrapper (`codex` and `git` are PATH stubs), plus a Python `unittest` for `state.py`'s parser internals. They're hermetic (no network, `codex`, or git needed):
 
 ```bash
 bash tests/test-planning-refine-state.sh
 bash tests/test-planning-extract-sentinels.sh
+bash tests/test-planning-run-codex.sh
 python3 tests/test-planning-state.py
 ```
 

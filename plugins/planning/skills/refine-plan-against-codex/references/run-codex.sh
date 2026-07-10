@@ -22,7 +22,7 @@
 # Escape hatches:
 #   CODEX_NO_OVERRIDES=1   skip the -c overrides (for corporate codex
 #                          proxies that reject the model_provider switch)
-#   CODEX_MODEL=<name>     override the default model
+#   CODEX_MODEL=<name>     override the default model (gpt-5.6-sol)
 #   CODEX_TIMEOUT=<sec>    override the hard wall-clock timeout (default
 #                          1200s / 20 min, ~4× the documented 2-5 min
 #                          typical max). Wedges hit this cap and exit
@@ -53,7 +53,7 @@ args+=("--sandbox" "read-only")
 
 if [[ "${CODEX_NO_OVERRIDES:-}" != 1 ]]; then
     args+=(
-        "-c" "model=${CODEX_MODEL:-gpt-5.5}"
+        "-c" "model=${CODEX_MODEL:-gpt-5.6-sol}"
         "-c" "model_reasoning_effort=xhigh"
         "-c" "stream_idle_timeout_ms=3600000"
         "-c" "project_doc=$HOME/.claude/CLAUDE.md"

@@ -50,6 +50,9 @@ This skill is repo-agnostic but assumes the host environment provides:
   work. Non-git checkouts trigger codex's `--skip-git-repo-check`
   automatically in the wrapper, but the orchestrator's per-round
   commits will fail.
+- Optional: `CODEX_MODEL` — the model `references/run-codex.sh` passes
+  to `codex exec` (default `gpt-5.6-sol`). Set it in the invoking
+  environment to pin a different model.
 - Optional: a project plan-glob convention. The default is
   `docs/plans/*.md`; override by passing an explicit path. If your repo
   stores plans elsewhere, set `PLAN_GLOB` in the invoking environment or
