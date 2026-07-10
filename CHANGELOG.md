@@ -2,7 +2,7 @@
 
 This repo ships independent Claude Code plugins that are intentionally version-less — every commit to the marketplace is a new version, so users on auto-update always track the latest. Entries are therefore anchored by **release date**, newest first, and grouped by plugin.
 
-## Unreleased
+## 2026-07-10 — Prose-drift arbiter, configurable codex model, basedpyright-lsp
 
 ### planning
 
