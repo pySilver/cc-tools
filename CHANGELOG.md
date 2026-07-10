@@ -2,6 +2,16 @@
 
 This repo ships independent Claude Code plugins that are intentionally version-less — every commit to the marketplace is a new version, so users on auto-update always track the latest. Entries are therefore anchored by **release date**, newest first, and grouped by plugin.
 
+## Unreleased
+
+### planning
+
+- `adr-review`: run on the session's model (`model: inherit`) instead of a pinned `opus` — with models above Opus available, the pin could silently *downgrade* the review below the model doing the actual work; now the quality gate always matches the parent session.
+
+### research
+
+- `web-research`: drop the stale `claude-opus-4-6[1m]` model pin — 1M context is standard on every current model, so the `[1m]` beta suffix no longer unlocks anything, and the dated pin held users on an aging model. The skill now inherits the session model like the rest of the marketplace.
+
 ## 2026-07-10 — Prose-drift arbiter, configurable codex model, basedpyright-lsp
 
 ### planning

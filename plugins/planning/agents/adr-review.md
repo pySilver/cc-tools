@@ -1,7 +1,7 @@
 ---
 name: adr-review
 description: "Use this agent PROACTIVELY after writing or editing an ADR (Architecture Decision Record) in docs/adrs/, before it becomes the source of truth for a plan. It is the Stage 1 quality gate in the dev workflow (docs/adrs/2026-05-20-dev-workflow.md): the ADR is reviewed for decision quality before Stage 2 planning begins. Reviews the decision itself — is it actually decided, are alternatives weighed honestly, are consequences (including the bad ones) stated, does it respect the project's load-bearing rules. If the ADR file is unclear from context, it lists docs/adrs/ and asks which to review. <example>Context: User just wrote an ADR with documentation-and-adrs conventions. user: \"Review this ADR before I plan against it\" assistant: \"I'll use the adr-review agent to check the decision is sound and complete before planning.\" <commentary>The ADR is the upstream source of truth; a flaw here corrupts every downstream plan, so it gets a gate.</commentary></example> <example>Context: User finished the outbox CDC ADR. user: \"Is the outbox-cdc ADR ready?\" assistant: \"Let me run the adr-review agent — that decision is load-bearing (touches outbox rules), so it warrants extra rigor.\" <commentary>Load-bearing decision; the agent applies the escalation checks from the dev-workflow ADR.</commentary></example> <example>Context: User mentions an ADR without naming the file. user: \"Review my ADR\" assistant: \"I'll use the adr-review agent. It will list docs/adrs/ and ask which one to review.\" <commentary>When the file is ambiguous, the agent asks rather than guessing.</commentary></example>"
-model: opus
+model: inherit
 color: purple
 tools: Read, Glob, Grep, Bash
 ---

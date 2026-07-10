@@ -1,7 +1,6 @@
 ---
 name: web-research
 description: Researches topics online via web search and page fetching. Use whenever current external information is needed — when the user asks to research, look up, investigate, compare options, find documentation, fact-check, or get details beyond the codebase or training data.
-model: claude-opus-4-6[1m]
 allowed-tools: WebSearch, WebFetch, Read, Bash(gh *)
 ---
 
