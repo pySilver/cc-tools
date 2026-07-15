@@ -1,6 +1,6 @@
 ---
 name: code-hygiene
-description: Analyze app code for agentic smells — overly complex code patterns and verbose/stale/AI-speak docstrings and comments typically introduced by AI review-fix loops. Pass app path as argument (e.g., /code-hygiene myproj/app).
+description: Analyze app code for agentic smells — overly complex code patterns and verbose/stale/AI-speak docstrings and comments typically introduced by AI review-fix loops. Pass an app path OR specific files as argument (e.g., /code-hygiene myproj/app, or /code-hygiene myproj/app/services.py myproj/app/tasks.py).
 allowed-tools: Agent, Glob, Read, Grep, Bash, AskUserQuestion
 ---
 
@@ -10,18 +10,27 @@ Analyze code in a Python/Django app for patterns that are technically correct bu
 complex — the kind of code that AI-assisted review-fix cycles tend to produce. This is a
 **read-only analysis** — do not fix anything, only report findings for human review.
 
-## Step 0: Validate Input
+## Step 0: Resolve Input Scope
 
-If $ARGUMENTS is empty, ask the user for the app path using AskUserQuestion.
-Store the validated path as APP_PATH.
+`$ARGUMENTS` may be either an **app directory path** (e.g. `myproj/app` — whole-app mode) or
+**one or more `.py` file paths** (space- or newline-separated — explicit-files mode). Detect
+the mode: if every argument token is an existing `.py` file, use explicit-files mode; if it is
+a single existing directory, use whole-app mode. If `$ARGUMENTS` is empty, ask the user for the
+scope using AskUserQuestion. Store the result as SCOPE.
 
 ## Step 1: Discover Files
 
-Use Glob to find all `.py` files under APP_PATH, excluding:
+**Whole-app mode** (SCOPE is a directory): use Glob to find all `.py` files under SCOPE,
+excluding:
 - `tests/` and `test_*.py` files
 - `migrations/` directories
 - `__init__.py` files (unless >20 lines)
 - `apps.py` (boilerplate)
+
+**Explicit-files mode** (SCOPE is a file list): use those files directly as the review set.
+The caller chose them, so do NOT re-glob or apply the whole-app exclusions above — a caller
+that passes a `test_*.py` or `__init__.py` on purpose gets it reviewed. Drop any non-`.py`
+path with a one-line note.
 
 Count and display the discovered files. If more than 40 files, inform the user and
 proceed — the batching handles scale.
@@ -429,7 +438,7 @@ CAT-8). Within each category, sort by confidence (high first), then by file path
 Present the final report in this format:
 
 ```
-Code Hygiene Report: {APP_PATH}
+Code Hygiene Report: {SCOPE}
 Files reviewed: N | Findings: N (N high, N medium)
 ```
 
