@@ -7,7 +7,7 @@ This repo ships independent Claude Code plugins that are intentionally version-l
 ### planning
 
 - `refine-plan-against-codex`: lower the default Codex reasoning effort from `xhigh` to `high` in `run-codex.sh` — `high` is the intended default for our Codex calls; `xhigh` spent extra latency/tokens without proportional gain. The model default (`gpt-5.6-sol`) and the `CODEX_MODEL`/`CODEX_NO_OVERRIDES` escape hatches are unchanged.
-- `adr-review`: run on the session's model (`model: inherit`) instead of a pinned `opus` — with models above Opus available, the pin could silently *downgrade* the review below the model doing the actual work; now the quality gate always matches the parent session.
+- `adr-review`: pin the reviewer to `model: opus` (version-less alias, so it always resolves to the current Opus) instead of inheriting the session model. ADRs are usually authored by the session model (often Fable), so an inherited reviewer is the same model grading its own work — a fixed Opus reviewer gives an independent second perspective on the decision.
 
 ### research
 
