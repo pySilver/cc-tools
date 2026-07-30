@@ -17,6 +17,10 @@ A **Claude Code plugin marketplace** — a catalog, not an application. It distr
 - Skills are `skills/<skill>/SKILL.md` (YAML frontmatter: `name`, `description`, optional `allowed-tools`, `model`, `disable-model-invocation`). Agents are `agents/<agent>.md` (frontmatter: `name`, `description`, `model`, `tools`, `color`).
 - After install, skills are namespaced as `/<plugin>:<skill>` (e.g. `/code-review:code-hygiene`); agents are referenced by bare name (`adr-review`).
 
+## `output-styles/` is not part of the marketplace
+
+`output-styles/*.md` are Claude Code output styles. Output styles are **not** a plugin component type, so these files get no `plugin.json` and no `plugins[]` entry — they are installed by symlinking into `~/.claude/output-styles/`. Changing one syncs to `README.md` (the Output styles section) and `CHANGELOG.md` only; leave `.claude-plugin/marketplace.json` alone.
+
 ## Load-bearing invariant: plugins are intentionally version-less
 
 The `plugin.json` files **deliberately omit `version`**. For a git-hosted marketplace this means *every commit is a new version*, so users on auto-update always track the latest. Consequences to respect:

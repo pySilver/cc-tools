@@ -151,6 +151,22 @@ Replaces `pyright-lsp@claude-plugins-official` (which hardcodes `pyright-langser
 
 > **Tuned for my setup.** Assumes a project venv at `.venv/` and/or a `uv`-managed `pyproject.toml`, and a basedpyright type-check gate to agree with. On a non-uv project with no `.venv`, only the global fallback applies — adjust `bin/langserver.sh` for other layouts (Poetry, conda, a differently-named venv).
 
+## Output styles
+
+[`output-styles/`](output-styles/) holds Claude Code [output styles](https://docs.claude.com/en/docs/claude-code/output-styles) — not plugins (output styles aren't a plugin component), so they're installed by hand.
+
+| Style | Description |
+|-------|-------------|
+| [communication-style.md](output-styles/communication-style.md) | **Direct** — peer-to-peer tone, plain English, choice-first, diagrams-first |
+
+**Direct** sets the working relationship first: Claude and I are both senior engineers, so it is told to hold its own opinion, disagree openly, challenge a wrong premise, and never soften a real problem — the point is to stop the model from treating me as an authority it can't argue with. On top of that: plain English and short replies, concrete `A:`/`B:` choices instead of guessing intent or pre-deciding, and a lead-with-a-diagram rule for anything structural (ASCII in chat, Mermaid in files and Artifacts, since chat clients don't render Mermaid).
+
+Install by symlink so edits here take effect immediately, then pick it with `/output-style`:
+
+```bash
+ln -s "$PWD/output-styles/communication-style.md" ~/.claude/output-styles/communication-style.md
+```
+
 ## Development
 
 Most of this repo is markdown, but the `refine-plan-against-codex` skill ships real executable code, so it has tests under [`tests/`](tests/) — black-box bash for `state.py`'s CLI, `extract-sentinels.sh`, and the `run-codex.sh` wrapper (`codex` and `git` are PATH stubs), plus a Python `unittest` for `state.py`'s parser internals. They're hermetic (no network, `codex`, or git needed):

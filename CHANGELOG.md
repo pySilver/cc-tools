@@ -4,6 +4,11 @@ This repo ships independent Claude Code plugins that are intentionally version-l
 
 ## Unreleased
 
+### Output styles
+
+- add `output-styles/` — Claude Code output styles now live in this repo and are installed by symlink into `~/.claude/output-styles/`. Not plugins (an output style isn't a plugin component), so they're outside the marketplace catalog and get no `plugins[]` entry.
+- `communication-style.md` (**Direct**): add a **Working relationship** section ahead of everything else. It states that Claude and the author are peers — both senior engineers, equal experience and skill — and makes the consequences explicit: hold your own opinion and state it, disagree openly and argue for the alternative, challenge a wrong premise mid-task (raise it once, then follow the decision), never claim unverified work works, and drop the cushioning on technical criticism. The existing rules already asked for bluntness, but bluntness read as a *tone* setting; the model still behaved as if the author's framing were beyond question. Naming the relationship is what makes real disagreement in-bounds.
+
 ### planning
 
 - **`materialization` scoring across both reviewers** — a 0–1 score answering "if this ships as written, how likely is it that the flagged issue actually bites?", orthogonal to `confidence` ("is the claim true?"). Both Codex and Claude-family reviewers produce an endless supply of technically-correct findings whose triggering conditions will realistically never occur, and neither `severity` (a rare bug is still severe *if* it fires) nor `confidence` can filter them. Now they get scored and filtered:
