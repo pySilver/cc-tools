@@ -217,6 +217,35 @@ python3 "$STATE_PY" record-arbiter-end "$STATE_DIR" 4 "$ARB4" 20 2
 assert_file "round-04/arbiter.txt copied" "$STATE_DIR/round-04/arbiter.txt"
 assert_contains "manifest carries arbiter_tokens 20" "$(cat "$STATE_DIR/manifest.json")" '"arbiter_tokens": 20'
 
+# test 6c: the materialization floor is the second, independent filter — a
+# certainly-true finding that will never bite is recorded but non-actionable,
+# so detect-stuck stays silent and summary reports the drop as ↓Nm. Isolated
+# state root so the a.py:42 assertions above are unaffected.
+echo ""
+echo "test 6c: materialization floor filters and is reported"
+MAT_ROOT="$(mktemp -d)"
+assert_temp_dir "$MAT_ROOT"
+MAT_DIR="$(REFINE_PLAN_STATE_ROOT="$MAT_ROOT" python3 "$STATE_PY" init "$PLAN")"
+m1="$PLAN_DIR/mat-1.txt"
+m2="$PLAN_DIR/mat-2.txt"
+write_findings_m() {
+    cat >"$1" <<JSON
+{"verdict":"needs-attention","summary":"s","findings":[{"severity":"high","file":"c.py","line_start":13,"line_end":13,"confidence":0.95,"materialization":$2,"title":"t","body":"b","recommendation":"r"}],"next_steps":[]}
+JSON
+}
+write_findings_m "$m1" 0.05
+write_findings_m "$m2" 0.05
+REFINE_PLAN_STATE_ROOT="$MAT_ROOT" python3 "$STATE_PY" record-codex-end "$MAT_DIR" 1 "$m1" 10 1
+REFINE_PLAN_STATE_ROOT="$MAT_ROOT" python3 "$STATE_PY" record-codex-end "$MAT_DIR" 2 "$m2" 10 1
+mat_stuck_out="$(REFINE_PLAN_STATE_ROOT="$MAT_ROOT" python3 "$STATE_PY" detect-stuck "$MAT_DIR")"
+assert_empty "detect-stuck silent below MATERIALIZATION_FLOOR" "$mat_stuck_out"
+mat_summary="$(REFINE_PLAN_STATE_ROOT="$MAT_ROOT" python3 "$STATE_PY" summary "$MAT_DIR")"
+assert_contains "summary reports the drop as ↓1m" "$mat_summary" "0C 0H 0M 0L ↓1m"
+# env override raises the floor to 0 -> the same finding becomes actionable
+mat_stuck_off="$(REFINE_PLAN_STATE_ROOT="$MAT_ROOT" REFINE_PLAN_MATERIALIZATION_FLOOR=0 python3 "$STATE_PY" detect-stuck "$MAT_DIR")"
+rm -rf "$MAT_ROOT"
+assert_contains "FLOOR=0 disables the filter" "$mat_stuck_off" "STUCK c.py:13 rounds: 1,2"
+
 # test 7: summary renders box-drawn table with expected rows
 echo ""
 echo "test 7: summary table"

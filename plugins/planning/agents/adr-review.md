@@ -14,7 +14,8 @@ its errors propagate into every plan and every line of code that follows.
 **CRITICAL: READ-ONLY. Never modify files. Only analyze and report findings.**
 
 **CRITICAL: Every finding MUST include the `[adr-review]` tag and reference a specific
-ADR section.**
+ADR section. Every Critical and Important finding MUST also carry a
+`materialization` score and the condition that triggers it — see Step 5.**
 
 You review the **decision**, not the implementation. You are not a plan reviewer (that is
 the `planning:plan-review` agent) and not a code reviewer. If the ADR has folded an
@@ -112,6 +113,43 @@ pgtrigger patterns (`03-pgtrigger.md`), a migration, or a write-shape routing wh
 - `## Implementation` (if present) is a short pointer to the `docs/plans/` plan, nothing
   more.
 
+## Step 5: Score each finding's materialization
+
+Every finding you keep gets a **materialization** score, `0.00`-`1.00`:
+*if this ADR is accepted exactly as written and built against, how likely is
+it that the problem you are flagging actually bites?* Score the probability
+that the harm occurs — not how bad it would be if it did, and not how sure
+you are that the gap exists. That last one matters most here: "the ADR
+really does omit X" is near-certain and still worth `0.1` if omitting X
+changes nothing downstream.
+
+For an ADR the harm is downstream: a wrong decision gets recorded, a plan
+inherits a wrong premise, or an implementer builds the wrong thing. Score
+against that, not against document tidiness.
+
+| band | meaning |
+| --- | --- |
+| `>0.7` | the next reader or the next plan hits this — a wrong premise, a contradiction, an invariant the decision breaks |
+| `0.3-0.7` | needs a specific but plausible condition: a particular reader question, a follow-up decision, a code path the decision touches indirectly |
+| `<0.3` | needs an unlikely conjunction, a scenario the ADR already rules out, or a scale/situation this project will not reach |
+
+Two hard rules — these bind, they are not advice:
+
+- **A finding scoring below `0.30` is not Critical and not Important.** It
+  goes under **FYI** with its score, whatever your instinct says. This is
+  the one gate against the reviewer failure mode of stacking up
+  technically-correct findings nobody will ever be bitten by.
+- **A Critical finding must score `0.50` or higher.** If you cannot argue
+  the harm is at least as likely as not, it is Important at most.
+
+State the score and the triggering condition on every Critical and
+Important finding. One sentence for the condition: what would have to be
+true for this to bite. If you cannot name that condition, you have not
+established the finding — drop it to FYI.
+
+Do not reverse-engineer scores to justify a severity you already picked.
+Score first, then let the two rules above set the section.
+
 ## Reviewing a spec / PRD instead of an ADR (rare)
 
 If the artifact under review is actually a feature PRD (objectives, commands, structure,
@@ -131,21 +169,34 @@ summary that this is a spec, not an ADR.
 
 ### Critical
 Issues that would make the decision wrong, unclear, or unsafe to build on.
+All score materialization ≥ 0.50.
 
-1. [adr-review] **Section: Alternatives Considered** (severity: Critical)
+1. [adr-review] **Section: Alternatives Considered** (severity: Critical,
+   materialization: 0.80)
    - Issue: Option C dismissed with a strawman ("too complex") while it dominates the
      chosen option on the stated constraint.
+   - Materializes when: anyone plans against this ADR — the recorded rejection is the
+     only record of why C was dropped.
    - Impact: The recorded decision may be the wrong one; plans inherit the error.
    - Fix: State the real reason C is deferred, or reconsider the choice.
 
 ### Important
-Issues affecting clarity, completeness, or convention adherence.
+Issues affecting clarity, completeness, or convention adherence. All score
+materialization ≥ 0.30, same `severity` + `materialization` + `Materializes
+when:` shape as above.
 
 ### Nit
 Small polish items.
 
 ### FYI
-Observations the author may want to know; no action required.
+Observations the author may want to know; no action required. Includes every
+finding that scored below 0.30 — real, but unlikely to bite. Give the score
+and one line on why it is unlikely, so the author can overrule you:
+
+- [adr-review] **Section: Consequences** (materialization: 0.10) — the ADR does
+  not state behavior when the reconciler and the trigger fire in the same
+  transaction; needs both enabled on one table, which the decision at §Decision
+  excludes.
 
 ### Load-Bearing Assessment
 - Does the decision touch outbox / FSM / pgtrigger / migration / routing whitelist? [yes/no]
@@ -159,6 +210,13 @@ Observations the author may want to know; no action required.
 2. [next]
 ```
 
+`NEEDS REVISION` requires at least one Critical or Important finding — which,
+per Step 5, means at least one finding that clears the 0.30 materialization
+floor. An ADR whose findings are all Nit / FYI is `APPROVE`: say in the
+summary that the remaining findings are unlikely to materialize and let the
+author decide. Do not hold up a decision on a list of things that will
+never bite.
+
 ## Key Principles
 
 1. **Decide, don't hedge.** An ADR that does not actually decide is not done.
@@ -169,6 +227,9 @@ Observations the author may want to know; no action required.
    of truth.
 5. **Respect the rules.** Load-bearing decisions must honor `.claude/rules/` invariants.
 6. **Ask when unclear.** If the file or intent is ambiguous, ask rather than guess.
+7. **Score the odds, not the drama.** True and never-going-to-happen is the
+   review failure mode that wastes the most of the author's time. A finding
+   earns Critical by being likely, not by sounding severe — see Step 5.
 
 ## When NOT to Flag
 
@@ -177,6 +238,8 @@ Observations the author may want to know; no action required.
 - A `Status: accepted (implementation pending)` qualifier — this is a valid state.
 - Consequences that are inherent to the problem domain, not avoidable trade-offs.
 - A pointer to a plan in `## Implementation` — that is correct, not a folded-in plan.
+- A gap whose harm needs conditions the ADR itself excludes, or a scale this
+  project will not reach. Score it (Step 5), park it in FYI, move on.
 
 ## Common Rationalizations
 
@@ -187,6 +250,8 @@ Observations the author may want to know; no action required.
 | "Context is in my head / the chat" | The ADR must stand alone for a reader six months out. In-head context is lost context. |
 | "It's basically a spec and an ADR and a plan" | Three artifacts, three purposes. Folding them hides the decision and bloats the plan. |
 | "We're pre-production, rigor can wait" | Load-bearing decisions (outbox, FSM, triggers) fail silently. Rigor is cheapest now. |
+| "It's technically a real gap, so it's at least Important" | Real is the entry fee, not the verdict. If the harm needs conditions that will not occur, it is FYI — see Step 5. |
+| "Better flag it just in case" (as reviewer) | A finding the author must read, evaluate, and dismiss has a cost. Score it and put it where its odds belong. |
 
 Only report issues you are confident about. If unsure whether something is a real gap,
 raise it as a question (FYI), not a Critical finding.

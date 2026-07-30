@@ -34,6 +34,26 @@ SCHEMA_VERSION = 1
 # clean/needs-attention decision.
 CONFIDENCE_FLOOR = 0.3
 
+
+def _env_float(name: str, default: float) -> float:
+    raw = os.environ.get(name)
+    if not raw:
+        return default
+    try:
+        val = float(raw)
+    except ValueError:
+        return default
+    return val if 0.0 <= val <= 1.0 else default
+
+
+# Materialization is the second, orthogonal axis: confidence is "is this
+# claim true?", materialization is "if the plan ships as written, how
+# likely does this actually bite?". Both codex and the arbiter score it.
+# A true-but-astronomically-unlikely finding is the loop's main waste
+# source, so sub-floor findings are recorded and excluded from the
+# actionable set exactly like sub-floor confidence.
+MATERIALIZATION_FLOOR = _env_float("REFINE_PLAN_MATERIALIZATION_FLOOR", 0.3)
+
 SEVERITIES = ("critical", "high", "medium", "low")
 _SEV_PROSE_PAT = re.compile(r"\b(critical|high|medium|low)\b", re.IGNORECASE)
 _FILE_LINE_PAT = re.compile(r"`([^`]+?):(\d+)`")
@@ -254,8 +274,10 @@ def parse_findings(findings_path: str) -> dict:
                     "line_end": int(fl.group(2)),
                     # 0.5 sits above the floor so the prose path still
                     # produces an actionable set; codex's own confidence
-                    # is unrecoverable from a prose-only payload.
+                    # and materialization are unrecoverable from a
+                    # prose-only payload.
                     "confidence": 0.5,
+                    "materialization": 0.5,
                     "recommendation": line.strip(),
                 }
             )
@@ -292,12 +314,44 @@ def parse_findings(findings_path: str) -> dict:
     }
 
 
+def _score(finding: dict, key: str) -> float:
+    """Read a 0-1 signal off a finding.
+
+    Absent or unparseable → `1.0`. An unknown score must never silently
+    drop a finding: pre-materialization rounds, the degraded prose path,
+    and a codex payload that omits the field all have to stay actionable.
+    An explicit `0` still reads as `0.0` and gets filtered.
+    """
+    raw = finding.get(key)
+    if raw is None:
+        return 1.0
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return 1.0
+
+
 def _actionable(findings: list) -> list:
     return [
         f
         for f in findings
-        if float(f.get("confidence", 1.0) or 0.0) >= CONFIDENCE_FLOOR
+        if _score(f, "confidence") >= CONFIDENCE_FLOOR
+        and _score(f, "materialization") >= MATERIALIZATION_FLOOR
     ]
+
+
+def _materialization_drops(findings: list) -> int:
+    """Count findings that clear the confidence floor but fail the
+    materialization floor — the ones `_actionable` removes as unlikely.
+    Surfaced in the summary/round digest so the filtering is never a
+    silent cap.
+    """
+    return sum(
+        1
+        for f in findings
+        if _score(f, "confidence") >= CONFIDENCE_FLOOR
+        and _score(f, "materialization") < MATERIALIZATION_FLOOR
+    )
 
 
 # ── subcommands ──────────────────────────────────────────────────────
@@ -487,14 +541,19 @@ def _count_findings(findings_path: str):
         f"{counts['critical']}C {counts['high']}H "
         f"{counts['medium']}M {counts['low']}L"
     )
+    dropped = _materialization_drops(parsed["findings"])
+    if dropped:
+        label += f" ↓{dropped}m"
     return (label, total)
 
 
 def _count_arbiter(arbiter_path: str) -> str:
     """Digest a round's arbiter.txt for the summary table: `<R>r <P>p`
-    (real vs prose classifications). Returns "—" when the file is absent
-    or unparseable — the arbiter only runs from ARBITER_FROM_ROUND
-    onward, so most early rounds have no arbiter.txt.
+    (real vs prose classifications), plus `m<max>` — the highest
+    materialization the arbiter gave a *real* finding, which is the exact
+    number the orchestrator's convergence gate compares. Returns "—" when
+    the file is absent or unparseable — the arbiter only runs from
+    ARBITER_FROM_ROUND onward, so most early rounds have no arbiter.txt.
     """
     if not os.path.isfile(arbiter_path):
         return "—"
@@ -506,16 +565,23 @@ def _count_arbiter(arbiter_path: str) -> str:
     classes = data.get("classifications") if isinstance(data, dict) else None
     if not isinstance(classes, list) or not classes:
         return "—"
-    real = sum(1 for c in classes if isinstance(c, dict) and c.get("class") == "real")
-    prose = sum(1 for c in classes if isinstance(c, dict) and c.get("class") == "prose")
-    return f"{real}r {prose}p"
+    entries = [c for c in classes if isinstance(c, dict)]
+    real = [c for c in entries if c.get("class") == "real"]
+    prose = sum(1 for c in entries if c.get("class") == "prose")
+    label = f"{len(real)}r {prose}p"
+    scored = [c for c in real if c.get("materialization") is not None]
+    if scored:
+        label += f" m{max(_score(c, 'materialization') for c in scored):.2f}"
+    return label
 
 
 def cmd_summary(args: argparse.Namespace) -> None:
     m = Manifest.load(args.state_dir)
     rounds = m.get("rounds", [])
 
-    widths = (34, 13, 9, 10)
+    # Findings column carries the widest cell: `1C 2H 0M 0L ↓2m` (codex)
+    # and `2r 1p m0.70` (arbiter).
+    widths = (34, 18, 9, 10)
     headers = ("Phase", "Findings", "Tokens", "Elapsed")
     rows = []
     total_tokens = 0

@@ -66,8 +66,8 @@ Single `argparse`-driven program; subcommands:
 | `state.py record-arbiter-end <state-dir> <round> <arbiter-file> [<tokens>] [<tool-uses>]` | Stamp end + copy the arbiter's classification JSON into `round-NN/arbiter.txt`. Computes elapsed. Token + tool-use args optional, same as codex-end. |
 | `state.py finalize <state-dir> <status>` | Mark run terminal: one of `completed_clean`, `completed_converged`, `completed_cap`, `aborted_codex_error`, `aborted_malformed_output`, `aborted_drift`, `aborted_implementer_noop`, `aborted_commit_failed`. `completed_converged` is the prose-drift gate's success exit (gap-5). The previous `aborted_state_corruption` status is retired — atomic `os.replace` on writes means a torn manifest is structurally impossible. |
 | `state.py status <state-dir>` | Human-readable summary: total rounds, per-round elapsed, status, state-dir path, per-round findings/summary file paths. |
-| `state.py summary <state-dir>` | Box-drawn table for the final report — one row per phase (codex / arbiter / implementer), severity-count Findings column (`<C> <H> <M> <L>`, lowercase enum from the JSON; the arbiter row shows `<R>r <P>p` real-vs-prose instead), tokens, elapsed. The arbiter row appears only when `round-NN/arbiter.txt` exists; its tokens fold into the Total. Used by the orchestrator per `orchestration.md`'s "Output (UX contract)" spec. |
-| `state.py detect-stuck <state-dir>` | One line per `file:line_start` tuple codex has flagged in 2+ rounds (parsed from each round's JSON findings, filtered to `confidence >= 0.3`). Empty output = no recurrence. Severity values are the lowercase enum. v1 matches exact `file:line_start`; content-similarity matching is a future improvement. |
+| `state.py summary <state-dir>` | Box-drawn table for the final report — one row per phase (codex / arbiter / implementer), severity-count Findings column (`<C> <H> <M> <L>`, lowercase enum from the JSON, plus a `↓<N>m` suffix counting findings the materialization floor removed; the arbiter row shows `<R>r <P>p` real-vs-prose plus `m<max>`, the highest materialization it gave a real finding, instead). Then tokens and elapsed. The arbiter row appears only when `round-NN/arbiter.txt` exists; its tokens fold into the Total. Used by the orchestrator per `orchestration.md`'s "Output (UX contract)" spec. |
+| `state.py detect-stuck <state-dir>` | One line per `file:line_start` tuple codex has flagged in 2+ rounds (parsed from each round's JSON findings, filtered to `confidence >= 0.3` and `materialization >= MATERIALIZATION_FLOOR`). Empty output = no recurrence. Severity values are the lowercase enum. v1 matches exact `file:line_start`; content-similarity matching is a future improvement. |
 
 `state.py` also exposes `parse_findings(findings_path)` as the
 single shared parser used internally by both `summary` and
@@ -78,13 +78,33 @@ degraded prose scan for `critical|high|medium|low` plus
 `` `file:line` `` and write a `parse-warning.txt` next to
 `findings.txt`; on total failure mark malformed so the orchestrator
 finalizes `aborted_malformed_output` rather than passing garbage to
-the implementer.
+the implementer. Prose-path findings get a synthetic
+`confidence`/`materialization` of `0.5` each — above both floors, since
+codex's real scores are unrecoverable from a prose-only payload.
 
 `CONFIDENCE_FLOOR = 0.3` is a documented constant — matches the
 sibling `thinking-tools:ask-codex` noise floor; codex itself signals
 low confidence below this. Findings below the floor are recorded but
 excluded from the actionable set passed to the implementer and from
 the clean / needs-attention decision.
+
+`MATERIALIZATION_FLOOR` is the second, orthogonal floor — same
+filtering role, different question. `confidence` asks "is this claim
+true?", `materialization` asks "if the plan ships as written, how likely
+is it that this actually bites?". Default `0.3`, overridable via
+`REFINE_PLAN_MATERIALIZATION_FLOOR` (out-of-range or unparseable values
+fall back to the default; `0` disables the filter). The orchestrator
+reads the same env var, so its actionable set always matches
+`summary` / `detect-stuck`. The companion `MATERIALIZATION_GATE`
+(default `0.5`) is orchestrator-only — it decides termination, not
+filtering — and is not defined here. Rationale and bands:
+`orchestration.md` → "Materialization scoring (gap-6)".
+
+`_score(finding, key)` is the shared reader for both 0-1 signals: an
+absent or unparseable value reads as `1.0`, so a finding is never
+dropped for a score nobody supplied (pre-materialization runs, degraded
+prose payloads, a codex reply that omitted the field). An explicit `0`
+still filters.
 
 Per-run state shape:
 

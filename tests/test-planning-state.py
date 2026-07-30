@@ -101,6 +101,10 @@ class ParseFindingsTest(unittest.TestCase):
         self.assertFalse(r["empty"])
         self.assertEqual(len(r["findings"]), 1)
         self.assertEqual(r["findings"][0]["confidence"], 0.5)
+        # synthetic score must clear the materialization floor too, or the
+        # prose-recovery path would produce an empty actionable set
+        self.assertEqual(r["findings"][0]["materialization"], 0.5)
+        self.assertEqual(len(state._actionable(r["findings"])), 1)
         self.assertEqual(r["findings"][0]["file"], "foo.py")
         self.assertEqual(r["findings"][0]["line_start"], 99)
         warning = os.path.join(os.path.dirname(path), "parse-warning.txt")
@@ -131,6 +135,72 @@ class ActionableTest(unittest.TestCase):
         ]
         kept = {f["id"] for f in state._actionable(findings)}
         self.assertEqual(kept, {"edge", "high"})
+
+    def test_materialization_floor_filters_independently(self):
+        findings = [
+            {"id": "unlikely", "confidence": 0.95, "materialization": 0.1},
+            {"id": "edge", "confidence": 0.95, "materialization": 0.3},
+            {"id": "likely", "confidence": 0.95, "materialization": 0.9},
+            {"id": "absent", "confidence": 0.95},
+            {"id": "low-conf-high-mat", "confidence": 0.1, "materialization": 1.0},
+        ]
+        kept = {f["id"] for f in state._actionable(findings)}
+        self.assertEqual(kept, {"edge", "likely", "absent"})
+
+    def test_materialization_drops_counts_only_confident_ones(self):
+        findings = [
+            {"confidence": 0.95, "materialization": 0.1},   # counted
+            {"confidence": 0.95, "materialization": 0.2},   # counted
+            {"confidence": 0.1, "materialization": 0.1},    # already sub-confidence
+            {"confidence": 0.95, "materialization": 0.9},
+        ]
+        self.assertEqual(state._materialization_drops(findings), 2)
+
+
+class ScoreTest(unittest.TestCase):
+    def test_absent_and_garbage_read_as_one(self):
+        # fail-safe direction: an unknown score must never drop a finding
+        self.assertEqual(state._score({}, "materialization"), 1.0)
+        self.assertEqual(state._score({"materialization": None}, "materialization"), 1.0)
+        self.assertEqual(state._score({"materialization": "high"}, "materialization"), 1.0)
+
+    def test_explicit_zero_is_zero(self):
+        self.assertEqual(state._score({"materialization": 0}, "materialization"), 0.0)
+
+
+class MaterializationFloorEnvTest(unittest.TestCase):
+    """The floor is read from env at import so state.py and the orchestrator
+    can be pointed at the same value. Each case reloads the module."""
+
+    def _floor_with(self, value):
+        prior = os.environ.get("REFINE_PLAN_MATERIALIZATION_FLOOR")
+        if value is None:
+            os.environ.pop("REFINE_PLAN_MATERIALIZATION_FLOOR", None)
+        else:
+            os.environ["REFINE_PLAN_MATERIALIZATION_FLOOR"] = value
+        try:
+            return _load_state().MATERIALIZATION_FLOOR
+        finally:
+            if prior is None:
+                os.environ.pop("REFINE_PLAN_MATERIALIZATION_FLOOR", None)
+            else:
+                os.environ["REFINE_PLAN_MATERIALIZATION_FLOOR"] = prior
+
+    def test_default(self):
+        self.assertEqual(self._floor_with(None), 0.3)
+
+    def test_override(self):
+        self.assertEqual(self._floor_with("0.75"), 0.75)
+
+    def test_zero_disables(self):
+        self.assertEqual(self._floor_with("0"), 0.0)
+
+    def test_unparseable_falls_back(self):
+        self.assertEqual(self._floor_with("banana"), 0.3)
+
+    def test_out_of_range_falls_back(self):
+        self.assertEqual(self._floor_with("7"), 0.3)
+        self.assertEqual(self._floor_with("-1"), 0.3)
 
 
 class DeriveSlugTest(unittest.TestCase):
@@ -167,6 +237,30 @@ class CountArbiterTest(unittest.TestCase):
             {"classifications": [{"index": 1, "class": "real"}]}
         ) + "\n```\n"
         self.assertEqual(state._count_arbiter(self._write(fenced)), "1r 0p")
+
+    def test_appends_max_real_materialization(self):
+        payload = {
+            "classifications": [
+                {"index": 1, "class": "real", "materialization": 0.35},
+                {"index": 2, "class": "real", "materialization": 0.8},
+                # a prose finding's score must not become the digest's max
+                {"index": 3, "class": "prose", "materialization": 0.95},
+            ]
+        }
+        self.assertEqual(
+            state._count_arbiter(self._write(json.dumps(payload))), "2r 1p m0.80"
+        )
+
+    def test_unscored_arbiter_omits_materialization(self):
+        # pre-materialization arbiter.txt keeps rendering the old digest
+        payload = {"classifications": [{"index": 1, "class": "real"}, {"index": 2, "class": "prose"}]}
+        self.assertEqual(state._count_arbiter(self._write(json.dumps(payload))), "1r 1p")
+
+    def test_all_prose_omits_materialization(self):
+        payload = {
+            "classifications": [{"index": 1, "class": "prose", "materialization": 0.1}]
+        }
+        self.assertEqual(state._count_arbiter(self._write(json.dumps(payload))), "0r 1p")
 
     def test_missing_file_is_dash(self):
         self.assertEqual(state._count_arbiter(os.path.join(self.tmp, "nope.txt")), "—")

@@ -13,6 +13,7 @@ verbatim subagent prompts); everything below is reference-grade.
   - [Mid-run progress](#mid-run-progress)
 - [Stuck-finding detection (gap-4)](#stuck-finding-detection-gap-4)
 - [Prose-drift arbiter gate (gap-5)](#prose-drift-arbiter-gate-gap-5)
+- [Materialization scoring (gap-6)](#materialization-scoring-gap-6)
 - [Drift guard](#drift-guard)
 - [Termination states](#termination-states)
 
@@ -45,13 +46,20 @@ unavoidable, but noise during them is not. Stick to this contract:
 
 2. **Codex-done** (after subagent #1 returns, before spawning #2):
    ```
-   ─ Round N done (MmSSs) ──── X findings: 1C 2H 0M 1L · top: <file:line> <one-line>
+   ─ Round N done (MmSSs) ──── X findings: 1C 2H 0M 1L ↓2m · top: <file:line> <one-line>
      full: <state-dir>/round-NN/findings.txt
    ```
    Severity counts come from the parsed JSON `findings[]` (filtered to
-   `confidence >= 0.3`); the "top" line is the highest-severity
-   actionable finding's `file:line_start` + `title`/recommendation
-   trimmed to one line. Full JSON is never printed; the path is.
+   `confidence >= 0.3` **and** `materialization >= 0.3`); the "top" line
+   is the highest-severity actionable finding's `file:line_start` +
+   `title`/recommendation trimmed to one line. Full JSON is never
+   printed; the path is.
+
+   `↓2m` is the count of findings that cleared the confidence floor but
+   failed the materialization floor — real-sounding claims codex itself
+   scored as unlikely to ever bite. Print it whenever it is non-zero
+   (omit the segment at zero): a filter the operator cannot see is a
+   silent cap. Sub-confidence noise stays unprinted, as before.
 
 3. **Round-end** (after implementer + drift + commit, all in one line):
    ```
@@ -64,9 +72,16 @@ unavoidable, but noise during them is not. Stick to this contract:
 
 On rounds where the arbiter runs (round ≥ `ARBITER_FROM_ROUND`), append
 its verdict to the **codex-done** line so the operator sees the
-filtering: `· arbiter: Xr Yp (dropped Y prose)`. When the arbiter
-triggers convergence there is no implementer/round-end line — the loop
-prints the convergence report (below) and terminates.
+filtering: `· arbiter: Xr Yp m<max> (dropped Y prose, Z unlikely)`. `Z`
+is the arbiter's own sub-floor count — distinct from the `↓Nm` earlier on
+the line, which is codex's. Keep them separate so the operator can see
+which reviewer made which call.
+`m<max>` is the highest materialization the arbiter gave a real finding
+— the exact number the convergence gate compared against
+`MATERIALIZATION_GATE`, so the operator can see *why* the loop
+continued or stopped. When the arbiter triggers convergence there is no
+implementer/round-end line — the loop prints the convergence report
+(below) and terminates.
 
 ### Final summary
 
@@ -88,19 +103,19 @@ Commits:     <first>..<last> (N commits on <branch>)
 The table from `state.py summary` looks like:
 
 ```
-┌──────────────────────────────────┬─────────────┬─────────┬──────────┐
-│ Phase                            │ Findings    │ Tokens  │ Elapsed  │
-├──────────────────────────────────┼─────────────┼─────────┼──────────┤
-│ Round 1 codex                    │ 1C 1H 1M 0L │ 34k     │ 1m 21s   │
-│ Round 1 implementer              │ 3/3 addr    │ 33k     │ 1m 18s   │
-├──────────────────────────────────┼─────────────┼─────────┼──────────┤
-│ … (rounds 2-3) …                 │             │         │          │
-├──────────────────────────────────┼─────────────┼─────────┼──────────┤
-│ Round 4 codex                    │ 0C 2H 0M 0L │ 22k     │ 47s      │
-│ Round 4 arbiter                  │ 0r 2p       │ 9k      │ 18s      │
-├──────────────────────────────────┼─────────────┼─────────┼──────────┤
-│ Total                            │             │ 152k    │ 6m 02s   │
-└──────────────────────────────────┴─────────────┴─────────┴──────────┘
+┌──────────────────────────────────┬──────────────────┬─────────┬──────────┐
+│ Phase                            │ Findings         │ Tokens  │ Elapsed  │
+├──────────────────────────────────┼──────────────────┼─────────┼──────────┤
+│ Round 1 codex                    │ 1C 1H 1M 0L ↓1m  │ 34k     │ 1m 21s   │
+│ Round 1 implementer              │ 3/3 addr         │ 33k     │ 1m 18s   │
+├──────────────────────────────────┼──────────────────┼─────────┼──────────┤
+│ … (rounds 2-3) …                 │                  │         │          │
+├──────────────────────────────────┼──────────────────┼─────────┼──────────┤
+│ Round 4 codex                    │ 0C 2H 0M 0L      │ 22k     │ 47s      │
+│ Round 4 arbiter                  │ 0r 2p            │ 9k      │ 18s      │
+├──────────────────────────────────┼──────────────────┼─────────┼──────────┤
+│ Total                            │                  │ 152k    │ 6m 02s   │
+└──────────────────────────────────┴──────────────────┴─────────┴──────────┘
 ```
 
 (A converging round shows codex + arbiter but no implementer row, since
@@ -108,10 +123,14 @@ no fixes were applied; the `… (rounds 2-3) …` line is elision for the
 example, not literal output.)
 
 Severity counts (`1C 1H 1M 0L`) are auto-derived by `state.py summary`
-from the per-round `findings.txt` JSON (after the
-`confidence >= 0.3` actionable filter). The arbiter row (present only on
-rounds ≥ `ARBITER_FROM_ROUND`) shows `Xr Yp` — real vs prose
-classifications from `round-NN/arbiter.txt`. A round that converges has a
+from the per-round `findings.txt` JSON (after the `confidence >= 0.3`
+**and** `materialization >= 0.3` actionable filter). The `↓Nm` suffix
+counts findings the materialization floor removed — omitted at zero, as
+on round 4 above. The arbiter row (present only on rounds ≥
+`ARBITER_FROM_ROUND`) shows `Xr Yp` — real vs prose classifications from
+`round-NN/arbiter.txt` — plus `m<max>`, the highest materialization it
+gave a *real* finding (omitted when the arbiter scored no real finding,
+as in the all-prose round above). A round that converges has a
 codex + arbiter row but no implementer row (no fixes were applied).
 Tokens are what the orchestrator captured from each subagent return's
 `<usage>` block — the arbiter's tokens fold into the Total.
@@ -135,19 +154,28 @@ followed by a block the operator uses to decide whether to accept the
 plan or force one more round. It is the load-bearing deliverable of the
 gate — auto-termination is the action, this report is what preserves the
 operator's agency. Be **specific**: list every finding the arbiter ruled
-out, not a count.
+out — as prose *or* as unlikely to materialize — not a count. A
+materialization-gated finding is the one an operator is most likely to
+want to overrule, so it always gets its score and the arbiter's
+condition sentence.
 
 ```
 ═══ Converged after 4 rounds — remaining findings are editorial ═══
 
-Round 4 surfaced no real high/critical defects. The arbiter classified
-all remaining findings as prose (re-interpretations of the plan's
-wording, not defects in what gets built):
+Round 4 surfaced no real high/critical defect that clears the
+materialization gate (0.5). The arbiter classified the remaining
+findings as prose (re-interpretations of the plan's wording, not
+defects in what gets built):
 
   prose · [high] docs/plans/foo.md:88 — "clarify the retry wording"
           arbiter: plan already states the retry bound at :84; restatement only
   prose · [high] docs/plans/foo.md:131 — "section ordering is confusing"
           arbiter: ordering does not change the contract or build outcome
+
+Real but unlikely to materialize (m < 0.5 gate — NOT a reason to keep looping):
+  real · [high] docs/plans/foo.md:96 — "worker could observe a torn snapshot"
+         m=0.15 · arbiter: requires two workers on one shard, which the
+         plan's single-consumer rule at :40 already excludes
 
 Leftover real findings below high/critical (NOT auto-fixed — manual call):
   real · [medium] docs/plans/foo.md:52 — narrow the enum example
@@ -178,7 +206,10 @@ operator dislikes. Codex's hard timeout (`CODEX_TIMEOUT`, default
 After each codex round, `./references/state.py detect-stuck
 <state-dir>` scans all completed rounds' `findings.txt` JSON for
 `file:line_start` tuples that codex has flagged in **2 or more
-rounds**. The shape (regardless of severity drift between rounds) is
+rounds**. It scans the *actionable* set, so a location that recurs only
+via sub-floor confidence or sub-floor materialization (gap-6) never
+prompts — the operator is not asked about a finding the loop already
+declined to fix. The shape (regardless of severity drift between rounds) is
 the load-bearing signal: codex keeps finding the same place, which
 means the implementer's previous fix didn't actually satisfy codex.
 Continuing the loop without intervention typically burns the
@@ -299,6 +330,82 @@ caching arbiter verdicts by `file:line`+title across rounds and teaching
 `detect-stuck` to exclude prose-classified locations — is deferred,
 mirroring gap-4's own deferred content-similarity matching.
 
+## Materialization scoring (gap-6)
+
+**The problem.** Prose drift (gap-5) is one way a round wastes itself.
+The other is a finding that is *true* and *about the build*, but whose
+triggering conditions will realistically never occur: a race that needs
+two writers where the plan pins one consumer, a limit that needs a scale
+this system will not reach, an error path the plan already excludes.
+Both codex and Claude-family reviewers are strongly biased toward
+producing these — an endless supply of technically-correct findings
+whose real-world probability is near zero. `severity` does not encode
+probability (a rare bug can still be catastrophic *if* it fires), and
+`confidence` measures whether the *claim* is true, not whether it will
+ever bite. So neither existing field can stop the loop from chasing
+them.
+
+**The axis.** Every finding carries `materialization` (0.0-1.0): *if
+this plan is built exactly as written, how likely is it that this issue
+actually bites?* It scores the probability of the triggering conditions,
+not the blast radius. The bands (identical in the codex and arbiter
+prompts, so the two are comparable):
+
+| band | meaning |
+| --- | --- |
+| `>0.7` | bites on the normal path or the first realistic input |
+| `0.3-0.7` | needs a specific but plausible condition — an error path, a concurrent write, a large input |
+| `<0.3` | needs an unlikely conjunction of conditions, a scenario the plan already rules out, or a scale this system will not reach |
+
+`confidence` and `materialization` are explicitly orthogonal, and the
+prompts say so: a finding may be certainly true (0.95) and still almost
+never bite (0.1). Reviewers collapse the two unless told not to.
+
+**Who scores it.** Codex self-scores from round 1 — cheap, and available
+before the arbiter exists. From `ARBITER_FROM_ROUND` the arbiter
+re-scores every finding *without seeing codex's number* and its score
+overrides. Codex is the party with the inflation bias; an independent
+re-score is what makes the number trustworthy enough to terminate on.
+Codex's self-score is not thrown away, though — it is what filters
+rounds 1 to `ARBITER_FROM_ROUND - 1`, where a sub-0.3 self-score is a
+strong signal precisely because the model had every incentive to score
+higher.
+
+**Two thresholds, two jobs.** Conflating them is the easy mistake:
+
+- `MATERIALIZATION_FLOOR` (env `REFINE_PLAN_MATERIALIZATION_FLOOR`,
+  default `0.3`) **filters**. A sub-floor finding is recorded in
+  `findings.txt` but never reaches the implementer, exactly like
+  sub-floor confidence. `state.py` reads the same env var, so
+  `summary`, `detect-stuck`, and the loop's actionable set never
+  disagree. Set `0` to disable filtering.
+- `MATERIALIZATION_GATE` (env `REFINE_PLAN_MATERIALIZATION_GATE`,
+  default `0.5`) **terminates**. A real `high`/`critical` finding only
+  keeps the loop alive if it clears the gate. Findings between the floor
+  and the gate are still fixed in the round they appear — they just do
+  not buy another round.
+
+**Fail-safe.** A missing or unparseable score reads as `1.0`
+everywhere (`state.py`'s `_score`, and the orchestrator's arbiter map).
+The consequences are deliberate: an absent number never drops a finding,
+and arbiter silence can never converge the loop. A pre-materialization
+`findings.txt` (older run being resumed) therefore behaves exactly as it
+did before this gate existed. The arbiter prompt also instructs "score
+`1.0` when you genuinely cannot tell", so uncertainty inside the arbiter
+lands on the same safe side.
+
+**No silent caps.** Everything filtered is reported: `↓Nm` on the
+codex-done line and in the summary table's Findings cell, and every
+gated finding named with its score and the arbiter's condition sentence
+in the convergence report. The operator can always overrule by lowering
+the floor/gate and re-running.
+
+**Known limitation.** The floor and gate are per-round and stateless. A
+finding scored 0.2 in round 3 and 0.6 in round 6 is filtered in one and
+fixed in the other, with no memo explaining the swing — the audit trail
+is the per-round `findings.txt` / `arbiter.txt` pair. Same deferred fix
+as gap-5's: a cross-round verdict cache keyed by `file:line`+title.
+
 ## Drift guard
 
 Before committing each round:
@@ -337,13 +444,17 @@ All terminal states call `./references/state.py finalize <state-dir>
 
 - **Clean** (`completed_clean`): parsed codex JSON has
   `verdict == "approve"` AND the actionable findings list
-  (`confidence >= 0.3`) is empty → report total rounds. User sees
+  (`confidence >= 0.3` and `materialization >= 0.3`) is empty → report
+  total rounds. User sees
   `"Plan hardened across N rounds; ready for /planning:exec."`
 - **Converged** (`completed_converged`): round ≥ `ARBITER_FROM_ROUND`
-  and the arbiter (gap-5) found no *real* `high`/`critical` defects —
-  only prose nitpicks and/or real low/medium findings. Auto-terminates
-  and prints the [convergence report](#convergence-report) naming every
-  prose finding, so the operator can accept it or force one more round
+  and the arbiter (gap-5) found no *real* `high`/`critical` defect that
+  clears `MATERIALIZATION_GATE` (gap-6) — only prose nitpicks, real
+  low/medium findings, and/or real high/critical findings too unlikely
+  to materialize. Auto-terminates and prints the [convergence
+  report](#convergence-report) naming every prose and every
+  materialization-gated finding, so the operator can accept it or force
+  one more round
   (`REFINE_PLAN_ARBITER_FROM_ROUND=1`). Like clean, this is a *success*
   exit → next action is `/planning:exec`.
 - **Cap** (`completed_cap`): `iter == MAX_ITER` without a clean codex

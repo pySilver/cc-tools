@@ -28,11 +28,26 @@ subagent classifies each finding real-vs-prose; when a round surfaces no
 real `high`/`critical` defects — only prose nitpicks and/or minor
 findings — the loop **auto-terminates as `completed_converged`** and
 reports exactly which findings were editorial, so you can accept it or
-force one more round. Real `high`/`critical` findings always keep the
-loop alive.
+force one more round.
+
+Editorial drift is one of two ways a finding wastes a round. The other
+is a finding that is **real but will never bite** — a defect that only
+materializes under a conjunction of conditions the plan already makes
+unlikely. Every finding therefore carries a **materialization** score
+(0-1: "if this plan ships as written, how likely is it that this
+actually bites?") alongside `confidence` ("is this claim true?"). Codex
+self-scores it from round 1; from round 4 the arbiter re-scores it
+independently and the arbiter's number wins. Two thresholds use it:
+
+- **`MATERIALIZATION_FLOOR`** (0.3) — below it a finding is recorded but
+  never sent to the implementer, exactly like sub-floor confidence.
+- **`MATERIALIZATION_GATE`** (0.5) — a real `high`/`critical` finding
+  only keeps the loop alive if it clears this. Findings between the
+  floor and the gate still get fixed; they just no longer buy another
+  round.
 
 > Output format, termination states, stuck-finding detail, prose-drift
-> arbiter gate, and drift-guard mechanics: see
+> arbiter gate, materialization scoring, and drift-guard mechanics: see
 > `references/orchestration.md`. The references/ scripts
 > (`run-codex.sh`, `extract-sentinels.sh`, `state.py`) are execute-only —
 > do not read them into context during a run; their contracts are in
@@ -64,6 +79,15 @@ This skill is repo-agnostic but assumes the host environment provides:
   the prose-drift arbiter starts running and can terminate the loop. Set
   `1` to arbiter every round (or to force one more arbiter-gated round on
   an already-converged plan). Details under "Subagent #3".
+- Optional: `REFINE_PLAN_MATERIALIZATION_FLOOR` (default `0.3`) and
+  `REFINE_PLAN_MATERIALIZATION_GATE` (default `0.5`) — the two
+  materialization thresholds. `state.py` reads the same
+  `..._FLOOR` var, so its `summary` / `detect-stuck` output always
+  agrees with the loop's actionable set; the gate is orchestrator-only.
+  A value outside `0.0-1.0`, or an unparseable one, falls back to the
+  default. Raise the floor to be stricter about unlikely findings; set
+  it to `0` to disable materialization filtering entirely. Details in
+  `references/orchestration.md`.
 
 ## When to use
 
@@ -111,6 +135,11 @@ else:
 
 MAX_ITER = 20
 CONFIDENCE_FLOOR = 0.3                                  # matches state.py
+MATERIALIZATION_FLOOR = float($REFINE_PLAN_MATERIALIZATION_FLOOR or 0.3)  # matches state.py
+MATERIALIZATION_GATE  = float($REFINE_PLAN_MATERIALIZATION_GATE  or 0.5)
+#   FLOOR filters (a sub-floor finding is recorded, never fixed);
+#   GATE terminates (a real high/critical below it no longer keeps the
+#   loop alive, but is still fixed). Two knobs, two jobs.
 ARBITER_FROM_ROUND = int($REFINE_PLAN_ARBITER_FROM_ROUND or 4)
 #   The round at which the prose-drift arbiter (subagent #3) starts
 #   running AND becomes able to terminate the loop. Default 4 → trust
@@ -140,7 +169,15 @@ while iter < MAX_ITER:
     if parsed.malformed:
         state.py finalize $state_dir aborted_malformed_output
         report_and_abort(f"CODEX_ERROR: malformed output\n{raw_output[:200]}")
-    actionable = [f for f in parsed.findings if f.confidence >= CONFIDENCE_FLOOR]
+    actionable = [f for f in parsed.findings
+                    if f.confidence    >= CONFIDENCE_FLOOR
+                    and f.materialization >= MATERIALIZATION_FLOOR]
+    unlikely   = [f for f in parsed.findings                 # reported, never fixed
+                    if f.confidence    >= CONFIDENCE_FLOOR
+                    and f.materialization <  MATERIALIZATION_FLOOR]
+    #   A missing or unparseable score reads as 1.0 (state.py `_score`) —
+    #   an absent number must never silently drop a finding. Report
+    #   len(unlikely) on the codex-done line; never drop it silently.
     # Clean detection: verdict approve AND no actionable findings.
     if parsed.verdict == "approve" and len(actionable) == 0:
         state.py finalize $state_dir completed_clean
@@ -159,11 +196,14 @@ while iter < MAX_ITER:
         on "continue"    → proceed normally (next stuck check is N rounds later;
                             skill won't re-ask on the same set until a new file:line
                             recurs)
-    # gap-5: prose-drift arbiter gate. Codex inflates prose nitpicks to
-    # `high`, so severity can't distinguish editorial drift from real
-    # defects — an independent arbiter (subagent #3) judges each finding.
-    # Runs only from ARBITER_FROM_ROUND (default 4); rounds 1-3 trust
-    # codex. Detail in references/orchestration.md.
+    # gap-5 + gap-6: prose-drift arbiter gate, and the arbiter's independent
+    # materialization re-score. Codex inflates prose nitpicks to `high` and
+    # over-reports issues that can only bite under absurd conditions, so
+    # severity alone distinguishes neither — an independent arbiter
+    # (subagent #3) classifies AND re-scores each finding. Runs only from
+    # ARBITER_FROM_ROUND (default 4); rounds 1-3 trust codex, filtered by
+    # codex's own materialization self-score above. Detail in
+    # references/orchestration.md.
     if iter >= ARBITER_FROM_ROUND and len(actionable) > 0:
         state.py record-arbiter-start $state_dir $iter
         arbiter_return = arbiter_subagent(<plan-path>, actionable)   # subagent #3
@@ -171,28 +211,50 @@ while iter < MAX_ITER:
         write arbiter_raw to /tmp/arbiter-current.txt
         state.py record-arbiter-end $state_dir $iter /tmp/arbiter-current.txt $a_tokens $a_tool_uses
         # Read the arbiter JSON yourself (see "Subagent #3" for the steps);
-        # build classes = {index: "real"|"prose"}. On any parse/shape failure
-        # OR a missing index, fail safe: treat all as real (never drop a real
-        # finding or trigger a false convergence on a broken arbiter reply).
-        classes = read_arbiter_json(arbiter_raw)   # {index: "real"|"prose"}, or {} if unparseable
+        # build classes = {index: "real"|"prose"} and mater = {index: 0.0-1.0}.
+        # On any parse/shape failure OR a missing index, fail safe: treat all
+        # as real AND discard every arbiter score (never drop a real finding
+        # or trigger a false convergence on a broken arbiter reply).
+        classes, mater = read_arbiter_json(arbiter_raw)
         if not classes or any(i not in classes for i in range(1, len(actionable) + 1)):
             classes = {i: "real" for i in range(1, len(actionable) + 1)}
+            mater   = {}
             warn("arbiter output unparseable/incomplete; treating all findings as real this round")
-        real  = [f for i, f in enumerate(actionable, 1) if classes.get(i, "real") == "real"]
-        prose = [f for i, f in enumerate(actionable, 1) if classes.get(i, "real") == "prose"]
-        real_high_crit = [f for f in real if f.severity in ("critical", "high")]
-        if len(real_high_crit) == 0:
-            # Convergence: no real high/critical defects remain — only
-            # prose nitpicks and/or real low/medium. Auto-terminate (the
-            # report, not a prompt, is how the operator decides next).
+        # The arbiter's materialization OVERRIDES codex's, for both the floor
+        # and the gate. An index the arbiter left unscored reads as 1.0 —
+        # never 0 — so arbiter silence can neither drop a finding nor end the
+        # loop.
+        is_real  = lambda i: classes.get(i, "real") == "real"
+        m        = lambda i: mater.get(i, 1.0)
+        real     = [f for i, f in enumerate(actionable, 1)
+                      if is_real(i) and m(i) >= MATERIALIZATION_FLOOR]
+        prose    = [f for i, f in enumerate(actionable, 1) if not is_real(i)]
+        arb_unlikely = [f for i, f in enumerate(actionable, 1)  # real, but sub-floor
+                      if is_real(i) and m(i) <  MATERIALIZATION_FLOOR]
+        blocking = [f for i, f in enumerate(actionable, 1)
+                      if is_real(i) and f.severity in ("critical", "high")
+                      and m(i) >= MATERIALIZATION_GATE]
+        #   `unlikely` (codex's own floor drops) and `arb_unlikely` (the
+        #   arbiter's) stay separate — the codex-done line reports both, and
+        #   conflating them hides which reviewer made the call.
+        if len(blocking) == 0:
+            # Convergence: nothing left that is real AND high/critical AND
+            # likely to bite. Auto-terminate (the report, not a prompt, is
+            # how the operator decides next).
             state.py finalize $state_dir completed_converged
             print convergence report (see references/orchestration.md
                 "Convergence report"): the prose findings (file:line,
-                severity, title, arbiter reason), any leftover real
-                low/medium findings, and the one-more-round hint.
+                severity, title, arbiter reason), the real-but-unlikely
+                findings with their arbiter materialization, any leftover
+                real low/medium findings, and the one-more-round hint.
             break
-        actionable = real   # implementer fixes real defects only; prose dropped this round
-    print codex-done line (with severity counts + top finding)
+        actionable = real   # implementer fixes real defects that clear the
+                            # floor; prose and sub-floor unlikely are dropped.
+                            # A real finding between FLOOR and GATE is still
+                            # fixed — the gate only governs termination.
+    print codex-done line (severity counts + ↓len(unlikely) + top finding;
+          on arbiter rounds also the arbiter digest with len(prose) and
+          len(arb_unlikely) — see references/orchestration.md)
     state.py record-implementer-start $state_dir $iter
     # Pass the implementer the ACTIONABLE JSON findings (recommendation
     # + file:line_start-line_end), not the raw codex prose / JSON.
@@ -261,7 +323,9 @@ header comment documents the wedge and the fix.
 `thinking-tools:ask-codex` schema, retires fragile severity-regex
 parsing, and lets `state.py parse_findings` apply the
 `CONFIDENCE_FLOOR = 0.3` filter (codex's own low-confidence
-noise-floor). Unlike the sibling, we retain a degraded prose fallback
+noise-floor) plus the `MATERIALIZATION_FLOOR = 0.3` filter (codex's own
+"true but it will never bite" floor). Unlike the sibling, we retain a
+degraded prose fallback
 inside `parse_findings` so a malformed JSON payload still has a
 recovery path before the loop aborts.
 
@@ -280,7 +344,7 @@ only; the orchestrator knows both):**
 
 > Run this shell command and capture its full stdout:
 >
-> `bash <SKILL_DIR>/references/run-codex.sh 'Review the implementation plan at <PLAN_PATH> and return findings as a single JSON object — no prose, no preamble, no trailing commentary. Schema: {"verdict":"approve"|"needs-attention","summary":"string","findings":[{"severity":"critical"|"high"|"medium"|"low","title":"string","body":"string","file":"string","line_start":int,"line_end":int,"confidence":0.0-1.0,"recommendation":"string"}],"next_steps":["string", ...]}. Set verdict to "approve" with an empty findings array if you have no findings: {"verdict":"approve","summary":"…","findings":[],"next_steps":[]}. Cite file paths and line ranges from the plan you are reviewing. Use confidence < 0.3 to mark a finding as low-confidence noise — the orchestrator will record it but not act on it. Return ONLY the JSON object.'`
+> `bash <SKILL_DIR>/references/run-codex.sh 'Review the implementation plan at <PLAN_PATH> and return findings as a single JSON object — no prose, no preamble, no trailing commentary. Schema: {"verdict":"approve"|"needs-attention","summary":"string","findings":[{"severity":"critical"|"high"|"medium"|"low","title":"string","body":"string","file":"string","line_start":int,"line_end":int,"confidence":0.0-1.0,"materialization":0.0-1.0,"materialization_reason":"string","recommendation":"string"}],"next_steps":["string", ...]}. Set verdict to "approve" with an empty findings array if you have no findings: {"verdict":"approve","summary":"…","findings":[],"next_steps":[]}. Cite file paths and line ranges from the plan you are reviewing. Use confidence < 0.3 to mark a finding as low-confidence noise — the orchestrator will record it but not act on it. `confidence` and `materialization` are different axes and must be scored separately: confidence is "how sure am I this claim is true?", materialization is "if this plan is built exactly as written, how likely is it that this issue actually bites?". Score materialization as the probability the triggering conditions actually occur: >0.7 = it bites on the normal path or the first realistic input; 0.3-0.7 = it needs a specific but plausible condition (an error path, a concurrent write, a large input); <0.3 = it needs an unlikely conjunction of conditions, a scenario the plan already rules out, or a scale this system will not reach. A finding can be certainly true (confidence 0.95) and still almost never bite (materialization 0.1) — score that honestly instead of inflating it, and put the triggering condition in one sentence in materialization_reason. Return ONLY the JSON object.'`
 >
 > Return ONLY the script's stdout, exactly as codex emitted it — do NOT
 > paraphrase, summarize, wrap in extra fences, or add your own
@@ -297,7 +361,8 @@ only; the orchestrator knows both):**
 
 Rationale: structured JSON gives the implementer typed `severity`,
 exact `line_start`/`line_end` ranges, an explicit `recommendation`
-field, and a `confidence` signal to filter noise. The `CODEX_ERROR:`
+field, and two orthogonal filter signals — `confidence` (is the claim
+true?) and `materialization` (does it ever bite?). The `CODEX_ERROR:`
 sentinel is the transport-failure channel — distinct from JSON
 parse failure, which the orchestrator catches downstream via
 `parse_findings`.
@@ -307,9 +372,10 @@ parse failure, which the orchestrator catches downstream via
 Spawn with `subagent_type: general-purpose`.
 
 The orchestrator passes the **actionable** findings (filtered to
-`confidence >= 0.3`) as a compact list — one bullet per finding with
-its `recommendation` and `file:line_start-line_end`. Codex's prose
-summary and below-floor noise are NOT forwarded.
+`confidence >= 0.3` and `materialization >= 0.3`) as a compact list —
+one bullet per finding with its `recommendation` and
+`file:line_start-line_end`. Codex's prose summary, below-floor noise,
+and unlikely-to-materialize findings are NOT forwarded.
 
 **Prompt contract (verbatim — substitute placeholders only):**
 
@@ -319,14 +385,19 @@ summary and below-floor noise are NOT forwarded.
 >
 > <findings>
 > <one bullet per actionable finding, rendered as:
->   - [severity] file:line_start-line_end — recommendation
+>   - [severity, m=materialization] file:line_start-line_end — recommendation
 >   followed by a short body line on the next indented line.
->  Pre-filtered to confidence ≥ 0.3 by the orchestrator.>
+>  Pre-filtered to confidence ≥ 0.3 and materialization ≥ 0.3 by the
+>  orchestrator.>
 > </findings>
 >
 > Rules:
 > 1. Address EVERY finding above. The list has already been filtered
->    to confidence ≥ 0.3; do not skip items because they look minor.
+>    to confidence ≥ 0.3 and materialization ≥ 0.3; do not skip items
+>    because they look minor or unlikely. `m=` is how likely the issue
+>    is to actually bite — use it to size the fix (a low-`m` finding
+>    deserves the smallest possible edit, not a new safeguard section),
+>    never as a licence to skip one.
 > 2. Do NOT add features, expand scope, or rewrite sections that no
 >    finding touches. Findings are the only license to edit.
 > 3. Preserve every prior fix. If a resolution would regress a
@@ -352,7 +423,10 @@ defect** (something that, if the plan is implemented as written,
 produces wrong / incomplete / contradictory / ambiguous-enough-to-
 misbuild behavior — it changes *what gets built*) or a **prose finding**
 (a critique of the plan's wording, clarity, redundancy, or structure, or
-a re-interpretation that does not change the build outcome).
+a re-interpretation that does not change the build outcome). It also
+re-scores each finding's **materialization** from scratch — codex's own
+score is deliberately withheld from it, so the number that drives the
+floor and the gate comes from a party with no incentive to inflate.
 
 This is the load-bearing answer to the "loop keeps finding issues but
 they're not real anymore" problem: codex inflates prose nitpicks to
@@ -383,6 +457,25 @@ codex's framing. It does NOT edit anything.
 > When genuinely uncertain, classify as `real` — never downgrade a
 > possible defect to `prose`.
 >
+> Then, for every finding, score `materialization` 0.0-1.0
+> independently of codex's own score (which is NOT shown to you):
+> if the plan is built exactly as written, how likely is it that this
+> issue actually bites? Score the probability that the triggering
+> conditions occur, not how bad it would be:
+>
+> - `>0.7` — bites on the normal path or the first realistic input.
+> - `0.3-0.7` — needs a specific but plausible condition (an error
+>   path, a concurrent write, a large input, an unusual but expected
+>   caller).
+> - `<0.3` — needs an unlikely conjunction of conditions, a scenario
+>   the plan already rules out, or a scale this system will not reach.
+>
+> A finding can be both real and near-zero materialization; that is a
+> normal, useful answer, not a contradiction. Score `prose` findings
+> too (they are usually low). When you genuinely cannot tell, score
+> `1.0` — the orchestrator treats a high score as "keep working on
+> it", so uncertainty must never look like "safe to stop".
+>
 > <findings>
 > <one block per actionable finding, numbered from 1, rendered as:
 >   N. [severity] file:line_start-line_end — title
@@ -390,7 +483,7 @@ codex's framing. It does NOT edit anything.
 > </findings>
 >
 > Return ONLY a single JSON object, no prose, no preamble:
-> `{"classifications":[{"index":int,"class":"real"|"prose","reason":"<=1 sentence, cite the plan"}],"summary":"<=1 sentence"}`.
+> `{"classifications":[{"index":int,"class":"real"|"prose","materialization":0.0-1.0,"reason":"<=1 sentence, cite the plan","materialization_reason":"<=1 sentence naming the condition that would have to hold"}],"summary":"<=1 sentence"}`.
 > Include exactly one entry per finding index above.
 
 **Reading the arbiter's reply** is something you (the orchestrator) do
@@ -398,13 +491,17 @@ directly on its JSON — there is no `state.py` helper for it (unlike
 codex's findings, which `state.py` re-parses for `summary`/`detect-stuck`,
 the arbiter verdict has no other consumer). Strip a leading
 ```` ```json ```` fence, `json.loads`, and on a valid
-`{"classifications":[{index,class,...}]}` object build a
-`{index: "real"|"prose"}` map. On **any** parse/shape failure — or a
-missing entry for some index — fail safe: treat every finding as `real`
-for that round (never converge, never drop a finding on a broken arbiter
-response), and print a one-line warning. The arbiter's raw JSON is
-persisted to `round-NN/arbiter.txt` via `state.py record-arbiter-end`
-for the audit trail and the summary table's `Xr Yp` digest.
+`{"classifications":[{index,class,materialization,...}]}` object build
+both a `{index: "real"|"prose"}` map and a `{index: float}`
+materialization map. Drop any `materialization` that is missing or not a
+number in `0.0-1.0` from the second map — an index absent from it reads
+as `1.0` at both threshold checks. On **any** parse/shape failure — or a
+missing `class` entry for some index — fail safe: treat every finding as
+`real` and discard the whole materialization map for that round (never
+converge, never drop a finding on a broken arbiter response), and print a
+one-line warning. The arbiter's raw JSON is persisted to
+`round-NN/arbiter.txt` via `state.py record-arbiter-end` for the audit
+trail and the summary table's `Xr Yp m<max>` digest.
 
 **Forcing one more round after convergence.** `completed_converged` is
 terminal, so a plain re-run starts fresh — and with the default
@@ -456,10 +553,11 @@ Each subagent inherits only what it needs:
   (filtered JSON, not codex's prose reasoning). Not prior rounds'
   findings, not the orchestrator's history.
 - Subagent #3 (round 4+): the plan file path + the numbered actionable
-  findings. Crucially NOT codex's verdict, prior arbiter rulings, or the
-  orchestrator's history — its independence from codex's framing is the
-  whole point; a context-contaminated arbiter just launders codex's
-  drift.
+  findings. Crucially NOT codex's verdict, codex's own materialization
+  scores, prior arbiter rulings, or the orchestrator's history — its
+  independence from codex's framing is the whole point; a
+  context-contaminated arbiter just launders codex's drift, and an
+  arbiter shown codex's score anchors to it instead of re-deriving one.
 
 This is the load-bearing reason for the subagent split (sycophancy
 avoidance is secondary). A single subagent with longer context drifts
@@ -477,6 +575,10 @@ forces each iteration to scope to exactly the current findings.
   (subagent #3) auto-stops the loop (`completed_converged`) once a round
   has no real `high`/`critical` defects, reporting which findings were
   editorial so you decide whether to force one more round.
+- Chase true-but-never-bites findings — the materialization floor keeps
+  them out of the implementer and the materialization gate stops them
+  from buying another round. Both report what they filtered; neither
+  deletes it from `findings.txt`.
 - Replace `/planning:plan-review` — that's a single-pass internal
   review with project-specific guidance; this skill is iterative
   codex external review. Both have a place in the chain.
