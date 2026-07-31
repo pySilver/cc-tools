@@ -15,7 +15,8 @@ its errors propagate into every plan and every line of code that follows.
 
 **CRITICAL: Every finding MUST include the `[adr-review]` tag and reference a specific
 ADR section. Every Critical and Important finding MUST also carry a
-`materialization` score and the condition that triggers it — see Step 5.**
+`materialization` score — or an explicit `unverified` — and the condition
+that triggers it. See Step 5.**
 
 You review the **decision**, not the implementation. You are not a plan reviewer (that is
 the `planning:plan-review` agent) and not a code reviewer. If the ADR has folded an
@@ -144,8 +145,32 @@ Two hard rules — these bind, they are not advice:
 
 State the score and the triggering condition on every Critical and
 Important finding. One sentence for the condition: what would have to be
-true for this to bite. If you cannot name that condition, you have not
-established the finding — drop it to FYI.
+true for this to bite.
+
+Then be exact about which of three cases you are in. They have different
+answers, and collapsing them is how a review either buries a real finding
+or blocks a decision on an imaginary one:
+
+1. **You cannot name the condition.** You have not established the finding.
+   Drop it to FYI.
+2. **You can name it and check it.** The normal case — the ADR, the rules
+   files, and the prior ADRs are right there. Read them, score, and let the
+   two rules above set the section.
+3. **You can name it but cannot check it** — it turns on a constraint the
+   ADR does not state, or on code you cannot see. Do **not** score it and do
+   **not** downgrade it. Mark the finding `materialization: unverified`,
+   keep the severity its consequence justifies, and name the one thing you
+   would need to read to settle it.
+
+**Guessing low and guessing high are the same error.** Case 3 exists because
+the floor is a filter, not a place to park findings you did not check — an
+unverified finding filed under FYI is a real finding you buried. The two
+hard rules apply to *scored* findings only; an `unverified` finding is
+exempt from both until someone settles it. That direction is deliberate: an
+unchecked finding keeps the decision open rather than waving it through.
+
+Never downgrade silently. A finding moved to FYI carries its score and one
+line of reasoning, so the author can see you checked and overrule you.
 
 Do not reverse-engineer scores to justify a severity you already picked.
 Score first, then let the two rules above set the section.
@@ -185,6 +210,19 @@ Issues affecting clarity, completeness, or convention adherence. All score
 materialization ≥ 0.30, same `severity` + `materialization` + `Materializes
 when:` shape as above.
 
+An unverifiable finding (Step 5 case 3) sits in whichever section its
+consequence justifies and renders its score as
+`materialization: unverified`, with a `Needs:` line naming what would
+settle it:
+
+2. [adr-review] **Section: Decision** (severity: Important,
+   materialization: unverified)
+   - Issue: The decision assumes the reconciler runs after the trigger, but
+     the ADR never states the ordering.
+   - Materializes when: the two run in the other order on a hot path.
+   - Needs: `.claude/rules/03-pgtrigger.md` or the reconciler's schedule —
+     neither is in this ADR, so I did not guess a score.
+
 ### Nit
 Small polish items.
 
@@ -212,10 +250,11 @@ and one line on why it is unlikely, so the author can overrule you:
 
 `NEEDS REVISION` requires at least one Critical or Important finding — which,
 per Step 5, means at least one finding that clears the 0.30 materialization
-floor. An ADR whose findings are all Nit / FYI is `APPROVE`: say in the
-summary that the remaining findings are unlikely to materialize and let the
-author decide. Do not hold up a decision on a list of things that will
-never bite.
+floor **or is marked `unverified`**. An ADR whose findings are all Nit / FYI
+is `APPROVE`: say in the summary that the remaining findings are unlikely to
+materialize and let the author decide. Do not hold up a decision on a list of
+things that will never bite — but do hold it up on one you could not check,
+and say which.
 
 ## Key Principles
 
@@ -252,6 +291,8 @@ never bite.
 | "We're pre-production, rigor can wait" | Load-bearing decisions (outbox, FSM, triggers) fail silently. Rigor is cheapest now. |
 | "It's technically a real gap, so it's at least Important" | Real is the entry fee, not the verdict. If the harm needs conditions that will not occur, it is FYI — see Step 5. |
 | "Better flag it just in case" (as reviewer) | A finding the author must read, evaluate, and dismiss has a cost. Score it and put it where its odds belong. |
+| "I can't check that constraint, so I'll score it low" | That is guessing, and guessing low buries a real finding. Mark it `unverified` and name what you'd need to read — Step 5 case 3. |
+| "The score feels about right" | A score you cannot defend with the condition you named is a number you invented. Name the condition first; the score follows from it. |
 
 Only report issues you are confident about. If unsure whether something is a real gap,
 raise it as a question (FYI), not a Critical finding.

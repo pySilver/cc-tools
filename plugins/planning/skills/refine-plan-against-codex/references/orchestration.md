@@ -385,6 +385,15 @@ higher.
   and the gate are still fixed in the round they appear — they just do
   not buy another round.
 
+**Unverifiable is not the same as unlikely.** The `<0.3` band is for a
+condition you checked and found unreachable — not for one you could not
+check. Both prompts say so: when the plan does not state the constraint
+that would settle it, the reviewer scores `1.0` and names the missing
+information rather than guessing low. This is the asymmetry that keeps
+the floor honest. Guessing high costs one wasted fix; guessing low
+silently deletes a real finding, and nothing downstream can recover it
+because the floor filters before the implementer ever sees it.
+
 **Fail-safe.** A missing or unparseable score reads as `1.0`
 everywhere (`state.py`'s `_score`, and the orchestrator's arbiter map).
 The consequences are deliberate: an absent number never drops a finding,

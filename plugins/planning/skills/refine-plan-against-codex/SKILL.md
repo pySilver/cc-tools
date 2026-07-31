@@ -344,7 +344,7 @@ only; the orchestrator knows both):**
 
 > Run this shell command and capture its full stdout:
 >
-> `bash <SKILL_DIR>/references/run-codex.sh 'Review the implementation plan at <PLAN_PATH> and return findings as a single JSON object — no prose, no preamble, no trailing commentary. Schema: {"verdict":"approve"|"needs-attention","summary":"string","findings":[{"severity":"critical"|"high"|"medium"|"low","title":"string","body":"string","file":"string","line_start":int,"line_end":int,"confidence":0.0-1.0,"materialization":0.0-1.0,"materialization_reason":"string","recommendation":"string"}],"next_steps":["string", ...]}. Set verdict to "approve" with an empty findings array if you have no findings: {"verdict":"approve","summary":"…","findings":[],"next_steps":[]}. Cite file paths and line ranges from the plan you are reviewing. Use confidence < 0.3 to mark a finding as low-confidence noise — the orchestrator will record it but not act on it. `confidence` and `materialization` are different axes and must be scored separately: confidence is "how sure am I this claim is true?", materialization is "if this plan is built exactly as written, how likely is it that this issue actually bites?". Score materialization as the probability the triggering conditions actually occur: >0.7 = it bites on the normal path or the first realistic input; 0.3-0.7 = it needs a specific but plausible condition (an error path, a concurrent write, a large input); <0.3 = it needs an unlikely conjunction of conditions, a scenario the plan already rules out, or a scale this system will not reach. A finding can be certainly true (confidence 0.95) and still almost never bite (materialization 0.1) — score that honestly instead of inflating it, and put the triggering condition in one sentence in materialization_reason. Return ONLY the JSON object.'`
+> `bash <SKILL_DIR>/references/run-codex.sh 'Review the implementation plan at <PLAN_PATH> and return findings as a single JSON object — no prose, no preamble, no trailing commentary. Schema: {"verdict":"approve"|"needs-attention","summary":"string","findings":[{"severity":"critical"|"high"|"medium"|"low","title":"string","body":"string","file":"string","line_start":int,"line_end":int,"confidence":0.0-1.0,"materialization":0.0-1.0,"materialization_reason":"string","recommendation":"string"}],"next_steps":["string", ...]}. Set verdict to "approve" with an empty findings array if you have no findings: {"verdict":"approve","summary":"…","findings":[],"next_steps":[]}. Cite file paths and line ranges from the plan you are reviewing. Use confidence < 0.3 to mark a finding as low-confidence noise — the orchestrator will record it but not act on it. `confidence` and `materialization` are different axes and must be scored separately: confidence is "how sure am I this claim is true?", materialization is "if this plan is built exactly as written, how likely is it that this issue actually bites?". Score materialization as the probability the triggering conditions actually occur: >0.7 = it bites on the normal path or the first realistic input; 0.3-0.7 = it needs a specific but plausible condition (an error path, a concurrent write, a large input); <0.3 = it needs an unlikely conjunction of conditions, a scenario the plan already rules out, or a scale this system will not reach. A finding can be certainly true (confidence 0.95) and still almost never bite (materialization 0.1) — score that honestly instead of inflating it, and put the triggering condition in one sentence in materialization_reason. If the plan does not state the constraint that would settle whether that condition can occur, do NOT guess it low: score materialization 1.0 and say in materialization_reason what you would need to see. Guessing low and guessing high are the same error, and a low score is what stops the issue being fixed. Return ONLY the JSON object.'`
 >
 > Return ONLY the script's stdout, exactly as codex emitted it — do NOT
 > paraphrase, summarize, wrap in extra fences, or add your own
@@ -472,9 +472,12 @@ codex's framing. It does NOT edit anything.
 >
 > A finding can be both real and near-zero materialization; that is a
 > normal, useful answer, not a contradiction. Score `prose` findings
-> too (they are usually low). When you genuinely cannot tell, score
-> `1.0` — the orchestrator treats a high score as "keep working on
-> it", so uncertainty must never look like "safe to stop".
+> too (they are usually low). When you genuinely cannot tell — the plan
+> does not state the constraint that would settle it — score `1.0` and
+> name the missing information in `materialization_reason`. The
+> orchestrator treats a high score as "keep working on it", so
+> uncertainty must never look like "safe to stop"; guessing low and
+> guessing high are the same error, and only guessing low is silent.
 >
 > <findings>
 > <one block per actionable finding, numbered from 1, rendered as:
