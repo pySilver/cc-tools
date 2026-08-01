@@ -5,7 +5,8 @@ description: >
   actually to happen here, and is it worth the design fork it is being used
   to justify? Reads the artifact and the project's own invariants, then
   returns a materialization score, the condition that would have to hold,
-  and an act / defer / drop recommendation. Use when an ADR discussion, a
+  and a simple-path / take-the-fork / defer recommendation. Use when an ADR
+  discussion, a
   plan review, or any agent turn surfaces a risk that smells rare or
   theoretical, or when a claimed problem is being used to justify extra
   complexity, an extra branch, a lock, a retry, or a "we should also handle
@@ -40,7 +41,7 @@ edits the artifact and never takes the fork for you.
 3. **Is it worth what it is being used to justify?** — the fork question.
 
 Stop at the first one that settles it. A claim that fails #1 never reaches
-#2.
+#2 — and skips Step 5 too, since there is nothing to price.
 
 ## Step 0: Get the claim
 
@@ -49,9 +50,10 @@ Stop at the first one that settles it. A claim that fails #1 never reaches
 - `$ARGUMENTS` empty → use the risk raised in the most recent agent turn of
   this conversation. Restate it in one line before proceeding, so a
   misidentified claim fails loudly instead of quietly.
-- Several claims → adjudicate each. Past ~10, ask whether to do all of them
-  or the highest-severity handful; a batch this size usually wants
-  `adr-review` or the refine loop instead.
+- Several claims → adjudicate up to 3, sharing one 5-read budget across all
+  of them; a file read for one claim is already read for the next. At 4 or
+  more, do not start — offer the highest-severity three, or `adr-review` /
+  the refine loop, which are built to batch.
 
 ## Step 1: Write the trigger sentence
 
@@ -78,9 +80,20 @@ time, so a clock is decoration. You can count files, so the budget is
 files. A `Grep` hit you read as a single line is free; opening the file is
 not.
 
+The budget counts files, not tools. A `Read`, a `cat`, a `sed -n` range, or
+a `grep` with more than ~5 lines of context each spend one. Grep for the
+matching line, not for the block around it.
+
 - **≤5 candidates** → read them, continue to Step 3. The normal case.
-- **>5 candidates, or you cannot name any** → do **not** start reading.
-  Go to "When the read is too big" below.
+- **>5 candidates** → do **not** start reading. Go to "When the read is too
+  big" below.
+- **No candidate you can name** → the condition is not settled by files that
+  exist. Usually the claim is about code the plan has not written yet. Score
+  against the artifact and the project's rules alone: a plan that states the
+  constraint makes the condition unreachable, a plan that is silent leaves
+  it `unverified`. Do not route this to "When the read is too big" — that
+  path needs a file list you do not have, and a delegated subagent cannot
+  read code nobody wrote.
 
 ### When the read is too big
 
@@ -146,8 +159,12 @@ English.)
 
 Then land in exactly one case:
 
-- **Reachable** — you found nothing preventing the condition, or found
-  something enabling it. Score it and say what to do.
+- **Reachable** — you read the file that would hold the guard and there is
+  none, or you found something that enables the condition. Cite the file you
+  checked, not the absence. Score from the bands: on the normal path is
+  `>0.7`; needing a specific real trigger is `0.3-0.7`. If you never reached
+  the file that would hold the guard, you are **Unverifiable**, not
+  Reachable — a missing guard you did not look for is not evidence.
 - **Unreachable** — you found the invariant that prevents it. Score `<0.3`,
   quote the invariant. The claim stays true; it just cannot fire here.
 - **Unverifiable** — you can name the condition but the evidence is not
@@ -174,7 +191,7 @@ then price the proposal:
   bought today on a `<0.3` score. A guard that becomes a data migration
   later is worth buying early even at a low score.
 
-Land on one of three:
+Land on one of four:
 
 - **Take the simple path** — skip the guard. Say what you would lose if the
   claim turns out reachable after all.
@@ -184,6 +201,12 @@ Land on one of three:
   should make you revisit: a row count, a second consumer appearing, a
   latency number, a support ticket. A deferral with no named trigger is just
   forgetting with extra steps.
+- **Cannot say yet** — the score came back `unverified`, or the claim is not
+  established. Do not price a fork on a number you do not have. Name the one
+  file or fact that settles it and hand the choice back unmade. `unverified`
+  plus TAKE THE FORK is how an unread file becomes permanent complexity —
+  the asymmetry in Step 4 tells you not to guess the *score* low, not to
+  guess the *fork* expensive.
 
 ## Step 6: Escalate — but ask first
 
@@ -194,12 +217,12 @@ a verdict and it should not be the only one.
 
 Get a second, independent opinion when any of these hold:
 
-- The score lands within ~0.15 of a decision boundary (`0.3` or `0.5`).
+- The score lands within `0.05` of a band edge — `0.25-0.35` or `0.65-0.75`.
 - The fork is expensive or hard to reverse: schema, wire contract,
   migration, anything with a deployed consumer.
 - You could not find evidence **and** the area is load-bearing.
-- The claim came from this same session, you found no independent evidence,
-  and your verdict agrees with whatever was convenient. Self-grading with no
+- Your Evidence line quotes only the artifact the claim came from. Nothing
+  independent of the claim's author checked it, and self-grading with no
   external check is the failure mode this pack keeps designing around.
 
 Two escalation paths, both **offered to the user, never run silently** —
@@ -218,7 +241,7 @@ they cost minutes:
 ## Output
 
 ```
-likelihood: <0.00-1.00 | unverified> · <reachable | unreachable | unverifiable | not established>
+materialization: <0.00-1.00 | unverified> · <reachable | unreachable | unverifiable | not established>
 
 Claim:      <one-line restatement>
 Bites when: <the trigger sentence, or "cannot be stated" >
@@ -228,7 +251,7 @@ Verdict:    <1-2 sentences: what it would take, and whether that happens here>
 Fork:       <what the claim is being used to justify>
 Cost now:   <what the guard costs, carried forever>
 Cost later: <what it costs to add after the fact>
-→ <SIMPLE PATH | TAKE THE FORK | DEFER — revisit when <signal>>
+→ <SIMPLE PATH | TAKE THE FORK | DEFER — revisit when <signal> | CANNOT SAY — settles on <file or fact>>
 ```
 
 Omit the `Fork:` block when the claim is not attached to a proposal. Keep
@@ -251,6 +274,12 @@ wants to get back to it.
    an investigation, hand it back: name the scope and offer the three
    options. A triage that quietly becomes an audit costs the user the
    context they were working in.
+7. **Pushback is evidence or it is nothing.** When the user disagrees with a
+   score, ask for the file, the incident, or the config that makes the
+   condition reachable, and re-score on that — a staging incident is
+   evidence and outranks any invariant you quoted. Absent new evidence,
+   restate the same score once and let the user overrule it on the record.
+   Do not re-score on assertion.
 
 ## Common rationalizations
 
