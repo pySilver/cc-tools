@@ -38,7 +38,8 @@ edits the artifact and never takes the fork for you.
 1. **Is the claim even established?** — can the condition be stated at all?
 2. **Can that condition occur here?** — checked against this project, not in
    the abstract.
-3. **Is it worth what it is being used to justify?** — the fork question.
+3. **What makes the condition possible, and is the proposal worth it?** —
+   the cause, then the fork question.
 
 Stop at the first one that settles it. A claim that fails #1 never reaches
 #2 — and skips Step 5 too, since there is nothing to price.
@@ -87,13 +88,31 @@ matching line, not for the block around it.
 - **≤5 candidates** → read them, continue to Step 3. The normal case.
 - **>5 candidates** → do **not** start reading. Go to "When the read is too
   big" below.
-- **No candidate you can name** → the condition is not settled by files that
-  exist. Usually the claim is about code the plan has not written yet. Score
-  against the artifact and the project's rules alone: a plan that states the
-  constraint makes the condition unreachable, a plan that is silent leaves
-  it `unverified`. Do not route this to "When the read is too big" — that
-  path needs a file list you do not have, and a delegated subagent cannot
-  read code nobody wrote.
+- **No candidate you can name** → go to "Nothing is written yet" below.
+
+### Nothing is written yet
+
+**This is the common case, not the edge case.** You fire during ADR and
+planning work, where the code the claim is about does not exist. No file can
+hold the guard, so there is nothing to read and no candidate to name. Do not
+route this to "When the read is too big" — that path wants a file list you
+do not have, and a subagent cannot read code nobody wrote.
+
+Score against the artifact and the project's rules alone:
+
+- **The artifact states the constraint** → `unreachable`. Quote the line.
+- **The artifact is silent** → this is a finding about the artifact, not a
+  dead end. The cheapest fix is almost never the guard: it is one sentence
+  in the plan that makes the condition impossible. Say which sentence, in
+  which section. Score `unverified` only if you cannot tell what that
+  sentence would say.
+
+**Do not let `unverified` become the default answer here.** A plan is silent
+about most things — that is what a plan is. Returning "cannot say" on every
+greenfield claim turns a triage tool into a source of paralysis, which costs
+more than the rare risk you were protecting against. Silence in the plan is
+information: it usually means the constraint has not been decided yet, and
+deciding it is both the answer and the action.
 
 ### When the read is too big
 
@@ -180,8 +199,20 @@ out. When the evidence is missing, that asymmetry decides for you.
 ## Step 5: The fork question
 
 Most claims arrive attached to a proposal — a branch, a retry, a lock, a
-nullable column, an extra table, a "we should also handle". Score the claim,
-then price the proposal:
+nullable column, an extra table, a "we should also handle".
+
+**First ask why the condition exists at all.** Before pricing any guard, ask
+what makes the condition possible. Keep asking until the answer is a
+decision someone made, not a line of code. Often it is one: two writers
+exist because the ADR chose two writers; the ordering can invert because the
+plan put the reconciler and the trigger on separate paths. When the cause is
+a decision, the cheapest fix is usually to revise it — the condition then
+cannot occur by construction, and there is no guard to carry.
+
+A guard holds the symptom down and leaves the cause in place. Reach for it
+second, not first.
+
+Then price the proposal:
 
 - **Cost now** — the complexity the guard adds and you then carry forever:
   code paths, tests, a concept every future reader must hold.
@@ -191,8 +222,14 @@ then price the proposal:
   bought today on a `<0.3` score. A guard that becomes a data migration
   later is worth buying early even at a low score.
 
-Land on one of four:
+Land on one of five:
 
+- **Revisit the decision** — the condition only exists because of an earlier
+  choice, and changing it removes the failure mode instead of guarding
+  against it. Name the ADR or plan section that holds the choice and what it
+  would become. Offer this whenever it is true, even when the guard is
+  cheap: never present A against B when the honest answer is C, the earlier
+  split was wrong.
 - **Take the simple path** — skip the guard. Say what you would lose if the
   claim turns out reachable after all.
 - **Take the fork** — the guard earns its cost.
@@ -240,23 +277,41 @@ they cost minutes:
 
 ## Output
 
+**Lead with the sentence, not the number.** The reader is mid-planning and
+has the design paged out. A first line of `materialization: 0.4 · reachable`
+asks them to reload the whole context from a score. One plain sentence first
+lets them stop reading there if that is all they needed.
+
 ```
+<One sentence: does it happen here, and what should we do. No jargon, no score.>
+
 materialization: <0.00-1.00 | unverified> · <reachable | unreachable | unverifiable | not established>
-
 Claim:      <one-line restatement>
-Bites when: <the trigger sentence, or "cannot be stated" >
+Bites when: <a concrete instance, or "cannot be stated">
 Evidence:   <file:line> — "<the quoted line that settles it>"
-Verdict:    <1-2 sentences: what it would take, and whether that happens here>
 
+Cause:      <the decision that makes the condition possible, when there is one>
 Fork:       <what the claim is being used to justify>
 Cost now:   <what the guard costs, carried forever>
 Cost later: <what it costs to add after the fact>
-→ <SIMPLE PATH | TAKE THE FORK | DEFER — revisit when <signal> | CANNOT SAY — settles on <file or fact>>
+→ <REVISIT THE DECISION — <ADR/plan section> | SIMPLE PATH | TAKE THE FORK | DEFER — revisit when <signal> | CANNOT SAY — settles on <file or fact>>
 ```
 
-Omit the `Fork:` block when the claim is not attached to a proposal. Keep
-the whole thing under ~15 lines per claim: the user is mid-planning and
-wants to get back to it.
+**`Bites when:` takes an instance, not a rule.** A condition is checkable
+but not imaginable; an instance is both, and the reader judges it without
+reloading the design.
+
+- Rule: "when two workers claim the same row" — correct, and still abstract.
+- Instance: "worker 2 picks up order 8814 while worker 1 is still writing
+  it" — same fact, and the reader can see it happen.
+
+Use real values. `order 8814`, `run 11`, `a 40MB upload`. Invented specifics
+are fine; the point is that the reader can picture one run through the
+system, not that the number is real.
+
+Omit `Cause:` when the condition is not traceable to a decision, and the
+`Fork:` block when the claim is not attached to a proposal. Keep the whole
+thing under ~15 lines per claim.
 
 ## Rules
 
@@ -292,6 +347,8 @@ wants to get back to it.
 | "It's a one-line fix, cheaper to just do it" | Then it is also a one-line fix later, which is exactly the argument for deferring it with a trigger. |
 | "Let me check every place this could matter" | That's an audit, not a triage. Report the scope and offer to delegate it. |
 | "It's only a couple more files" | It is always only a couple more files. That is how a 5-file budget becomes a 20-file read of someone else's planning context. |
+| "The guard is cheap, just add it and move on" | Cheap guards are how a design accumulates. If an earlier decision is what makes the condition possible, say so — REVISIT THE DECISION is on the menu even when the guard costs little. |
+| "The plan doesn't say, so I can't answer" | On greenfield the plan is silent about most things. Silence usually means undecided, and naming the sentence that would decide it is the answer. |
 
 ## Red flags
 
@@ -299,6 +356,10 @@ wants to get back to it.
 - Inventing the specifics of a condition the claim never stated
 - `<0.3` used for "I couldn't check" instead of "I checked, it can't happen"
 - A deferral with no named signal that would make you revisit
+- Pricing a guard without asking what decision made the condition possible
+- `unverified` returned on a greenfield claim because the plan was silent,
+  when the answer was "the plan should say X"
+- A `Bites when:` that restates the rule instead of showing one run of it
 - Escalating to codex or a subagent without asking — it costs the user minutes
 - Opening files past the 5-read budget instead of reporting the scope
 - Starting a big read inline when delegating would have kept the context clean
