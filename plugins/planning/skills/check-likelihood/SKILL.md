@@ -1,0 +1,225 @@
+---
+name: check-likelihood
+description: >
+  Adjudicates a single risk or issue an agent just raised: how likely is it
+  actually to happen here, and is it worth the design fork it is being used
+  to justify? Reads the artifact and the project's own invariants, then
+  returns a materialization score, the condition that would have to hold,
+  and an act / defer / drop recommendation. Use when an ADR discussion, a
+  plan review, or any agent turn surfaces a risk that smells rare or
+  theoretical, or when a claimed problem is being used to justify extra
+  complexity, an extra branch, a lock, a retry, or a "we should also handle
+  X". Activates on "really?", "is it real", "for real?", "is that likely",
+  "how likely is that", "does that actually happen", "is this worth
+  handling", "check likelihood".
+allowed-tools: Read, Glob, Grep, Bash, Agent, AskUserQuestion
+---
+
+# check-likelihood
+
+An agent hands you a fork: *"you need to decide between A and B, because
+X could happen."* Often X is true, and also will never happen in this
+project. Accepting the fork buys permanent complexity to defend against
+nothing.
+
+This skill adjudicates one claim, fast. It is **read-only** — it never
+edits the artifact and never takes the fork for you.
+
+> Related but different: `adr-review` scores materialization inside a full
+> ADR review, and `refine-plan-against-codex`'s arbiter scores inside the
+> codex loop. Both are batch gates on a whole document. This is the ad-hoc
+> one — point it at a single claim mid-conversation.
+
+## What it answers, in order
+
+1. **Is the claim even established?** — can the condition be stated at all?
+2. **Can that condition occur here?** — checked against this project, not in
+   the abstract.
+3. **Is it worth what it is being used to justify?** — the fork question.
+
+Stop at the first one that settles it. A claim that fails #1 never reaches
+#2.
+
+## Step 0: Get the claim
+
+- `$ARGUMENTS` non-empty → that is the claim. A pasted sentence, a finding
+  block, or a file path holding several.
+- `$ARGUMENTS` empty → use the risk raised in the most recent agent turn of
+  this conversation. Restate it in one line before proceeding, so a
+  misidentified claim fails loudly instead of quietly.
+- Several claims → adjudicate each. Past ~10, ask whether to do all of them
+  or the highest-severity handful; a batch this size usually wants
+  `adr-review` or the refine loop instead.
+
+## Step 1: Write the trigger sentence
+
+One sentence, this shape:
+
+> **This bites when** `<condition>`.
+
+It has to be concrete enough that someone could go check it. "When two
+workers claim the same row" is checkable. "When there's a race" is not.
+
+**If you cannot write that sentence, the claim is NOT ESTABLISHED.** Report
+that and stop. Do not invent a plausible condition on the claim's behalf —
+supplying the missing specifics is exactly how a vague worry gets promoted
+into a finding, and you would then be grading your own invention.
+
+## Step 2: Find the evidence
+
+This is the whole job. Work down this list and stop at the first thing that
+settles the condition:
+
+1. **The artifact** (the ADR, the plan, the diff) — a stated constraint,
+   cardinality, ordering guarantee, or explicit exclusion.
+2. **The project's own rules** — `CLAUDE.md`, `.claude/rules/*.md`, config,
+   migrations, schema.
+3. **The code** — the guard, the unique index, the single-caller set, the
+   `select_for_update`, the enum that makes the branch unreachable.
+4. **Observable scale** — row counts, traffic, deployment topology, how many
+   workers actually run.
+
+**Quote the line you relied on, with `file:line`.** A score without a quote
+is a guess wearing a number. This is the same bar the rest of the pack
+uses: point at the invariant or you have not classified anything.
+
+**Timebox it.** Roughly five minutes of targeted reading. This is a triage
+check, not an audit — if that much focused searching does not settle it,
+that *is* the finding, and you go to case 3 below. Do not grind.
+
+## Step 3: Classify
+
+Score `materialization` 0.00-1.00 — the probability the triggering
+condition actually occurs, not how bad it would be. (The pack calls the
+field `materialization` so a verdict here can be pasted straight into an
+ADR review or a plan finding. "Likelihood" is the same thing in plain
+English.)
+
+| band | meaning |
+| --- | --- |
+| `>0.7` | occurs on the normal path or the first realistic input |
+| `0.3-0.7` | needs a specific but real condition — an error path, a concurrent write, a large input |
+| `<0.3` | needs an unlikely conjunction, a scenario this project already rules out, or a scale it will not reach |
+
+Then land in exactly one case:
+
+- **Reachable** — you found nothing preventing the condition, or found
+  something enabling it. Score it and say what to do.
+- **Unreachable** — you found the invariant that prevents it. Score `<0.3`,
+  quote the invariant. The claim stays true; it just cannot fire here.
+- **Unverifiable** — you can name the condition but the evidence is not
+  available to you (it turns on a constraint nobody wrote down, or code you
+  cannot see). Do **not** score it and do **not** downgrade it. Report
+  `materialization: unverified` and name the one thing that would settle it.
+
+**Guessing low and guessing high are the same error — but only guessing low
+is silent.** A wrong high score costs one unnecessary fix, which someone
+will notice. A wrong low score deletes a real problem, and nobody ever finds
+out. When the evidence is missing, that asymmetry decides for you.
+
+## Step 4: The fork question
+
+Most claims arrive attached to a proposal — a branch, a retry, a lock, a
+nullable column, an extra table, a "we should also handle". Score the claim,
+then price the proposal:
+
+- **Cost now** — the complexity the guard adds and you then carry forever:
+  code paths, tests, a concept every future reader must hold.
+- **Cost if it fires** — blast radius × the score from Step 3.
+- **Cost of adding it later** — usually the number that decides. A guard
+  that is cheap to add the day you first see the problem should not be
+  bought today on a `<0.3` score. A guard that becomes a data migration
+  later is worth buying early even at a low score.
+
+Land on one of three:
+
+- **Take the simple path** — skip the guard. Say what you would lose if the
+  claim turns out reachable after all.
+- **Take the fork** — the guard earns its cost.
+- **Defer with a trigger** — the honest middle, and usually the right answer
+  on a `0.3-0.7` score. Skip it now and **name the observable signal** that
+  should make you revisit: a row count, a second consumer appearing, a
+  latency number, a support ticket. A deferral with no named trigger is just
+  forgetting with extra steps.
+
+## Step 5: Escalate — but ask first
+
+Get a second, independent opinion when any of these hold:
+
+- The score lands within ~0.15 of a decision boundary (`0.3` or `0.5`).
+- The fork is expensive or hard to reverse: schema, wire contract,
+  migration, anything with a deployed consumer.
+- You could not find evidence **and** the area is load-bearing.
+- The claim came from this same session, you found no independent evidence,
+  and your verdict agrees with whatever was convenient. Self-grading with no
+  external check is the failure mode this pack keeps designing around.
+
+Two escalation paths, both **offered to the user, never run silently** —
+they cost minutes:
+
+- **Fresh subagent** (~30-60s) — spawn via `Agent`, `subagent_type:
+  general-purpose`, prompted to *argue the condition IS reachable* and to
+  cite lines. Adversarial framing is the point; a neutral second pass just
+  agrees with the first.
+- **Codex cross-model** (2-5 min) — reuse the sibling skill's wrapper, same
+  plugin:
+  `bash ${CLAUDE_PLUGIN_ROOT}/skills/refine-plan-against-codex/references/run-codex.sh '<prompt>'`.
+  Worth it when the fork is expensive and a different architecture's blind
+  spots are the value.
+
+## Output
+
+```
+likelihood: <0.00-1.00 | unverified> · <reachable | unreachable | unverifiable | not established>
+
+Claim:      <one-line restatement>
+Bites when: <the trigger sentence, or "cannot be stated" >
+Evidence:   <file:line> — "<the quoted line that settles it>"
+Verdict:    <1-2 sentences: what it would take, and whether that happens here>
+
+Fork:       <what the claim is being used to justify>
+Cost now:   <what the guard costs, carried forever>
+Cost later: <what it costs to add after the fact>
+→ <SIMPLE PATH | TAKE THE FORK | DEFER — revisit when <signal>>
+```
+
+Omit the `Fork:` block when the claim is not attached to a proposal. Keep
+the whole thing under ~15 lines per claim: the user is mid-planning and
+wants to get back to it.
+
+## Rules
+
+1. **Read before scoring.** Every verdict cites a `file:line`, or says
+   plainly that it could not find one.
+2. **Never edit the artifact.** Read-only. The recommendation is a
+   recommendation.
+3. **Never take the fork on the user's behalf**, in either direction —
+   including by quietly dropping the claim.
+4. **Report `not established` proudly.** "This claim has no statable
+   condition" is a complete, useful answer and takes ten seconds.
+5. **Do not score what you did not check.** `unverified` exists so you never
+   have to guess.
+6. **Stay fast.** If a check is turning into an investigation, hand it back:
+   say what you would need and offer the escalation.
+
+## Common rationalizations
+
+| Rationalization | Reality |
+|---|---|
+| "It's technically possible, so it counts" | Possible is the entry fee, not the verdict. Find the invariant or admit you didn't look. |
+| "Better safe than sorry — just add the guard" | The guard is not free and never gets removed. Price it against the score and against adding it later. |
+| "I can't find the constraint, so it's probably fine" | That is the one guess you may not make. It's `unverified`, and unverified keeps the question open. |
+| "The reviewer that raised it is usually right" | Track record is not evidence. This skill exists because that reviewer raises rare issues at full confidence. |
+| "It's a one-line fix, cheaper to just do it" | Then it is also a one-line fix later, which is exactly the argument for deferring it with a trigger. |
+| "Let me check every place this could matter" | That's an audit, not a triage. Timebox it and escalate. |
+
+## Red flags
+
+- A score with no quoted evidence behind it
+- Inventing the specifics of a condition the claim never stated
+- `<0.3` used for "I couldn't check" instead of "I checked, it can't happen"
+- A deferral with no named signal that would make you revisit
+- Escalating to codex or a subagent without asking — it costs the user minutes
+- Grinding past the timebox instead of reporting `unverified`
+- Adjudicating a whole review's worth of findings one at a time (use
+  `adr-review` or the refine loop)
