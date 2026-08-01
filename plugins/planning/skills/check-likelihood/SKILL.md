@@ -9,9 +9,11 @@ description: >
   plan review, or any agent turn surfaces a risk that smells rare or
   theoretical, or when a claimed problem is being used to justify extra
   complexity, an extra branch, a lock, a retry, or a "we should also handle
-  X". Activates on "really?", "is it real", "for real?", "is that likely",
-  "how likely is that", "does that actually happen", "is this worth
-  handling", "check likelihood".
+  X". Activates on "how likely is that", "is that likely", "does that
+  actually happen", "when would that actually happen", "has that ever
+  happened", "can that actually happen", "that sounds theoretical", "sounds
+  rare", "isn't that an edge case", "that seems unlikely", "that's a
+  stretch", or "check likelihood".
 allowed-tools: Read, Glob, Grep, Bash, Agent, AskUserQuestion
 ---
 
@@ -65,7 +67,48 @@ that and stop. Do not invent a plausible condition on the claim's behalf —
 supplying the missing specifics is exactly how a vague worry gets promoted
 into a finding, and you would then be grading your own invention.
 
-## Step 2: Find the evidence
+## Step 2: Predict the read before you spend it
+
+Name the files that could settle the condition **without opening them** —
+`Glob` for paths, `Grep` for matching lines. That costs almost nothing and
+tells you which mode you are in.
+
+**Budget: 5 full file reads.** Not "five minutes" — you cannot feel elapsed
+time, so a clock is decoration. You can count files, so the budget is
+files. A `Grep` hit you read as a single line is free; opening the file is
+not.
+
+- **≤5 candidates** → read them, continue to Step 3. The normal case.
+- **>5 candidates, or you cannot name any** → do **not** start reading.
+  Go to "When the read is too big" below.
+
+### When the read is too big
+
+The cost of a 14-file read is not the wait. It is 14 files landing in the
+planning context you are in the middle of using — you invoked a triage
+check, and it ate the session you were trying to protect.
+
+So report the estimate first and let the user choose:
+
+```
+scope: ~14 files (app/services/*.py, 3 migrations, .claude/rules/12-outbox.md)
+This is an audit, not a triage. Pick one:
+  1. Delegate — a subagent reads it and returns only the verdict (~30-60s,
+     keeps this context clean)
+  2. Narrow — name the one file you think settles it, I read only that
+  3. Skip — take it as `unverified` and move on
+```
+
+Never start an over-budget read inline, and never delegate silently — 1 and
+3 are genuinely different answers and only the user knows which they want.
+
+**If delegating:** `Agent`, `subagent_type: general-purpose`. Hand it the
+claim, the trigger sentence from Step 1, and the candidate file list.
+Require the Output block below verbatim, including the `file:line` quote.
+Its context absorbs the 14 files and dies with it; yours stays clean. That
+asymmetry is the whole reason to delegate rather than read.
+
+## Step 3: Find the evidence
 
 This is the whole job. Work down this list and stop at the first thing that
 settles the condition:
@@ -83,11 +126,11 @@ settles the condition:
 is a guess wearing a number. This is the same bar the rest of the pack
 uses: point at the invariant or you have not classified anything.
 
-**Timebox it.** Roughly five minutes of targeted reading. This is a triage
-check, not an audit — if that much focused searching does not settle it,
-that *is* the finding, and you go to case 3 below. Do not grind.
+If the budget runs out before anything settles it, that *is* the answer:
+`unverified`, with the files you did read and the one you would read next.
+Do not quietly take a sixth.
 
-## Step 3: Classify
+## Step 4: Classify
 
 Score `materialization` 0.00-1.00 — the probability the triggering
 condition actually occurs, not how bad it would be. (The pack calls the
@@ -117,7 +160,7 @@ is silent.** A wrong high score costs one unnecessary fix, which someone
 will notice. A wrong low score deletes a real problem, and nobody ever finds
 out. When the evidence is missing, that asymmetry decides for you.
 
-## Step 4: The fork question
+## Step 5: The fork question
 
 Most claims arrive attached to a proposal — a branch, a retry, a lock, a
 nullable column, an extra table, a "we should also handle". Score the claim,
@@ -125,7 +168,7 @@ then price the proposal:
 
 - **Cost now** — the complexity the guard adds and you then carry forever:
   code paths, tests, a concept every future reader must hold.
-- **Cost if it fires** — blast radius × the score from Step 3.
+- **Cost if it fires** — blast radius × the score from Step 4.
 - **Cost of adding it later** — usually the number that decides. A guard
   that is cheap to add the day you first see the problem should not be
   bought today on a `<0.3` score. A guard that becomes a data migration
@@ -142,7 +185,12 @@ Land on one of three:
   latency number, a support ticket. A deferral with no named trigger is just
   forgetting with extra steps.
 
-## Step 5: Escalate — but ask first
+## Step 6: Escalate — but ask first
+
+Different problem from Step 2's delegation, and worth keeping straight.
+Step 2 delegates for **volume** — the evidence is reachable, there is just
+too much of it to read here. This escalates for **independence** — you have
+a verdict and it should not be the only one.
 
 Get a second, independent opinion when any of these hold:
 
@@ -199,8 +247,10 @@ wants to get back to it.
    condition" is a complete, useful answer and takes ten seconds.
 5. **Do not score what you did not check.** `unverified` exists so you never
    have to guess.
-6. **Stay fast.** If a check is turning into an investigation, hand it back:
-   say what you would need and offer the escalation.
+6. **Stay inside the budget.** Five file reads. If a check is turning into
+   an investigation, hand it back: name the scope and offer the three
+   options. A triage that quietly becomes an audit costs the user the
+   context they were working in.
 
 ## Common rationalizations
 
@@ -211,7 +261,8 @@ wants to get back to it.
 | "I can't find the constraint, so it's probably fine" | That is the one guess you may not make. It's `unverified`, and unverified keeps the question open. |
 | "The reviewer that raised it is usually right" | Track record is not evidence. This skill exists because that reviewer raises rare issues at full confidence. |
 | "It's a one-line fix, cheaper to just do it" | Then it is also a one-line fix later, which is exactly the argument for deferring it with a trigger. |
-| "Let me check every place this could matter" | That's an audit, not a triage. Timebox it and escalate. |
+| "Let me check every place this could matter" | That's an audit, not a triage. Report the scope and offer to delegate it. |
+| "It's only a couple more files" | It is always only a couple more files. That is how a 5-file budget becomes a 20-file read of someone else's planning context. |
 
 ## Red flags
 
@@ -220,6 +271,8 @@ wants to get back to it.
 - `<0.3` used for "I couldn't check" instead of "I checked, it can't happen"
 - A deferral with no named signal that would make you revisit
 - Escalating to codex or a subagent without asking — it costs the user minutes
-- Grinding past the timebox instead of reporting `unverified`
+- Opening files past the 5-read budget instead of reporting the scope
+- Starting a big read inline when delegating would have kept the context clean
+- Predicting scope *after* opening the first few files, which is not predicting
 - Adjudicating a whole review's worth of findings one at a time (use
   `adr-review` or the refine loop)
