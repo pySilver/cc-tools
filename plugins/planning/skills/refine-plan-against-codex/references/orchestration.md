@@ -14,6 +14,7 @@ verbatim subagent prompts); everything below is reference-grade.
 - [Stuck-finding detection (gap-4)](#stuck-finding-detection-gap-4)
 - [Prose-drift arbiter gate (gap-5)](#prose-drift-arbiter-gate-gap-5)
 - [Materialization scoring (gap-6)](#materialization-scoring-gap-6)
+- [Design-level findings (gap-7)](#design-level-findings-gap-7)
 - [Drift guard](#drift-guard)
 - [Termination states](#termination-states)
 
@@ -137,7 +138,8 @@ Tokens are what the orchestrator captured from each subagent return's
 `state.py status` remains available for the simpler human-readable
 shape — useful for quick scripted parsing.
 
-`<verdict>` is `"Plan hardened across N rounds"` (clean), `"Converged
+`<verdict>` is `"Plan hardened across N rounds"` (clean), `"Handed back
+after N rounds — the fix is a design change"` (design handoff), `"Converged
 after N rounds — remaining findings are editorial"` (converged), `"Cap
 reached after N rounds, M unresolved findings"` (cap), or
 `"Aborted: <reason>"` (any aborted_*). `<next-action>` is
@@ -415,6 +417,56 @@ fixed in the other, with no memo explaining the swing — the audit trail
 is the per-round `findings.txt` / `arbiter.txt` pair. Same deferred fix
 as gap-5's: a cross-round verdict cache keyed by `file:line`+title.
 
+## Design-level findings (gap-7)
+
+**The problem.** gap-5 and gap-6 filter findings that should not be acted
+on. This one is about a finding that *should* be acted on, at a level the
+loop cannot reach. Codex proposes a fix; the implementer applies it. Neither
+is allowed to ask *why the condition exists at all*. So when the honest
+answer is "this risk exists because the plan chose two writers, and the fix
+is to choose one", the loop instead bolts on a lock, marks the finding
+resolved, and carries the cause forever. Every round of that makes the plan
+worse while every round reports progress.
+
+**Why the implementer cannot just do it.** Subagent #2's contract is
+"findings are the only license to edit" plus minimum-scope edits, and that
+rule is load-bearing — it is what stops the loop wandering. Restructuring a
+plan is the opposite of a minimum-scope edit. Letting the implementer decide
+to do it would trade a real safeguard for this one.
+
+**The mechanism.** Codex sets `fix_kind` on every finding: `guard` (a check,
+retry, lock, flag, or branch that holds the symptom down) or `design` (the
+condition only exists because of a decision the plan already made). Codex
+also fills `cause` with that decision. From `ARBITER_FROM_ROUND` the arbiter
+answers the same question independently and its answer overrides — codex has
+an incentive to say `guard`, because a guard is the smaller edit and keeps
+its recommendation inside the implementer's licence.
+
+The orchestrator then splits the actionable set and **asks the user**, the
+same shape as the gap-4 stuck prompt:
+
+- **Revise the plan yourself** → finalize `completed_design_handoff` and
+  stop. The loop does not resume against a plan that is about to be
+  rewritten by hand; re-run when the revision lands.
+- **Let the implementer apply them** → an explicit, recorded scope
+  expansion for those findings only. Note it in the round's commit message
+  so the history shows where the licence was widened.
+- **Treat them as guards** → codex's guard recommendation stands and the
+  cause is knowingly left in place. A legitimate answer when the plan's
+  decision is settled for reasons outside this review.
+- **Ignore** → dropped this round. Codex re-raises them, and the gap-4
+  stuck check may then prompt on the same location.
+
+**Reporting.** Print design findings with their `cause` and the plan section
+the fix would change, never as a bare count — the whole value is the
+operator seeing that the fork itself is in question. On a round that ends in
+`completed_design_handoff`, the final report lists them in full.
+
+**Known limitation.** `fix_kind` is per-round and not remembered. A user who
+answers "treat as guards" gets asked again next round when codex re-raises
+the same finding, since nothing persists the decision. Same deferred fix as
+gap-5 and gap-6: a cross-round verdict cache keyed by `file:line`+title.
+
 ## Drift guard
 
 Before committing each round:
@@ -466,6 +518,12 @@ All terminal states call `./references/state.py finalize <state-dir>
   one more round
   (`REFINE_PLAN_ARBITER_FROM_ROUND=1`). Like clean, this is a *success*
   exit → next action is `/planning:exec`.
+- **Design handoff** (`completed_design_handoff`): a round surfaced one or
+  more findings whose fix is a design change (gap-7) and the user chose to
+  make it themselves. The loop stops rather than resuming against a plan
+  about to be rewritten by hand. A *success* exit — the review found
+  something the loop was not allowed to fix. Next action: revise the plan,
+  then re-run the skill.
 - **Cap** (`completed_cap`): `iter == MAX_ITER` without a clean codex
   result → report the unresolved findings list and recommend manual
   triage. Do NOT silently continue past the cap.

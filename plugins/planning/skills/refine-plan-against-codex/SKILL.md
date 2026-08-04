@@ -215,10 +215,11 @@ while iter < MAX_ITER:
         # On any parse/shape failure OR a missing index, fail safe: treat all
         # as real AND discard every arbiter score (never drop a real finding
         # or trigger a false convergence on a broken arbiter reply).
-        classes, mater = read_arbiter_json(arbiter_raw)
+        classes, mater, arb_fix_kind = read_arbiter_json(arbiter_raw)
         if not classes or any(i not in classes for i in range(1, len(actionable) + 1)):
             classes = {i: "real" for i in range(1, len(actionable) + 1)}
             mater   = {}
+            arb_fix_kind = {}    # fall back to codex's fix_kind, do not invent one
             warn("arbiter output unparseable/incomplete; treating all findings as real this round")
         # The arbiter's materialization OVERRIDES codex's, for both the floor
         # and the gate. An index the arbiter left unscored reads as 1.0 —
@@ -252,6 +253,31 @@ while iter < MAX_ITER:
                             # floor; prose and sub-floor unlikely are dropped.
                             # A real finding between FLOOR and GATE is still
                             # fixed — the gate only governs termination.
+        #   The arbiter's fix_kind overrides codex's, same as its score.
+        for i, f in enumerate(actionable, 1):
+            f.fix_kind = arb_fix_kind.get(i, f.fix_kind)
+    # gap-7: design-level findings. A finding whose fix is "change a decision
+    # the plan already made" is outside the implementer's licence by
+    # construction — subagent #2 is told findings are its only licence to
+    # edit, and restructuring a plan is not a minimum-scope edit. Route it to
+    # the user instead of letting either agent decide alone.
+    design = [f for f in actionable if f.fix_kind == "design"]
+    guards = [f for f in actionable if f.fix_kind != "design"]
+    if design:
+        print the design findings: file:line, title, `cause`, and the plan
+              section the fix would change
+        ask user: "<N> finding(s) say the fix is a design change, not a guard.
+                   Revise the plan yourself, let the implementer apply them
+                   this round, treat them as guards, or ignore them?"
+        on "revise myself" → state.py finalize $state_dir completed_design_handoff
+                             print the design findings + next step; break
+        on "let implementer" → guards += design   # explicit scope expansion,
+                               and note it in the round's commit message
+        on "treat as guards" → guards += design   # codex's guard recommendation
+                               stands; the cause is knowingly left in place
+        on "ignore"         → drop them this round (codex will re-raise; the
+                               gap-4 stuck check may then prompt on them)
+    actionable = guards
     print codex-done line (severity counts + ↓len(unlikely) + top finding;
           on arbiter rounds also the arbiter digest with len(prose) and
           len(arb_unlikely) — see references/orchestration.md)
@@ -344,7 +370,7 @@ only; the orchestrator knows both):**
 
 > Run this shell command and capture its full stdout:
 >
-> `bash <SKILL_DIR>/references/run-codex.sh 'Review the implementation plan at <PLAN_PATH> and return findings as a single JSON object — no prose, no preamble, no trailing commentary. Schema: {"verdict":"approve"|"needs-attention","summary":"string","findings":[{"severity":"critical"|"high"|"medium"|"low","title":"string","body":"string","file":"string","line_start":int,"line_end":int,"confidence":0.0-1.0,"materialization":0.0-1.0,"materialization_reason":"string","recommendation":"string"}],"next_steps":["string", ...]}. Set verdict to "approve" with an empty findings array if you have no findings: {"verdict":"approve","summary":"…","findings":[],"next_steps":[]}. Cite file paths and line ranges from the plan you are reviewing. Use confidence < 0.3 to mark a finding as low-confidence noise — the orchestrator will record it but not act on it. `confidence` and `materialization` are different axes and must be scored separately: confidence is "how sure am I this claim is true?", materialization is "if this plan is built exactly as written, how likely is it that this issue actually bites?". Score materialization as the probability the triggering conditions actually occur: >0.7 = it bites on the normal path or the first realistic input; 0.3-0.7 = it needs a specific but plausible condition (an error path, a concurrent write, a large input); <0.3 = it needs an unlikely conjunction of conditions, a scenario the plan already rules out, or a scale this system will not reach. A finding can be certainly true (confidence 0.95) and still almost never bite (materialization 0.1) — score that honestly instead of inflating it, and put the triggering condition in one sentence in materialization_reason. If the plan does not state the constraint that would settle whether that condition can occur, do NOT guess it low: score materialization 1.0 and say in materialization_reason what you would need to see. Guessing low and guessing high are the same error, and a low score is what stops the issue being fixed. Return ONLY the JSON object.'`
+> `bash <SKILL_DIR>/references/run-codex.sh 'Review the implementation plan at <PLAN_PATH> and return findings as a single JSON object — no prose, no preamble, no trailing commentary. Schema: {"verdict":"approve"|"needs-attention","summary":"string","findings":[{"severity":"critical"|"high"|"medium"|"low","title":"string","body":"string","file":"string","line_start":int,"line_end":int,"confidence":0.0-1.0,"materialization":0.0-1.0,"materialization_reason":"string","instance":"string","cause":"string","fix_kind":"guard"|"design","recommendation":"string"}],"next_steps":["string", ...]}. Set verdict to "approve" with an empty findings array if you have no findings: {"verdict":"approve","summary":"…","findings":[],"next_steps":[]}. Cite file paths and line ranges from the plan you are reviewing. Use confidence < 0.3 to mark a finding as low-confidence noise — the orchestrator will record it but not act on it. `confidence` and `materialization` are different axes and must be scored separately: confidence is "how sure am I this claim is true?", materialization is "if this plan is built exactly as written, how likely is it that this issue actually bites?". Score materialization as the probability the triggering conditions actually occur: >0.7 = it bites on the normal path or the first realistic input; 0.3-0.7 = it needs a specific but plausible condition (an error path, a concurrent write, a large input); <0.3 = it needs an unlikely conjunction of conditions, a scenario the plan already rules out, or a scale this system will not reach. A finding can be certainly true (confidence 0.95) and still almost never bite (materialization 0.1) — score that honestly instead of inflating it, and put the triggering condition in one sentence in materialization_reason. If the plan does not state the constraint that would settle whether that condition can occur, do NOT guess it low: score materialization 1.0 and say in materialization_reason what you would need to see. Guessing low and guessing high are the same error, and a low score is what stops the issue being fixed. Put in `instance` one concrete run that ends badly, in time order, with real values invented where needed — "worker 2 picks up order 8814 while worker 1 is still writing it", not "two workers race on a row"; a condition is checkable, an instance is checkable and imaginable. Before proposing a fix, ask what makes the condition possible and keep asking until the answer is a decision the plan already made rather than a missing line of code; put that decision in `cause` (empty string if it does not trace to one). Then set `fix_kind`: "guard" if your recommendation adds a check, retry, lock, flag, or branch that holds the symptom down, "design" if it removes the cause by changing a decision the plan already made. Prefer naming the design fix when the cause is a plan decision — a guard leaves the flaw in place and is carried forever. Return ONLY the JSON object.'`
 >
 > Return ONLY the script's stdout, exactly as codex emitted it — do NOT
 > paraphrase, summarize, wrap in extra fences, or add your own
@@ -386,7 +412,9 @@ and unlikely-to-materialize findings are NOT forwarded.
 > <findings>
 > <one bullet per actionable finding, rendered as:
 >   - [severity, m=materialization] file:line_start-line_end — recommendation
->   followed by a short body line on the next indented line.
+>   followed by the finding's `instance` on the next indented line — one
+>   concrete run that ends badly, which tells you what the fix has to
+>   prevent far better than the abstract condition does.
 >  Pre-filtered to confidence ≥ 0.3 and materialization ≥ 0.3 by the
 >  orchestrator.>
 > </findings>
@@ -411,6 +439,12 @@ and unlikely-to-materialize findings are NOT forwarded.
 > 6. After addressing each finding, list 2-3 places in the plan that
 >    might need related updates because of your fix, and address
 >    those too within scope.
+> 7. These findings have already been triaged as guard-level edits. If
+>    resolving one would require restructuring the plan's approach —
+>    changing a decision the plan already made, rather than fixing what it
+>    says — STOP on that finding, leave it unedited, and say so in your
+>    summary with the section it would have changed. Do not restructure a
+>    plan on your own authority. The orchestrator routes those to the user.
 >
 > Do NOT commit. The orchestrator handles commits between rounds.
 
@@ -485,8 +519,24 @@ codex's framing. It does NOT edit anything.
 >      recommendation / body (one line)>
 > </findings>
 >
+> Then, for every finding you called `real`, decide independently whether
+> the fix belongs at the guard level or the design level. Ask what makes
+> the condition possible, and keep asking until the answer is a decision
+> the plan already made rather than a missing line of code.
+>
+> - `guard` — the fix adds a check, retry, lock, flag, or branch that holds
+>   the symptom down. The cause stays in the plan.
+> - `design` — the condition only exists because of a choice the plan
+>   already made, and changing that choice removes the failure mode by
+>   construction. Name the plan section that holds it.
+>
+> Codex is shown the same question but has an incentive to answer `guard`,
+> because a guard is the smaller edit. Judge it yourself from the plan. When
+> the honest answer is "this fork should not exist", say `design` — do not
+> pick between two guards when neither is the real fix.
+>
 > Return ONLY a single JSON object, no prose, no preamble:
-> `{"classifications":[{"index":int,"class":"real"|"prose","materialization":0.0-1.0,"reason":"<=1 sentence, cite the plan","materialization_reason":"<=1 sentence naming the condition that would have to hold"}],"summary":"<=1 sentence"}`.
+> `{"classifications":[{"index":int,"class":"real"|"prose","materialization":0.0-1.0,"fix_kind":"guard"|"design","reason":"<=1 sentence, cite the plan","materialization_reason":"<=1 sentence naming the condition that would have to hold","cause":"<=1 sentence naming the plan decision, or empty"}],"summary":"<=1 sentence"}`.
 > Include exactly one entry per finding index above.
 
 **Reading the arbiter's reply** is something you (the orchestrator) do
@@ -494,15 +544,20 @@ directly on its JSON — there is no `state.py` helper for it (unlike
 codex's findings, which `state.py` re-parses for `summary`/`detect-stuck`,
 the arbiter verdict has no other consumer). Strip a leading
 ```` ```json ```` fence, `json.loads`, and on a valid
-`{"classifications":[{index,class,materialization,...}]}` object build
-both a `{index: "real"|"prose"}` map and a `{index: float}`
-materialization map. Drop any `materialization` that is missing or not a
-number in `0.0-1.0` from the second map — an index absent from it reads
-as `1.0` at both threshold checks. On **any** parse/shape failure — or a
+`{"classifications":[{index,class,materialization,fix_kind,...}]}` object
+build three maps: `{index: "real"|"prose"}`, `{index: float}` for
+materialization, and `{index: "guard"|"design"}` for fix_kind. Drop any
+`materialization` that is missing or not a number in `0.0-1.0` from the
+second map — an index absent from it reads as `1.0` at both threshold
+checks. Drop any `fix_kind` that is not exactly `guard` or `design`; an
+index absent from that map keeps **codex's** `fix_kind` rather than
+defaulting, because inventing `design` would stall the loop on a user
+prompt and inventing `guard` would hide the finding the gap-7 gate exists
+to surface. On **any** parse/shape failure — or a
 missing `class` entry for some index — fail safe: treat every finding as
-`real` and discard the whole materialization map for that round (never
-converge, never drop a finding on a broken arbiter response), and print a
-one-line warning. The arbiter's raw JSON is persisted to
+`real` and discard the whole materialization and fix_kind maps for that
+round (never converge, never drop a finding on a broken arbiter response),
+and print a one-line warning. The arbiter's raw JSON is persisted to
 `round-NN/arbiter.txt` via `state.py record-arbiter-end` for the audit
 trail and the summary table's `Xr Yp m<max>` digest.
 

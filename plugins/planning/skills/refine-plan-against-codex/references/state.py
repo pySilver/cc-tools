@@ -61,6 +61,7 @@ _FILE_LINE_PAT = re.compile(r"`([^`]+?):(\d+)`")
 TERMINAL_STATUSES = (
     "completed_clean",
     "completed_converged",
+    "completed_design_handoff",
     "completed_cap",
     "aborted_codex_error",
     "aborted_malformed_output",

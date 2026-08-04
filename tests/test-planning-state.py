@@ -274,6 +274,11 @@ class TerminalStatusesTest(unittest.TestCase):
         # the prose-drift gate finalizes with this status; finalize must accept it
         self.assertIn("completed_converged", state.TERMINAL_STATUSES)
 
+    def test_design_handoff_is_terminal(self):
+        # gap-7: the user chose to revise the plan's design themselves, so the
+        # loop ends rather than resuming against a plan about to be rewritten
+        self.assertIn("completed_design_handoff", state.TERMINAL_STATUSES)
+
 
 if __name__ == "__main__":
     unittest.main()
