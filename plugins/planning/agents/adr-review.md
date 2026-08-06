@@ -89,6 +89,22 @@ This project's ADRs are decision records, not PRDs. The expected shape is:
 - Where the decision creates a standing operational tax (a slot to monitor, a reconciler
   that becomes load-bearing), it is named.
 
+### Factual premises hold in the code (Critical)
+An ADR states facts about the existing tree — a symbol exists, a guard runs, a
+column has N writers, a field carries X. You review the decision, but the
+decision stands on those facts, and you have Grep and Read. Unverified premises
+have cost a Stage-5 rework three separate times.
+- Verify **every factual premise about existing code** by reading the source.
+  A premise that does not hold is a finding, reported like any other.
+- When the ADR **enumerates** writers, callers, or call sites, grep the count
+  before accepting it — enumerated counts produced two of the three failures.
+- Ask the author to state factual premises with `file:line` provenance so the
+  check is mechanical; a premise you cannot locate in the tree is a finding,
+  not a pass.
+- Keep the two failure classes apart: a wrong **decision** escalates to the
+  owner; a wrong **fact** is corrected in place. A bad decision needs the
+  owner, but a bad fact needs a grep.
+
 ### Load-bearing rigor (Critical when it applies)
 Check the dev-workflow ADR's "Signs a change is load-bearing" list. If the decision
 touches outbox invariants (`12-outbox.md`), FSM transitions (`11-fsm-transitions.md`),
