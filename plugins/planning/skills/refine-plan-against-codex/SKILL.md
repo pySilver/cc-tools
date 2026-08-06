@@ -19,8 +19,12 @@ stops finding issues. Modeled on real runs that converged contract-heavy
 plans over ~5 codex iterations (per codex's own count of distinct review
 passes).
 
-The loop's value front-loads: the first few rounds catch real design
-defects, but as a plan grows codex starts inflating **prose nitpicks**
+The loop's value does **not** front-load. Later rounds attack earlier
+rounds' fixes, so a late round can carry the worst finding of the run
+(measured 2026-08-04: worst-finding severity by round ran 0.42 → 0.48 →
+0.86, and stopping one round earlier would have shipped the worse
+defect). Do not stop early on the assumption the big defects come
+first. Separately, as a plan grows codex starts inflating **prose nitpicks**
 (re-interpretations of the plan's wording, not defects in what gets
 built) to `high` severity — so severity alone can't tell a real defect
 from editorial drift. From round 4 onward an independent **arbiter**
@@ -312,6 +316,20 @@ while iter < MAX_ITER:
 # to avoid clobbering it when convergence/abort lands exactly at the cap.
 if iter == MAX_ITER and (state.py status $state_dir shows status == in_progress):
     state.py finalize $state_dir completed_cap
+# Last-fix hole: every cap exit (completed_cap — natural cap or the stuck
+# prompt's "terminate") ends the loop right after applying a fix no round
+# ever reviewed. Since later rounds attack earlier rounds' fixes, that
+# unreviewed fix is the one most likely to be wrong. One scoped
+# delta-check — not a full round, and its findings are REPORTED, never
+# applied (applying would recreate the same hole one fix later).
+if state.py status $state_dir shows status == completed_cap:
+    last_diff = git show of the final round's commit (plan pathspec only)
+    spawn subagent #1 once more with a scoped prompt: review ONLY the
+        edits in <last_diff> as a change to <plan-path> — do they
+        introduce a new defect or regress an earlier fix? Same JSON
+        schema and neutrality rules as the per-round prompt.
+    print its findings verbatim in the final report for the user to
+        triage; do NOT invoke the implementer on them.
 print final summary (from state.py status / summary)
 ```
 
@@ -384,6 +402,13 @@ only; the orchestrator knows both):**
 >
 > Do NOT propose fixes. Do NOT modify any file. You are only a
 > transport.
+
+**Keep the review prompt neutral.** Substitute the two placeholders and
+change nothing else — never add framing like "over-planning is a defect
+here" or "a prior pass verified this design" (measured: a framed round
+returned approve with zero findings; the identical file under the
+neutral prompt returned three, including a high). Scope discipline
+belongs in the orchestrator's triage, never in codex's prompt.
 
 Rationale: structured JSON gives the implementer typed `severity`,
 exact `line_start`/`line_end` ranges, an explicit `recommendation`
