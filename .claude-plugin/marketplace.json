@@ -31,6 +31,11 @@
       "source": "./plugins/basedpyright-lsp",
       "description": "Python language server (basedpyright) for Claude: diagnostics + navigation, resolved from the project venv first so it matches the type-check gate.",
       "category": "development"
+    },
+    {
+      "name": "tracking",
+      "source": "./plugins/tracking",
+      "description": "Lightweight project-state tracking: a standing issue register under docs/issues/ (log-issue) and a single status board at docs/STATUS.md (status-board)."
     }
   ]
 }

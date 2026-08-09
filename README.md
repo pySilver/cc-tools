@@ -84,6 +84,7 @@ Enable `/plugin` → **Marketplaces** → **Enable auto-update** to refresh the 
 | [git](#git) | Finalize a feature branch — rebase, squash to one commit, verify, push |
 | [research](#research) | Grounded web research with source-quality discipline and inline citations |
 | [basedpyright-lsp](#basedpyright-lsp) | Python LSP (basedpyright) for Claude — navigation + diagnostics, from the project's pinned venv |
+| [tracking](#tracking) | Standing issue register (`docs/issues/`) + one project status board (`docs/STATUS.md`) |
 
 ### planning
 
@@ -155,6 +156,21 @@ It resolves the server binary in priority order, anchored to the project root (`
 Replaces `pyright-lsp@claude-plugins-official` (which hardcodes `pyright-langserver` and looks it up on `PATH` only — it never finds a `basedpyright` that lives in a project venv). Disable any pyright/basedpyright LSP from another marketplace before enabling this one.
 
 > **Tuned for my setup.** Assumes a project venv at `.venv/` and/or a `uv`-managed `pyproject.toml`, and a basedpyright type-check gate to agree with. On a non-uv project with no `.venv`, only the global fallback applies — adjust `bin/langserver.sh` for other layouts (Poetry, conda, a differently-named venv).
+
+### tracking
+
+Where side-quest findings and the work queue live, so neither derails the current task nor evaporates. Born from a repo audit that found six "active" plans of which zero were actionable — the cure is one board with a WIP limit, plus a register for the findings that are real but not today's job.
+
+| Component | Trigger | Description |
+|-----------|---------|-------------|
+| skill | `/tracking:log-issue` | Capture a finding just discussed into `docs/issues/` — one file per entry, index row, delete-on-decision; self-initializes the register on first use |
+| skill | `/tracking:status-board` | Create or update `docs/STATUS.md` — executing now, the ordered queue, owner gates, parked-with-trigger; wires a pointer + two WIP rules into `CLAUDE.md` on init |
+
+**log-issue** — a defect, open decision, or follow-up surfaces mid-conversation; this writes it into a standing register instead of letting it derail the work or vanish. Entries pass a three-part admission gate (real and re-derivable from code; needs an owner decision or is deliberately deferred; not owned by a dated review — those keep their own registers), get a subsystem-prefixed ID, minimal frontmatter (`issue | open_decision | future_work` — deliberately no severity taxonomy or status machine: presence means open), and a body written for a reader without the conversation: the concrete failure run with real values, the misreading to prevent, options with costs, a recommendation. Files and symbols are cited, never line numbers (those rot). Entries are **deleted on resolution** — the outcome lives in the ADR, plan, or commit that records it; a resolved entry left in place reads as still-open. The project's own `docs/issues/README.md` is the authoritative contract: if a repo evolves its register format, the skill follows the repo, not its bundled template.
+
+**status-board** — one screen answering "what is the state of this project": *Executing now* (max 1), *Next* (ordered), *Gated on owner*, *Parked* (every item carries a named re-entry trigger — a parked item with no trigger is forgetting with extra steps). The board carries **pointers, never copies** — a queue line links its ADR/plan/issue; the issue register gets one pointer line, never mirrored entries. Two standing rules ride with it and get wired into `CLAUDE.md` at init: a plan is written and refined only at queue front and executed immediately after (a refined-plan inventory is what rots), and the plans directory holds at most 2 files. Initialization reads the repo's actual state (plans dir, recent commits, any existing tracker) and **confirms the queue order with you before writing** — ordering is an owner decision. Update mode moves items between sections, keeps every line a pointer, and shows the diff.
+
+> **Tuned for my setup.** Assumes the `docs/` layout (`docs/issues/`, `docs/plans/`, `docs/STATUS.md`, dated reviews under `docs/reviews/<date>/`) and a root `CLAUDE.md` to wire the board into. The register/board shapes are project-agnostic otherwise.
 
 ## Output styles
 

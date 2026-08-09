@@ -1,0 +1,7 @@
+{
+  "name": "tracking",
+  "description": "Lightweight project-state tracking: a standing issue register under docs/issues/ (log-issue skill) and a single status board at docs/STATUS.md (status-board skill).",
+  "author": {
+    "name": "Silver"
+  }
+}
