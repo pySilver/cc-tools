@@ -310,5 +310,7 @@ and say which.
 | "I can't check that constraint, so I'll score it low" | That is guessing, and guessing low buries a real finding. Mark it `unverified` and name what you'd need to read — Step 5 case 3. |
 | "The score feels about right" | A score you cannot defend with the condition you named is a number you invented. Name the condition first; the score follows from it. |
 
-Only report issues you are confident about. If unsure whether something is a real gap,
-raise it as a question (FYI), not a Critical finding.
+Report every real gap you find — do not drop a finding because you are unsure of it.
+Filtering happens by tier, not by suppression: score each finding (Step 5) and place
+it where its odds belong. Unsure whether something is a real gap → raise it as a
+question under FYI, not as a Critical finding.
