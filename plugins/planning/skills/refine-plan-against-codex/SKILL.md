@@ -45,11 +45,27 @@ terminates by construction: `completed_verified` when it empties,
 `completed_cap` at the round budget (default 4).
 
 What that keeps: the highest-value finding class from the old shape was
-"round N's fix is wrong", and the verify round reads exactly that diff,
-so a fix that reintroduces its own finding still comes back as
-`fixed: false`. What it drops: "round 3 notices something unrelated in a
-section nobody touched" — which is the behaviour that made the loop
-endless.
+"round N's fix is wrong", and the verify round reads exactly that diff.
+That class has two halves, and they exit through different channels. A
+fix that **fails its own finding** comes back as `fixed: false` and stays
+on the list. A fix that **succeeds and introduces a different defect**
+cannot — the list may only shrink — so it goes to `parked[]`, which is
+why the verify prompt tells codex to look hardest at the text a fix
+added. Measured (2026-08-11, canonical-cluster-cutover): a fix correctly
+closed its finding and, in the section it added, wrote a lock order that
+contradicted the plan's own invariant; the verify round returned
+`fixed: true` with an empty `parked[]`, the loop exited
+`completed_verified`, and a later re-hunt found it at once. The prompt
+said "a defect UNRELATED to any listed finding", and a defect inside a
+fix's own text is not unrelated — so the wording steered codex away from
+the one place worth looking.
+
+What it drops: "round 3 notices something unrelated in a section nobody
+touched" — which is the behaviour that made the loop endless.
+
+**So read `completed_verified` as "every listed finding is closed",
+never as "the artifact is clean."** The list going empty is a property of
+the list, not of the plan.
 
 As a plan grows codex also inflates **prose nitpicks**
 (re-interpretations of the plan's wording, not defects in what gets
@@ -552,7 +568,7 @@ monotonically shrink, so the loop terminates by construction.
 
 > Run this shell command and capture its full stdout:
 >
-> `bash <SKILL_DIR>/references/run-codex.sh 'You are verifying fixes, not reviewing a plan. Below are findings raised in an earlier review — each with the concrete failure run its author said it would cause — and the diff that was applied to address them. For EACH numbered finding, decide whether that specific finding is now addressed by the diff, and return `fixed` true or false with one sentence of `why`. Judge only the finding in front of you. Where a finding carries a `bites when` line, that run is the test: answer whether the diff makes THAT run impossible, and say so in `why` — do not settle for "the edit resembles the recommendation", because an edit can match the wording and leave the run intact. You may NOT add findings to this list and you must NOT re-review the plan — the list is fixed and can only shrink. Mark `fixed: false` when the edit does not address the finding, when it addresses it in a way that reintroduces the same defect elsewhere, or when you cannot tell from the diff; do not mark a finding fixed on the assumption that a plausible edit worked. If the diff introduces a defect UNRELATED to any listed finding, or you notice anything else worth saying, put it in `parked` using the finding schema below — `parked` is reported to the human and is deliberately NOT acted on by this loop, so put things there freely rather than inflating a `fixed: false`. Return ONLY a single JSON object, no prose, no preamble: {"checks":[{"index":int,"fixed":true|false,"why":"string"}],"parked":[{"severity":"critical"|"high"|"medium"|"low","title":"string","body":"string","file":"string","line_start":int,"line_end":int,"confidence":0.0-1.0,"materialization":0.0-1.0,"instance":"string","recommendation":"string"}]}. Include exactly one `checks` entry per finding index below. <findings>@@OPEN_FINDINGS@@</findings> <diff>@@FIX_DIFF@@</diff>'`
+> `bash <SKILL_DIR>/references/run-codex.sh 'You are verifying fixes, not reviewing a plan. Below are findings raised in an earlier review — each with the concrete failure run its author said it would cause — and the diff that was applied to address them. For EACH numbered finding, decide whether that specific finding is now addressed by the diff, and return `fixed` true or false with one sentence of `why`. Judge only the finding in front of you. Where a finding carries a `bites when` line, that run is the test: answer whether the diff makes THAT run impossible, and say so in `why` — do not settle for "the edit resembles the recommendation", because an edit can match the wording and leave the run intact. You may NOT add findings to this list and you must NOT re-review the plan — the list is fixed and can only shrink. Mark `fixed: false` when the edit does not address the finding, when it addresses it in a way that reintroduces the same defect elsewhere, or when you cannot tell from the diff; do not mark a finding fixed on the assumption that a plausible edit worked. If the diff introduces a defect — whether unrelated to every listed finding, or created by a fix itself and living inside the very text that fix added — or you notice anything else worth saying, put it in `parked` using the finding schema below. A finding can be correctly fixed AND its fix can introduce a new problem; report both, and do not let `fixed: true` suppress the second. The text a fix added is the newest and least reviewed part of this artifact, so look there hardest. `parked` is reported to the human and is deliberately NOT acted on by this loop, so put things there freely rather than inflating a `fixed: false`. Return ONLY a single JSON object, no prose, no preamble: {"checks":[{"index":int,"fixed":true|false,"why":"string"}],"parked":[{"severity":"critical"|"high"|"medium"|"low","title":"string","body":"string","file":"string","line_start":int,"line_end":int,"confidence":0.0-1.0,"materialization":0.0-1.0,"instance":"string","recommendation":"string"}]}. Include exactly one `checks` entry per finding index below. <findings>@@OPEN_FINDINGS@@</findings> <diff>@@FIX_DIFF@@</diff>'`
 >
 > Return ONLY the script's stdout, exactly as codex emitted it — do NOT
 > paraphrase, summarize, wrap in extra fences, or add your own

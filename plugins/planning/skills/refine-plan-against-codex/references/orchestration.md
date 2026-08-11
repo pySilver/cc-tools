@@ -160,6 +160,20 @@ materialization-gated finding is the one an operator is most likely to
 want to overrule, so it always gets its score and the arbiter's
 condition sentence.
 
+**Tell the operator to read a sub-gate finding for self-contradiction,
+not only for risk.** Materialization scores how likely a condition is to
+occur, which is the right question for a race or a limit and the wrong
+one for "the artifact contradicts an invariant it states about itself".
+A contradiction scores low whenever the conditions are remote, while
+still being worth fixing on sight: it is cheap, and it is the artifact
+disagreeing with its own stated rule. Measured (2026-08-11,
+canonical-cluster-cutover): a finding that a revival wrote two rows
+against the codebase's single declared lock order scored m=0.3 — honest,
+since the deadlock needs concurrent load and the project is
+pre-production — but the plan itself said "do not invent a second lock
+order", so the real weight was the self-contradiction, not the deadlock.
+One line in the report is enough; do not add a third score.
+
 ```
 ═══ Converged after 4 rounds — remaining findings are editorial ═══
 
