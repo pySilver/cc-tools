@@ -277,6 +277,41 @@ during a fix pass. Deleting a memo destroys intent that cannot be recovered from
 the code or git history. This holds even for "bare" TODOs that match the
 patterns above — bareness is a reason to flag for improvement, not to delete.
 
+### Structural Smells
+
+#### CAT-15: Duplicated Logic Wanting a Shared Helper
+
+The one category that asks for an abstraction instead of removing one. Batches keep
+related files together precisely so this is visible; a diff-scoped reviewer cannot see
+it, and a reviewer told to strip abstraction reads the fix as a pass-through wrapper.
+
+Report when the SAME logic appears in two or more places in this batch and one
+extraction would preserve behaviour:
+
+- Byte-identical blocks — the tail of two sibling methods, the same guard-and-log
+  sequence, the same construction of one object
+- Blocks differing only in a literal, a name, or one attribute access, where the
+  difference is a clean parameter
+
+**Always HIGH** when the blocks are byte-identical, at least ~5 statements long, and in
+the same batch. **MEDIUM** when they differ by a parameter, or when confirming behaviour
+preservation needs a caller outside this batch.
+
+**DO NOT report:**
+- Two blocks under ~5 statements. Extracting a one-liner is churn — it trades a readable
+  repeat for a name and a jump
+- Structural similarity alone. Two functions that read alike but branch differently are
+  not duplicates, and a "unified" version with a mode flag is worse than both
+- Repetition the language expects — test arrange blocks, `__init__` assignments, enum or
+  settings tables, a run of similar field declarations
+- Duplication you infer across batches. You cannot see it here, and a helper proposed
+  from half the evidence lands in the wrong module
+
+Suggest ONE extraction, with a concrete name and where it belongs. This category asks for
+a helper, never a refactor: if the fix needs a new class, a new module, or more than one
+extraction to make sense, the problem is bigger than hygiene — report the observation and
+stop there.
+
 ## Rules
 
 - ONLY report patterns where simpler code is EQUALLY CORRECT, or where shorter
@@ -430,8 +465,8 @@ Do not report low-confidence findings.
 
 ## Step 4: Collect and Group
 
-After all agents complete, collect all findings. Group them by category (CAT-1 through
-CAT-8). Within each category, sort by confidence (high first), then by file path.
+After all agents complete, collect all findings. Group them by category. Within each
+category, sort by confidence (high first), then by file path.
 
 ## Step 5: Present Report
 
@@ -477,6 +512,9 @@ Docstring and Comment Smells:
 - CAT-13: Commented-Out Code
 - CAT-14: Bare TODO/FIXME/XXX
 
+Structural Smells:
+- CAT-15: Duplicated Logic Wanting a Shared Helper
+
 Omit categories with zero findings. End with:
 
 ```
@@ -486,6 +524,6 @@ Summary: N findings across N categories. N high-confidence items recommended for
 ## Important
 
 - This is READ-ONLY analysis. Do not modify any files.
-- Do not suggest refactoring unrelated to the 8 categories above.
+- Do not suggest refactoring unrelated to the categories above.
 - Do not report anything that ruff or basedpyright would catch.
 - Focus on code that a human would find odd or unnecessarily complex.
