@@ -479,7 +479,19 @@ subagent split below — each codex review is unbiased by what codex
 said last round, which prevents codex from drifting into "this is fine,
 I already said it was fine." Interactive codex sessions (one process,
 multi-prompt) are faster per iteration but lose this property. Do NOT
-"optimize" this to a long-lived codex session.
+"optimize" this to a long-lived codex session — `codex exec resume
+<id> | --last` makes it easy and it is still wrong.
+
+Under hunt-once the argument gets sharper, because rounds 2+ ask *did
+the fix work?* A resumed session would be grading the fix it
+recommended, and both ways it can fail are bad: talked into its own
+recommendation, it marks a finding fixed that is not, and the loop exits
+`completed_verified` on a live defect with nobody the wiser; defensive
+about its original framing, it rejects adequate fixes until the cap. The
+first is silent, which decides it. What a session would legitimately buy
+— the verifier knowing what the finding meant — is bought instead by
+passing the finding's own `body` and `instance` into the verify prompt
+(see subagent #1b).
 
 **Prompt contract (verbatim — substitute `<SKILL_DIR>` and `<PLAN_PATH>`
 only; the orchestrator knows both):**
@@ -540,7 +552,7 @@ monotonically shrink, so the loop terminates by construction.
 
 > Run this shell command and capture its full stdout:
 >
-> `bash <SKILL_DIR>/references/run-codex.sh 'You are verifying fixes, not reviewing a plan. Below are findings raised in an earlier review, and the diff that was applied to address them. For EACH numbered finding, decide whether that specific finding is now addressed by the diff, and return `fixed` true or false with one sentence of `why`. Judge only the finding in front of you. You may NOT add findings to this list and you must NOT re-review the plan — the list is fixed and can only shrink. Mark `fixed: false` when the edit does not address the finding, when it addresses it in a way that reintroduces the same defect elsewhere, or when you cannot tell from the diff; do not mark a finding fixed on the assumption that a plausible edit worked. If the diff introduces a defect UNRELATED to any listed finding, or you notice anything else worth saying, put it in `parked` using the finding schema below — `parked` is reported to the human and is deliberately NOT acted on by this loop, so put things there freely rather than inflating a `fixed: false`. Return ONLY a single JSON object, no prose, no preamble: {"checks":[{"index":int,"fixed":true|false,"why":"string"}],"parked":[{"severity":"critical"|"high"|"medium"|"low","title":"string","body":"string","file":"string","line_start":int,"line_end":int,"confidence":0.0-1.0,"materialization":0.0-1.0,"instance":"string","recommendation":"string"}]}. Include exactly one `checks` entry per finding index below. <findings>@@OPEN_FINDINGS@@</findings> <diff>@@FIX_DIFF@@</diff>'`
+> `bash <SKILL_DIR>/references/run-codex.sh 'You are verifying fixes, not reviewing a plan. Below are findings raised in an earlier review — each with the concrete failure run its author said it would cause — and the diff that was applied to address them. For EACH numbered finding, decide whether that specific finding is now addressed by the diff, and return `fixed` true or false with one sentence of `why`. Judge only the finding in front of you. Where a finding carries a `bites when` line, that run is the test: answer whether the diff makes THAT run impossible, and say so in `why` — do not settle for "the edit resembles the recommendation", because an edit can match the wording and leave the run intact. You may NOT add findings to this list and you must NOT re-review the plan — the list is fixed and can only shrink. Mark `fixed: false` when the edit does not address the finding, when it addresses it in a way that reintroduces the same defect elsewhere, or when you cannot tell from the diff; do not mark a finding fixed on the assumption that a plausible edit worked. If the diff introduces a defect UNRELATED to any listed finding, or you notice anything else worth saying, put it in `parked` using the finding schema below — `parked` is reported to the human and is deliberately NOT acted on by this loop, so put things there freely rather than inflating a `fixed: false`. Return ONLY a single JSON object, no prose, no preamble: {"checks":[{"index":int,"fixed":true|false,"why":"string"}],"parked":[{"severity":"critical"|"high"|"medium"|"low","title":"string","body":"string","file":"string","line_start":int,"line_end":int,"confidence":0.0-1.0,"materialization":0.0-1.0,"instance":"string","recommendation":"string"}]}. Include exactly one `checks` entry per finding index below. <findings>@@OPEN_FINDINGS@@</findings> <diff>@@FIX_DIFF@@</diff>'`
 >
 > Return ONLY the script's stdout, exactly as codex emitted it — do NOT
 > paraphrase, summarize, wrap in extra fences, or add your own
@@ -554,10 +566,38 @@ monotonically shrink, so the loop terminates by construction.
 > Do NOT propose fixes. Do NOT modify any file. You are only a
 > transport.
 
-`@@OPEN_FINDINGS@@` renders as a numbered list, one line per still-open
-finding: `N. [severity] file:line_start-line_end — title` plus the
-`recommendation` on the next line. `@@FIX_DIFF@@` is `git show` of the
-previous round's commit, plan pathspec only.
+`@@OPEN_FINDINGS@@` renders one block per still-open finding, from the
+original finding objects in `round-01/findings.txt`:
+
+```
+N. [severity] file:line_start-line_end — title
+   what: <body>
+   bites when: <instance>
+   cause: <cause>                    # omitted when empty
+   recommendation: <recommendation>
+```
+
+`@@FIX_DIFF@@` is `git show` of the previous round's commit, plan
+pathspec only.
+
+**Why the full block and not just the title.** The verifier is a fresh
+process with no memory of the hunt, so everything it knows about a
+finding is what this block says. Given only a title and a
+recommendation it can answer one question — *does this edit resemble
+what was recommended?* — and an edit can match the recommendation's
+wording while leaving the failure intact. `instance` is what turns that
+into a checkable question: the hunt already wrote down one concrete run
+that ends badly, with real values, so the verifier can ask whether the
+diff makes **that run** impossible.
+
+This is deliberately the alternative to resuming codex's session across
+rounds. A session would give the verifier the hunter's memory — along
+with the hunter's stake in its own recommendation, which is exactly the
+wrong property in a grader. Passing the finding's own text instead keeps
+the verdict independent, keeps the input auditable (it is verbatim from
+the state dir), keeps the prompt shrinking as findings close, and
+survives a resume. **Do not "optimize" this into a long-lived codex
+session** — see the same argument for the hunt round above.
 
 **Reading the reply** — `read_verify_json(raw)`: strip a leading
 ```` ```json ```` fence, `json.loads`, and on a valid
