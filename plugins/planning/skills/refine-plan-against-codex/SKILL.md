@@ -1,10 +1,12 @@
 ---
 name: refine-plan-against-codex
 description: >
-  Iteratively refine an implementation-plan markdown file by asking Codex
-  for findings, applying them, and looping until Codex returns an
-  `approve` verdict with no actionable findings or the iteration cap is
-  hit. Use AFTER `/planning:make` produces a draft and BEFORE
+  Refine an implementation-plan markdown file against Codex with a loop
+  that terminates: one hunt round produces a finite list of findings, and
+  every later round only verifies that the applied fixes closed them —
+  scoped to the fix diff and structurally unable to add new findings.
+  Anything else Codex notices is parked and reported, never fixed inside
+  the loop. Use AFTER `/planning:make` produces a draft and BEFORE
   `/planning:exec` begins execution. Activates on "refine against codex",
   "refine plan with codex", "loop codex review", "harden plan with codex",
   or when preparing a plan that defines a wire contract, multi-step state
@@ -14,25 +16,51 @@ description: >
 
 # refine-plan-against-codex
 
-Drives a review → fix → review loop on a single plan file until Codex
-stops finding issues. Modeled on real runs that converged contract-heavy
-plans over ~5 codex iterations (per codex's own count of distinct review
-passes).
+Drives an external review of a single plan file — **hunt once, then
+verify** — so the loop ends on a list going empty rather than on the
+reviewer running out of things to say.
 
-The loop's value does **not** front-load. Later rounds attack earlier
-rounds' fixes, so a late round can carry the worst finding of the run
-(measured 2026-08-04: worst-finding severity by round ran 0.42 → 0.48 →
-0.86, and stopping one round earlier would have shipped the worse
-defect). Do not stop early on the assumption the big defects come
-first. Separately, as a plan grows codex starts inflating **prose nitpicks**
+## Hunt once, then verify
+
+**Round 1 hunts. Every later round only verifies.** This is the shape of
+the loop and the reason it ends.
+
+A full re-review of the plan every round does not converge. Three things
+compound: "find what's wrong" is an unbounded generative task, so a
+determined reviewer always returns something; each fix is new text, so
+round N+1 legitimately has new material that round N created; and a
+memory-wiped full re-review resamples the whole artifact rather than
+working down a list. Measured on the brand-membership-propagation plan
+(2026-08-04), worst-finding severity by round ran `0.42 → 0.48 → 0.86` —
+**rising**, because each round's best finding attacked the previous
+round's fix. That is a diverging process, and no filter fixes a
+diverging process.
+
+So round 1 produces a finite list, and rounds 2+ are scoped to the diff
+of the previous round's fixes with one question per item: is this
+finding addressed, yes or no. They are structurally unable to add to the
+list. Anything else codex notices goes to `parked[]` — reported at the
+end, never fixed inside the loop. The list only shrinks, so the loop
+terminates by construction: `completed_verified` when it empties,
+`completed_cap` at the round budget (default 4).
+
+What that keeps: the highest-value finding class from the old shape was
+"round N's fix is wrong", and the verify round reads exactly that diff,
+so a fix that reintroduces its own finding still comes back as
+`fixed: false`. What it drops: "round 3 notices something unrelated in a
+section nobody touched" — which is the behaviour that made the loop
+endless.
+
+As a plan grows codex also inflates **prose nitpicks**
 (re-interpretations of the plan's wording, not defects in what gets
 built) to `high` severity — so severity alone can't tell a real defect
-from editorial drift. From round 4 onward an independent **arbiter**
-subagent classifies each finding real-vs-prose; when a round surfaces no
-real `high`/`critical` defects — only prose nitpicks and/or minor
-findings — the loop **auto-terminates as `completed_converged`** and
-reports exactly which findings were editorial, so you can accept it or
-force one more round.
+from editorial drift. An independent **arbiter** subagent classifies
+each finding real-vs-prose. It runs on the hunt round and only there:
+round 1 is the only round that produces findings, so it is the only
+round with anything to triage. When the hunt surfaces no real
+`high`/`critical` defects — only prose nitpicks and/or minor findings —
+the loop **auto-terminates as `completed_converged`** and reports
+exactly which findings were editorial.
 
 Editorial drift is one of two ways a finding wastes a round. The other
 is a finding that is **real but will never bite** — a defect that only
@@ -40,7 +68,7 @@ materializes under a conjunction of conditions the plan already makes
 unlikely. Every finding therefore carries a **materialization** score
 (0-1: "if this plan ships as written, how likely is it that this
 actually bites?") alongside `confidence` ("is this claim true?"). Codex
-self-scores it from round 1; from round 4 the arbiter re-scores it
+self-scores it on the hunt round; the arbiter then re-scores it
 independently and the arbiter's number wins. Two thresholds use it:
 
 - **`MATERIALIZATION_FLOOR`** (0.3) — below it a finding is recorded but
@@ -79,10 +107,17 @@ This skill is repo-agnostic but assumes the host environment provides:
 - Optional: a `**load-bearing` sentinel convention in the plan. Without
   it, the drift guard is a no-op and only prints a warning. Details in
   `references/orchestration.md`.
-- Optional: `REFINE_PLAN_ARBITER_FROM_ROUND` (default `4`) — the round
-  the prose-drift arbiter starts running and can terminate the loop. Set
-  `1` to arbiter every round (or to force one more arbiter-gated round on
-  an already-converged plan). Details under "Subagent #3".
+- Optional: `REFINE_PLAN_MAX_ROUNDS` (default `4`) — the round budget:
+  one hunt plus three verify passes. It is a budget, not a fallback;
+  under hunt-once the loop's normal exit is `completed_verified`, and the
+  cap is what stops a finding the implementer cannot fix from running
+  forever. Raise it only when a plan legitimately needs more fix attempts
+  per finding, never in the hope that another hunt round will help.
+- Optional: `REFINE_PLAN_ARBITER_FROM_ROUND` (default `1`) — the round
+  the prose-drift arbiter runs and can terminate the loop. Round 1 is the
+  only round that produces findings, so the default is the only value
+  that makes sense; a higher number disables the arbiter entirely.
+  Details under "Subagent #3".
 - Optional: `REFINE_PLAN_MATERIALIZATION_FLOOR` (default `0.3`) and
   `REFINE_PLAN_MATERIALIZATION_GATE` (default `0.5`) — the two
   materialization thresholds. `state.py` reads the same
@@ -98,9 +133,10 @@ This skill is repo-agnostic but assumes the host environment provides:
 Run AFTER `/planning:make` produces a draft and BEFORE `/planning:exec`
 begins execution. Skip for trivial plans (<3 tasks, no contract surface).
 
-**Cost note**: Codex is slow (2-5 min per call); at the 20-round cap that
-is ~100 minutes of subagent time worst case. Most plans terminate in 3-8
-codex iterations. Budget accordingly and prefer running unattended.
+**Cost note**: Codex is slow (2-5 min per call). At the default 4-round
+budget that is ~20 minutes of codex time worst case, plus the hunt
+round's arbiter. Most runs finish in 2-3 rounds. Budget accordingly and
+prefer running unattended.
 
 ## Inputs
 
@@ -137,24 +173,76 @@ else:
     state_dir = $(./references/state.py init <plan-path>)
     iter = 0
 
-MAX_ITER = 20
+MAX_ITER = int($REFINE_PLAN_MAX_ROUNDS or 4)   # 1 hunt + 3 verify
 CONFIDENCE_FLOOR = 0.3                                  # matches state.py
 MATERIALIZATION_FLOOR = float($REFINE_PLAN_MATERIALIZATION_FLOOR or 0.3)  # matches state.py
 MATERIALIZATION_GATE  = float($REFINE_PLAN_MATERIALIZATION_GATE  or 0.5)
 #   FLOOR filters (a sub-floor finding is recorded, never fixed);
 #   GATE terminates (a real high/critical below it no longer keeps the
 #   loop alive, but is still fixed). Two knobs, two jobs.
-ARBITER_FROM_ROUND = int($REFINE_PLAN_ARBITER_FROM_ROUND or 4)
-#   The round at which the prose-drift arbiter (subagent #3) starts
-#   running AND becomes able to terminate the loop. Default 4 → trust
-#   codex fully for the high-value rounds 1-3. Set =1 to arbiter every
-#   round (and to force "one more round" on an already-converged plan
-#   without re-applying prose — see "Subagent #3").
+ARBITER_FROM_ROUND = int($REFINE_PLAN_ARBITER_FROM_ROUND or 1)
+#   Round 1 is the only round that may ADD findings, so it is the only
+#   round with anything to triage. Default 1 — the arbiter runs on the
+#   hunt and never again. (Historically 4, back when every round was a
+#   full re-review; see "Hunt once, then verify".)
+
+open_findings = []   # the hunt list. Set once in round 1; only shrinks.
+parked        = []   # noticed on verify rounds; reported, never fixed.
+
 while iter < MAX_ITER:
     iter += 1                                           # rounds are 1-indexed in state
     plan_sha_before = sha256(<plan-path>)               # gap-2 baseline
     print round-start line
     state.py record-codex-start  $state_dir $iter
+
+    if iter > 1:
+        # ── VERIFY round ────────────────────────────────────────────
+        # Scope is the previous round's fix diff, NOT the plan. Codex is
+        # structurally unable to grow the list: it answers fixed/not-fixed
+        # per open finding, and anything else it notices goes to parked[].
+        fix_diff = git show of round (iter-1)'s commit (plan pathspec only)
+        subagent_return = verify_codex_subagent(open_findings, fix_diff)  # subagent #1b
+        raw_output, c_tokens, c_tool_uses = parse_subagent_return(subagent_return)
+        write raw_output to $state_dir/round-NN/verify.txt
+        if raw_output.startswith("CODEX_ERROR:"):
+            state.py finalize $state_dir aborted_codex_error
+            report_and_abort(raw_output)
+        checks, new_parked = read_verify_json(raw_output)
+        # Fail safe on a bad reply: treat every open finding as still
+        # unfixed. Never mark fixed on a parse failure — that would end
+        # the loop on a defect nobody checked.
+        if not checks or any(i not in checks for i in range(1, len(open_findings) + 1)):
+            checks = {i: False for i in range(1, len(open_findings) + 1)}
+            warn("verify output unparseable/incomplete; treating all findings as unfixed")
+        parked += new_parked
+        write new_parked to $state_dir/round-NN/parked.txt
+        open_findings = [f for i, f in enumerate(open_findings, 1) if not checks[i]]
+        # Synthesize this round's findings.txt from the ORIGINAL finding
+        # objects that are still open, in codex's schema. state.py's
+        # summary / detect-stuck / parse_findings then keep working
+        # unchanged, and detect-stuck now means exactly "the implementer
+        # cannot fix this one" — which is the signal worth having.
+        write {"verdict": "needs-attention" if open_findings else "approve",
+               "summary": "verify round <iter>",
+               "findings": open_findings, "next_steps": []} to /tmp/findings-current.txt
+        state.py record-codex-end $state_dir $iter /tmp/findings-current.txt $c_tokens $c_tool_uses
+        if len(open_findings) == 0:
+            state.py finalize $state_dir completed_verified
+            print verified report: every hunted finding, the round it was
+                  fixed in, and the full parked[] list with the reminder
+                  that nothing in it was acted on
+            break
+        actionable = open_findings
+        run_stuck_check(iter)           # still runs: a finding that survives
+                                        # two verify rounds is one the
+                                        # implementer cannot fix, which is
+                                        # exactly what gap-4 is for
+        skip to IMPLEMENTER             # but not the hunt-only stages —
+                                        # clean check, arbiter, and design
+                                        # routing all need new findings, and
+                                        # a verify round produces none
+
+    # ── HUNT round (iter == 1) ──────────────────────────────────────
     subagent_return = ask_codex_subagent(<plan-path>)   # subagent #1
     raw_output, c_tokens, c_tool_uses = parse_subagent_return(subagent_return)
     write raw_output to /tmp/findings-current.txt
@@ -186,28 +274,28 @@ while iter < MAX_ITER:
     if parsed.verdict == "approve" and len(actionable) == 0:
         state.py finalize $state_dir completed_clean
         break
-    # gap-4: detect findings that recur across rounds at the same
-    # file:line_start. Indicates the implementer's previous fix didn't
-    # actually satisfy codex. Detail in references/orchestration.md.
-    stuck = $(state.py detect-stuck $state_dir)
-    if stuck non-empty AND iter >= 2:
-        ask user: "<stuck details>; expand scope, terminate (completed_cap),
-                   or continue the loop?"
-        on "expand scope" → append a scope-expansion note to the implementer prompt
-                            for this round (allowing edits beyond the strict
-                            "findings are the only license" rule for the stuck items)
-        on "terminate"   → state.py finalize $state_dir completed_cap; break
-        on "continue"    → proceed normally (next stuck check is N rounds later;
-                            skill won't re-ask on the same set until a new file:line
-                            recurs)
+    run_stuck_check(iter)   # gap-4, no-op on the hunt round (needs 2 rounds
+                            # of findings to compare); defined once, called
+                            # from both paths:
+    #   stuck = $(state.py detect-stuck $state_dir)
+    #   if stuck non-empty AND iter >= 2:
+    #       ask user: "<stuck details>; expand scope, terminate
+    #                  (completed_cap), or continue the loop?"
+    #       on "expand scope" → append a scope-expansion note to the
+    #                           implementer prompt for this round (allowing
+    #                           edits beyond the strict "findings are the
+    #                           only license" rule for the stuck items)
+    #       on "terminate"   → state.py finalize $state_dir completed_cap; break
+    #       on "continue"    → proceed normally (won't re-ask on the same set
+    #                           until a new file:line recurs)
     # gap-5 + gap-6: prose-drift arbiter gate, and the arbiter's independent
     # materialization re-score. Codex inflates prose nitpicks to `high` and
     # over-reports issues that can only bite under absurd conditions, so
     # severity alone distinguishes neither — an independent arbiter
-    # (subagent #3) classifies AND re-scores each finding. Runs only from
-    # ARBITER_FROM_ROUND (default 4); rounds 1-3 trust codex, filtered by
-    # codex's own materialization self-score above. Detail in
-    # references/orchestration.md.
+    # (subagent #3) classifies AND re-scores each finding. Under hunt-once
+    # this is round 1's gate and runs exactly once: it is the only round
+    # that produces findings, so it is the only round with anything to
+    # triage. Detail in references/orchestration.md.
     if iter >= ARBITER_FROM_ROUND and len(actionable) > 0:
         state.py record-arbiter-start $state_dir $iter
         arbiter_return = arbiter_subagent(<plan-path>, actionable)   # subagent #3
@@ -282,9 +370,15 @@ while iter < MAX_ITER:
         on "ignore"         → drop them this round (codex will re-raise; the
                                gap-4 stuck check may then prompt on them)
     actionable = guards
+    open_findings = actionable   # the hunt list, frozen. Verify rounds may
+                                 # only remove from it; nothing ever adds.
+
+    IMPLEMENTER:
     print codex-done line (severity counts + ↓len(unlikely) + top finding;
-          on arbiter rounds also the arbiter digest with len(prose) and
-          len(arb_unlikely) — see references/orchestration.md)
+          on the hunt round also the arbiter digest with len(prose) and
+          len(arb_unlikely); on verify rounds instead print
+          "<fixed>/<total> verified, <len(open_findings)> open,
+          <len(new_parked)> parked" — see references/orchestration.md)
     state.py record-implementer-start $state_dir $iter
     # Pass the implementer the ACTIONABLE JSON findings (recommendation
     # + file:line_start-line_end), not the raw codex prose / JSON.
@@ -322,6 +416,10 @@ if iter == MAX_ITER and (state.py status $state_dir shows status == in_progress)
 # unreviewed fix is the one most likely to be wrong. One scoped
 # delta-check — not a full round, and its findings are REPORTED, never
 # applied (applying would recreate the same hole one fix later).
+#   Still needed under hunt-once, and more so: the loop is now 4 rounds
+#   instead of 20, so a cap exit is a likelier ending. A verify round
+#   checks the previous fix but not its own, and this closes that.
+#   `completed_verified` does NOT get one — its last round applied no fix.
 if state.py status $state_dir shows status == completed_cap:
     last_diff = git show of the final round's commit (plan pathspec only)
     spawn subagent #1 once more with a scoped prompt: review ONLY the
@@ -418,6 +516,64 @@ sentinel is the transport-failure channel — distinct from JSON
 parse failure, which the orchestrator catches downstream via
 `parse_findings`.
 
+**This prompt runs on round 1 only.** Round 2 onward uses the verify
+prompt below.
+
+## Subagent #1b — verifier (rounds 2+)
+
+Same spawn shape and the same `run-codex.sh` transport as subagent #1;
+only the prompt and the return schema differ. It is a **separate
+subagent per round**, so it has no memory of previous verify rounds —
+the open-findings list is passed in, which is the only state it needs.
+
+The reason this exists is termination. A full re-review of a changed
+plan resamples the whole artifact every round: the list does not shrink,
+it gets redrawn, and each fix adds new text to criticize. Measured on
+the brand-membership-propagation plan (2026-08-04), worst-finding
+severity by round ran `0.42 → 0.48 → 0.86` — rising, because each
+round's best finding attacked the previous round's fix. That is a
+diverging process, and no filter fixes a diverging process. Scoping
+rounds 2+ to the fix diff and forbidding additions makes the list
+monotonically shrink, so the loop terminates by construction.
+
+**Prompt contract (verbatim — substitute the two placeholders only):**
+
+> Run this shell command and capture its full stdout:
+>
+> `bash <SKILL_DIR>/references/run-codex.sh 'You are verifying fixes, not reviewing a plan. Below are findings raised in an earlier review, and the diff that was applied to address them. For EACH numbered finding, decide whether that specific finding is now addressed by the diff, and return `fixed` true or false with one sentence of `why`. Judge only the finding in front of you. You may NOT add findings to this list and you must NOT re-review the plan — the list is fixed and can only shrink. Mark `fixed: false` when the edit does not address the finding, when it addresses it in a way that reintroduces the same defect elsewhere, or when you cannot tell from the diff; do not mark a finding fixed on the assumption that a plausible edit worked. If the diff introduces a defect UNRELATED to any listed finding, or you notice anything else worth saying, put it in `parked` using the finding schema below — `parked` is reported to the human and is deliberately NOT acted on by this loop, so put things there freely rather than inflating a `fixed: false`. Return ONLY a single JSON object, no prose, no preamble: {"checks":[{"index":int,"fixed":true|false,"why":"string"}],"parked":[{"severity":"critical"|"high"|"medium"|"low","title":"string","body":"string","file":"string","line_start":int,"line_end":int,"confidence":0.0-1.0,"materialization":0.0-1.0,"instance":"string","recommendation":"string"}]}. Include exactly one `checks` entry per finding index below. <findings>@@OPEN_FINDINGS@@</findings> <diff>@@FIX_DIFF@@</diff>'`
+>
+> Return ONLY the script's stdout, exactly as codex emitted it — do NOT
+> paraphrase, summarize, wrap in extra fences, or add your own
+> commentary. Preserve the JSON object byte-for-byte.
+>
+> If the script exits non-zero, times out, prints an error to stderr,
+> or codex's output starts with `Error:` / `command not found`, return
+> the literal string `CODEX_ERROR: <one-line cause from stderr or exit
+> code>` and nothing else.
+>
+> Do NOT propose fixes. Do NOT modify any file. You are only a
+> transport.
+
+`@@OPEN_FINDINGS@@` renders as a numbered list, one line per still-open
+finding: `N. [severity] file:line_start-line_end — title` plus the
+`recommendation` on the next line. `@@FIX_DIFF@@` is `git show` of the
+previous round's commit, plan pathspec only.
+
+**Reading the reply** — `read_verify_json(raw)`: strip a leading
+```` ```json ```` fence, `json.loads`, and on a valid
+`{"checks":[{index,fixed,why}],"parked":[…]}` object build
+`{index: bool}` plus the parked list. **Any parse failure, wrong shape,
+or a missing index means every open finding stays open** — the inverse
+of the arbiter's fail-safe, and for the same reason: there, silence must
+not drop a finding; here, silence must not declare one fixed. A
+malformed verify reply that read as "all fixed" would end the loop on
+defects nobody checked.
+
+Two things deliberately absent from this prompt: any instruction to
+assess plan quality, and any mention of what a good plan looks like.
+Both invite the model back into hunting mode, which is the behaviour
+this round exists to prevent.
+
 ## Subagent #2 — implementer
 
 Spawn with `subagent_type: general-purpose`.
@@ -475,9 +631,10 @@ and unlikely-to-materialize findings are NOT forwarded.
 
 ## Subagent #3 — arbiter (prose-drift gate)
 
-Spawn with `subagent_type: general-purpose`. Runs **only from
-`ARBITER_FROM_ROUND` (default 4)**; rounds 1-3 skip it entirely. Its job
-is to independently judge whether each actionable finding is a **real
+Spawn with `subagent_type: general-purpose`. Runs on the **hunt round
+and only there** (`ARBITER_FROM_ROUND`, default 1) — verify rounds
+produce no findings, so there is nothing to classify. Its job is to
+independently judge whether each actionable finding is a **real
 defect** (something that, if the plan is implemented as written,
 produces wrong / incomplete / contradictory / ambiguous-enough-to-
 misbuild behavior — it changes *what gets built*) or a **prose finding**
@@ -487,10 +644,13 @@ re-scores each finding's **materialization** from scratch — codex's own
 score is deliberately withheld from it, so the number that drives the
 floor and the gate comes from a party with no incentive to inflate.
 
-This is the load-bearing answer to the "loop keeps finding issues but
-they're not real anymore" problem: codex inflates prose nitpicks to
-`high` severity on large plans, so `severity`/`confidence` cannot tell
-them apart — only a fresh, plan-grounded reading can.
+It answers the inflation half of the problem: codex inflates prose
+nitpicks to `high` severity on large plans, so `severity`/`confidence`
+cannot tell them apart — only a fresh, plan-grounded reading can. It
+does **not** answer the termination half. Filtering a round's findings
+cannot stop a process that redraws its finding set every round; that is
+what hunt-once does, and the two are independent fixes to two different
+failures.
 
 The orchestrator passes the **actionable** findings (confidence ≥ 0.3)
 as a numbered list. The arbiter must read the plan itself, not trust
@@ -586,14 +746,15 @@ and print a one-line warning. The arbiter's raw JSON is persisted to
 `round-NN/arbiter.txt` via `state.py record-arbiter-end` for the audit
 trail and the summary table's `Xr Yp m<max>` digest.
 
-**Forcing one more round after convergence.** `completed_converged` is
-terminal, so a plain re-run starts fresh — and with the default
-`ARBITER_FROM_ROUND=4` that fresh run would spend rounds 1-3 *applying*
-the very prose nitpicks the arbiter exists to filter (the arbiter isn't
-active yet). To get exactly one more arbiter-gated round on an
-already-hardened plan, re-run with `REFINE_PLAN_ARBITER_FROM_ROUND=1` so
-the arbiter engages from round 1 and re-converges immediately without
-mutating the plan on prose.
+**Re-running after a terminal exit.** Every completion status is
+terminal, so a re-run starts a fresh hunt. Under hunt-once that is the
+*only* way to get new findings, and it is a decision to make
+deliberately rather than a default — a second hunt on a plan that just
+passed its verify rounds is precisely the "review it again and see what
+turns up" move that made the old loop endless. Re-hunt when something
+real changed: the plan gained a section, an ADR under it was revised, or
+a `parked[]` item turned out to matter. Do not re-hunt to see whether
+codex has calmed down.
 
 ## Commit cadence
 
@@ -635,7 +796,7 @@ Each subagent inherits only what it needs:
 - Subagent #2: the plan file path + the actionable findings list
   (filtered JSON, not codex's prose reasoning). Not prior rounds'
   findings, not the orchestrator's history.
-- Subagent #3 (round 4+): the plan file path + the numbered actionable
+- Subagent #3 (hunt round only): the plan file path + the numbered actionable
   findings. Crucially NOT codex's verdict, codex's own materialization
   scores, prior arbiter rulings, or the orchestrator's history — its
   independence from codex's framing is the whole point; a
@@ -654,10 +815,10 @@ forces each iteration to scope to exactly the current findings.
 - Refine multiple plans concurrently (loop is per-file).
 - Address findings the user wants to defer — codex doesn't know your
   scope; the implementer's "stay in scope" rule is the gate.
-- Chase prose nitpicks indefinitely — from round 4 the arbiter gate
-  (subagent #3) auto-stops the loop (`completed_converged`) once a round
+- Chase prose nitpicks indefinitely — the hunt round's arbiter gate
+  (subagent #3) auto-stops the loop (`completed_converged`) when the hunt
   has no real `high`/`critical` defects, reporting which findings were
-  editorial so you decide whether to force one more round.
+  editorial. Later rounds cannot raise a nitpick at all: they only verify.
 - Chase true-but-never-bites findings — the materialization floor keeps
   them out of the implementer and the materialization gate stops them
   from buying another round. Both report what they filtered; neither

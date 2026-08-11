@@ -126,9 +126,8 @@ example, not literal output.)
 Severity counts (`1C 1H 1M 0L`) are auto-derived by `state.py summary`
 from the per-round `findings.txt` JSON (after the `confidence >= 0.3`
 **and** `materialization >= 0.3` actionable filter). The `↓Nm` suffix
-counts findings the materialization floor removed — omitted at zero, as
-on round 4 above. The arbiter row (present only on rounds ≥
-`ARBITER_FROM_ROUND`) shows `Xr Yp` — real vs prose classifications from
+counts findings the materialization floor removed — omitted at zero. The
+arbiter row (present only on the hunt round) shows `Xr Yp` — real vs prose classifications from
 `round-NN/arbiter.txt` — plus `m<max>`, the highest materialization it
 gave a *real* finding (omitted when the arbiter scored no real finding,
 as in the all-prose round above). A round that converges has a
@@ -285,13 +284,14 @@ Rounds 1 to `ARBITER_FROM_ROUND - 1` skip the arbiter entirely — those
 rounds are empirically high-value, so paying for a classification pass
 and risking a false convergence there is not worth it.
 
-**Why round 4, not severity heuristics.** An earlier design counted
+**Why an arbiter, not severity heuristics.** An earlier design counted
 "rounds with no high/critical findings" as the stop signal. That fails
 precisely because prose findings *are* `high` — the heuristic would
 never fire. Semantic classification by an agent that re-derives from the
-plan (not from codex's framing) is the only thing that separates them;
-the `ARBITER_FROM_ROUND` grace period is the cheap proxy for "trust the
-early rounds."
+plan (not from codex's framing) is the only thing that separates them.
+The old `ARBITER_FROM_ROUND=4` grace period was a proxy for "trust the
+early rounds"; under hunt-once there is exactly one round with findings,
+so the arbiter runs on it and the grace period is gone.
 
 **Fail-safe.** If the arbiter's JSON is unparseable, mis-shaped, or
 missing an entry for some finding index, the orchestrator treats every
@@ -299,11 +299,11 @@ finding as `real` for that round: it does not drop anything and does not
 converge. A broken arbiter must degrade to the pre-gate behavior, never
 silently end the loop or discard a finding.
 
-**Forcing one more round.** `completed_converged` is terminal and a
-plain re-run starts fresh — which, at the default `ARBITER_FROM_ROUND=4`,
-would spend rounds 1-3 re-applying the prose nitpicks (arbiter inactive).
-Re-run with `REFINE_PLAN_ARBITER_FROM_ROUND=1` to engage the arbiter
-from round 1 so the plan re-converges in one round without prose churn.
+**Re-running after convergence.** `completed_converged` is terminal and a
+plain re-run starts a fresh hunt. Under hunt-once that is the only way to
+get new findings, so treat it as a deliberate decision: re-hunt when the
+plan or an ADR under it actually changed, not to see whether codex has
+calmed down.
 
 **Known limitation (v1)** — the gap-4 stuck check can prompt on prose:
 classification is per-round and not persisted as a cross-round "already
@@ -503,30 +503,42 @@ load-bearing identifiers.
 All terminal states call `./references/state.py finalize <state-dir>
 <status>` so a later `state.py status <state-dir>` shows the outcome.
 
-- **Clean** (`completed_clean`): parsed codex JSON has
+- **Clean** (`completed_clean`): the round-1 hunt returned
   `verdict == "approve"` AND the actionable findings list
-  (`confidence >= 0.3` and `materialization >= 0.3`) is empty → report
-  total rounds. User sees
+  (`confidence >= 0.3` and `materialization >= 0.3`) is empty → nothing
+  was ever fixed. User sees
   `"Plan hardened across N rounds; ready for /planning:exec."`
-- **Converged** (`completed_converged`): round ≥ `ARBITER_FROM_ROUND`
-  and the arbiter (gap-5) found no *real* `high`/`critical` defect that
-  clears `MATERIALIZATION_GATE` (gap-6) — only prose nitpicks, real
-  low/medium findings, and/or real high/critical findings too unlikely
-  to materialize. Auto-terminates and prints the [convergence
+- **Verified** (`completed_verified`): the normal exit of the hunt-once
+  loop. Every finding from the round-1 hunt came back `fixed: true` from
+  a verify round, so the open list emptied. Report each hunted finding
+  with the round it was closed in, then the accumulated `parked[]` with
+  an explicit reminder that **nothing in it was acted on** — parked
+  items are the loop's deliberate blind spot and the user decides
+  whether any deserves a fresh run. A *success* exit → next action is
+  `/planning:exec`. Distinct from clean: here findings existed and were
+  fixed and confirmed.
+- **Converged** (`completed_converged`): the hunt round's arbiter
+  (gap-5) found no *real* `high`/`critical` defect that clears
+  `MATERIALIZATION_GATE` (gap-6) — only prose nitpicks, real low/medium
+  findings, and/or real high/critical findings too unlikely to
+  materialize. Auto-terminates and prints the [convergence
   report](#convergence-report) naming every prose and every
-  materialization-gated finding, so the operator can accept it or force
-  one more round
-  (`REFINE_PLAN_ARBITER_FROM_ROUND=1`). Like clean, this is a *success*
-  exit → next action is `/planning:exec`.
+  materialization-gated finding. Like clean, this is a *success* exit →
+  next action is `/planning:exec`.
 - **Design handoff** (`completed_design_handoff`): a round surfaced one or
   more findings whose fix is a design change (gap-7) and the user chose to
   make it themselves. The loop stops rather than resuming against a plan
   about to be rewritten by hand. A *success* exit — the review found
   something the loop was not allowed to fix. Next action: revise the plan,
   then re-run the skill.
-- **Cap** (`completed_cap`): `iter == MAX_ITER` without a clean codex
-  result → report the unresolved findings list and recommend manual
-  triage. Do NOT silently continue past the cap.
+- **Cap** (`completed_cap`): `iter == MAX_ITER` (default 4: one hunt plus
+  three verify passes) with the open list still non-empty → report the
+  unresolved findings and recommend manual triage. Under hunt-once this
+  means the implementer failed to satisfy the same finding across every
+  verify round, which is a signal about that finding, not about the plan
+  as a whole — `detect-stuck` will normally have prompted first. Do NOT
+  silently continue past the cap, and do not raise `REFINE_PLAN_MAX_ROUNDS`
+  hoping another hunt will help: no further hunt happens after round 1.
 - **Codex error** (`aborted_codex_error`): subagent #1 returned
   `CODEX_ERROR: ...` (CLI errored, timed out, output started with
   `Error:` / `command not found`, or the script exited non-zero) →

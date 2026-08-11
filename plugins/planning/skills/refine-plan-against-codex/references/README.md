@@ -62,9 +62,9 @@ Single `argparse`-driven program; subcommands:
 | `state.py record-codex-end <state-dir> <round> <findings-file> [<tokens>] [<tool-uses>]` | Stamp end + copy findings into `round-NN/findings.txt`. Computes elapsed. Token + tool-use args optional (parsed from the subagent return's `<usage>` block by the orchestrator); defaults are `0` so legacy callers keep working. |
 | `state.py record-implementer-start <state-dir> <round>` | Stamp implementer start. |
 | `state.py record-implementer-end <state-dir> <round> <summary-file> [<tokens>] [<tool-uses>]` | Stamp end + copy summary into `round-NN/implementer-summary.txt`. Token + tool-use args optional, same as codex-end. |
-| `state.py record-arbiter-start <state-dir> <round>` | Stamp the round's prose-drift arbiter (subagent #3) start time. Only called from round `ARBITER_FROM_ROUND` (default 4) onward. |
+| `state.py record-arbiter-start <state-dir> <round>` | Stamp the round's prose-drift arbiter (subagent #3) start time. Only called on the hunt round (`ARBITER_FROM_ROUND`, default 1); verify rounds produce no findings to classify. |
 | `state.py record-arbiter-end <state-dir> <round> <arbiter-file> [<tokens>] [<tool-uses>]` | Stamp end + copy the arbiter's classification JSON into `round-NN/arbiter.txt`. Computes elapsed. Token + tool-use args optional, same as codex-end. |
-| `state.py finalize <state-dir> <status>` | Mark run terminal: one of `completed_clean`, `completed_converged`, `completed_design_handoff`, `completed_cap`, `aborted_codex_error`, `aborted_malformed_output`, `aborted_drift`, `aborted_implementer_noop`, `aborted_commit_failed`. `completed_converged` is the prose-drift gate's success exit (gap-5); `completed_design_handoff` is gap-7's, set when the user takes a design-level finding back to revise the plan by hand. The previous `aborted_state_corruption` status is retired — atomic `os.replace` on writes means a torn manifest is structurally impossible. |
+| `state.py finalize <state-dir> <status>` | Mark run terminal: one of `completed_clean`, `completed_verified`, `completed_converged`, `completed_design_handoff`, `completed_cap`, `aborted_codex_error`, `aborted_malformed_output`, `aborted_drift`, `aborted_implementer_noop`, `aborted_commit_failed`. `completed_verified` is the hunt-once loop's normal exit: every finding from the round-1 hunt was confirmed fixed by a verify round. `completed_clean` remains distinct — the round-1 hunt itself returned `approve` with no actionable findings, so nothing was ever fixed. `completed_converged` is the prose-drift gate's success exit (gap-5); `completed_design_handoff` is gap-7's, set when the user takes a design-level finding back to revise the plan by hand. The previous `aborted_state_corruption` status is retired — atomic `os.replace` on writes means a torn manifest is structurally impossible. |
 | `state.py status <state-dir>` | Human-readable summary: total rounds, per-round elapsed, status, state-dir path, per-round findings/summary file paths. |
 | `state.py summary <state-dir>` | Box-drawn table for the final report — one row per phase (codex / arbiter / implementer), severity-count Findings column (`<C> <H> <M> <L>`, lowercase enum from the JSON, plus a `↓<N>m` suffix counting findings the materialization floor removed; the arbiter row shows `<R>r <P>p` real-vs-prose plus `m<max>`, the highest materialization it gave a real finding, instead). Then tokens and elapsed. The arbiter row appears only when `round-NN/arbiter.txt` exists; its tokens fold into the Total. Used by the orchestrator per `orchestration.md`'s "Output (UX contract)" spec. |
 | `state.py detect-stuck <state-dir>` | One line per `file:line_start` tuple codex has flagged in 2+ rounds (parsed from each round's JSON findings, filtered to `confidence >= 0.3` and `materialization >= MATERIALIZATION_FLOOR`). Empty output = no recurrence. Severity values are the lowercase enum. v1 matches exact `file:line_start`; content-similarity matching is a future improvement. |
@@ -113,14 +113,27 @@ Per-run state shape:
 ├── .gitignore           # contains `*`, auto-written on first init
 └── <slug>-<UTC-ISO-compact>/
     ├── manifest.json    # all metadata (timestamps, status, plan sha256, round table)
-    ├── round-01/
+    ├── round-01/                     # the hunt round
     │   ├── findings.txt              # codex's verbatim JSON for this round
     │   ├── parse-warning.txt         # only present when degraded fallback fired
-    │   ├── arbiter.txt               # subagent #3's classification JSON (round ≥ ARBITER_FROM_ROUND only)
+    │   ├── arbiter.txt               # subagent #3's classification JSON (hunt round only)
     │   └── implementer-summary.txt   # subagent #2's report
-    ├── round-02/
-    │   └── ...
+    ├── round-02/                     # a verify round
+    │   ├── verify.txt                # subagent #1b's verbatim {checks,parked} JSON
+    │   ├── parked.txt                # this round's parked[] — reported, never fixed
+    │   ├── findings.txt              # SYNTHESIZED: the still-open findings, so
+    │   │                             # summary / detect-stuck keep working
+    │   └── implementer-summary.txt
+    └── ...
 ```
+
+On a verify round `findings.txt` is written by the orchestrator, not by
+codex: it holds the subset of the round-1 hunt that the verify pass
+returned `fixed: false` for, carried over as the original finding
+objects. That keeps `parse_findings`, `summary`, and `detect-stuck`
+working with no changes, and sharpens what `detect-stuck` means — a
+`file:line` recurring across verify rounds is a finding **the
+implementer cannot fix**, not merely one codex keeps mentioning.
 
 `manifest.json` `schema_version: 1` carries: `plan_path`, `plan_slug`,
 `run_id`, `started_at`, `initial_plan_sha256`, `status`,

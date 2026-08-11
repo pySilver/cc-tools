@@ -278,6 +278,21 @@ conv_manifest="$(cat "$CONV_DIR/manifest.json")"
 rm -rf "$CONV_ROOT"
 assert_contains "finalize accepts completed_converged" "$conv_manifest" '"status": "completed_converged"'
 
+# test 8c: finalize accepts completed_verified — the hunt-once loop's normal
+# exit, distinct from completed_clean (which means the hunt found nothing at
+# all, so nothing was ever fixed)
+echo ""
+echo "test 8c: finalize accepts completed_verified"
+VER_ROOT="$(mktemp -d)"
+assert_temp_dir "$VER_ROOT"
+VER_DIR="$(REFINE_PLAN_STATE_ROOT="$VER_ROOT" python3 "$STATE_PY" init "$PLAN")"
+REFINE_PLAN_STATE_ROOT="$VER_ROOT" python3 "$STATE_PY" finalize "$VER_DIR" completed_verified
+ver_manifest="$(cat "$VER_DIR/manifest.json")"
+ver_status="$(REFINE_PLAN_STATE_ROOT="$VER_ROOT" python3 "$STATE_PY" status "$VER_DIR")"
+rm -rf "$VER_ROOT"
+assert_contains "finalize accepts completed_verified" "$ver_manifest" '"status": "completed_verified"'
+assert_contains "status reports completed_verified" "$ver_status" "completed_verified"
+
 # test 9: finalize with a valid terminal status updates the manifest
 echo ""
 echo "test 9: finalize completed_clean"
