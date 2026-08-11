@@ -33,6 +33,12 @@
       "category": "development"
     },
     {
+      "name": "pyrefly-lsp",
+      "source": "./plugins/pyrefly-lsp",
+      "description": "Python language server (pyrefly) for Claude: diagnostics + navigation, resolved from the project venv first so it matches the type-check gate. Alternative to basedpyright-lsp — enable only one.",
+      "category": "development"
+    },
+    {
       "name": "tracking",
       "source": "./plugins/tracking",
       "description": "Lightweight project-state tracking: a standing issue register under docs/issues/ (log-issue) and a single status board at docs/STATUS.md (status-board)."

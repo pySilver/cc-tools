@@ -17,6 +17,7 @@ Add the marketplace, then install the plugins you want:
     /plugin install git@silver-cc-tools
     /plugin install research@silver-cc-tools
     /plugin install basedpyright-lsp@silver-cc-tools
+    /plugin install pyrefly-lsp@silver-cc-tools
 
 Test a plugin locally before installing:
 
@@ -27,7 +28,7 @@ Validate the marketplace and a plugin:
     claude plugin validate .
     claude plugin validate ./plugins/planning
 
-After install, components are namespaced by plugin: skills are invoked as `/planning:refine-plan-against-codex`, `/code-review:code-hygiene`, `/git:finalize-feature-branch`, `/research:web-research`. The `adr-review` agent is picked up automatically (or when you ask for it by name). `basedpyright-lsp` has no command to invoke — it registers a language server that activates automatically when you open a `.py`/`.pyi` file.
+After install, components are namespaced by plugin: skills are invoked as `/planning:refine-plan-against-codex`, `/code-review:code-hygiene`, `/git:finalize-feature-branch`, `/research:web-research`. The `adr-review` agent is picked up automatically (or when you ask for it by name). `basedpyright-lsp` and `pyrefly-lsp` have no command to invoke — each registers a language server that activates automatically when you open a `.py`/`.pyi` file. They claim the same extensions, so **enable only one**: with both on, the first server registered wins and the other never starts.
 
 <details>
 <summary>Manual install (alternative)</summary>
@@ -57,9 +58,11 @@ cp -r plugins/git/skills/finalize-feature-branch ~/.claude/skills/
 cp -r plugins/research/skills/web-research ~/.claude/skills/
 ```
 
-**basedpyright-lsp** — there's nothing to copy: a language server isn't a skill or agent, so it can't be dropped into `~/.claude`. Load it as a plugin directory instead:
+**basedpyright-lsp** / **pyrefly-lsp** — there's nothing to copy: a language server isn't a skill or agent, so it can't be dropped into `~/.claude`. Load one as a plugin directory instead:
 ```bash
 claude --plugin-dir plugins/basedpyright-lsp
+# or
+claude --plugin-dir plugins/pyrefly-lsp
 ```
 
 Note: installed manually, skills lose the `plugin:` namespace — invoke them by bare name (`/refine-plan-against-codex`, `/code-hygiene`, etc.).
@@ -84,6 +87,7 @@ Enable `/plugin` → **Marketplaces** → **Enable auto-update** to refresh the 
 | [git](#git) | Finalize a feature branch — rebase, squash to one commit, verify, push |
 | [research](#research) | Grounded web research with source-quality discipline and inline citations |
 | [basedpyright-lsp](#basedpyright-lsp) | Python LSP (basedpyright) for Claude — navigation + diagnostics, from the project's pinned venv |
+| [pyrefly-lsp](#pyrefly-lsp) | Same, backed by [pyrefly](https://pyrefly.org/) instead — pick whichever your type-check gate runs |
 | [tracking](#tracking) | Standing issue register (`docs/issues/`) + one project status board (`docs/STATUS.md`) |
 
 ### planning
@@ -160,6 +164,25 @@ It resolves the server binary in priority order, anchored to the project root (`
 Replaces `pyright-lsp@claude-plugins-official` (which hardcodes `pyright-langserver` and looks it up on `PATH` only — it never finds a `basedpyright` that lives in a project venv). Disable any pyright/basedpyright LSP from another marketplace before enabling this one.
 
 > **Tuned for my setup.** Assumes a project venv at `.venv/` and/or a `uv`-managed `pyproject.toml`, and a basedpyright type-check gate to agree with. On a non-uv project with no `.venv`, only the global fallback applies — adjust `bin/langserver.sh` for other layouts (Poetry, conda, a differently-named venv).
+
+### pyrefly-lsp
+
+| Component | Trigger | Description |
+|-----------|---------|-------------|
+| lsp | opening a `.py`/`.pyi` file | Registers a [pyrefly](https://pyrefly.org/) language server for Python |
+
+**pyrefly-lsp** — the same idea as `basedpyright-lsp`, backed by **pyrefly** (Meta's Rust-based Python type checker and language server) instead. Same discovery order, anchored to the project root (`${CLAUDE_PROJECT_DIR}`, falling back to cwd):
+
+1. `<root>/.venv/bin/pyrefly` — the project's pinned pyrefly (matches the gate). **Preferred.**
+2. `uv run --project <root> --no-sync pyrefly` — when a `pyproject.toml` exists and `uv` is on `PATH`.
+3. a global `pyrefly` on `PATH` — last resort (its version may differ from the project pin).
+4. none found → exits non-zero with an install hint. It **never auto-installs**.
+
+Started as `pyrefly lsp` (pyrefly speaks stdio by default — no `--stdio` flag). Unlike the basedpyright wrapper, this one `cd`s to the project root first: pyrefly discovers both its config (`pyrefly.toml` / `[tool.pyrefly]`) and a project-root venv by walking up from the cwd, and the LSP subprocess cwd isn't documented.
+
+**Which one?** Match whatever runs as your type-check gate — the point of both plugins is that Claude's diagnostics don't disagree with the thing that blocks your commit. Pyrefly is much faster and still moving quickly; basedpyright has the deeper rule set and the pyright-compatible config. Don't run both: they declare the same `.py`/`.pyi` extensions, so the first registered wins, the other silently never starts, and `/plugin` shows a warning naming the winner.
+
+> **Tuned for my setup.** Same assumptions as `basedpyright-lsp`: a `.venv/` and/or a `uv`-managed `pyproject.toml`. Adjust `bin/langserver.sh` for Poetry, conda, or a differently-named venv.
 
 ### tracking
 

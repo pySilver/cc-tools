@@ -1,0 +1,8 @@
+{
+  "name": "pyrefly-lsp",
+  "description": "Python language server (pyrefly) for Claude in terminal-only sessions: diagnostics + navigation, resolved from the project's own virtualenv first so it agrees with the type-check gate.",
+  "author": {
+    "name": "Silver"
+  },
+  "keywords": ["python", "lsp", "pyrefly"]
+}
