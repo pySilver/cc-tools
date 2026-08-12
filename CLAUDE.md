@@ -67,6 +67,15 @@ bash tests/test-planning-run-codex.sh           # run-codex.sh model default + C
 python3 tests/test-planning-state.py            # parse_findings / _actionable / derive_slug
 ```
 
+Skill *behaviour* — what a model actually does when a skill loads — is covered by eval cases instead, in the native `claude plugin eval` format at `plugins/<name>/evals/<case>/case.yaml` (schema 1.1). Only `planning` has them so far. They are **not** in CI (they cost money and need a live agent):
+
+```bash
+claude plugin eval planning@silver-cc-tools                    # adds no-plugin baseline arm
+claude plugin eval ./plugins/planning --ablation with-without  # path target needs the flag
+```
+
+When adding cases for a skill whose risk is *over-firing*, write the negative cases too — a suite that only checks the shape appears will score an over-firing skill as perfect. See `plugins/planning/evals/README.md`.
+
 `state.py` is **execute-only and not modified by the tests** — the Python test imports it read-only by path via `importlib`; the bash test isolates state with `REFINE_PLAN_STATE_ROOT`. `.github/workflows/ci.yml` runs these on every push to `main` and on every PR, alongside markdown-frontmatter validation, `shellcheck`, and a portable manifest check (the `claude` CLI isn't on GH runners).
 
 ## Bundled tools assume the author's external projects — do not "generalize" them unasked

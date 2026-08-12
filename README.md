@@ -82,7 +82,7 @@ Enable `/plugin` → **Marketplaces** → **Enable auto-update** to refresh the 
 
 | Plugin | Description |
 |--------|-------------|
-| [planning](#planning) | Pre-code design gates — ADR review + iterative plan hardening against Codex |
+| [planning](#planning) | Pre-code design gates — ADR review, plan hardening against Codex, risk triage, decision briefs |
 | [code-review](#code-review) | Find agentic code smells: needless complexity and AI-speak docstrings/comments |
 | [git](#git) | Finalize a feature branch — rebase, squash to one commit, verify, push |
 | [research](#research) | Grounded web research with source-quality discipline and inline citations |
@@ -92,13 +92,14 @@ Enable `/plugin` → **Marketplaces** → **Enable auto-update** to refresh the 
 
 ### planning
 
-Quality gates that run *before* code is written: review the decision (ADR), then harden the plan.
+Quality gates that run *before* code is written: review the decision (ADR), then harden the plan — plus two tools for the moment a gate hands something back to you, one to test whether a raised risk is real and one to make the resulting fork readable.
 
 | Component | Trigger | Description |
 |-----------|---------|-------------|
 | agent | `adr-review` | Reviews an Architecture Decision Record for decision quality before a plan is built on it |
 | skill | `/planning:refine-plan-against-codex <plan.md>` | Hunt once, then verify-only rounds until every finding is confirmed fixed |
 | skill | `/planning:check-likelihood [claim]` | Adjudicates one raised risk — how likely is it here, and is it worth the fork it justifies |
+| skill | `/planning:decision-brief` | Rebuilds your context before you pick — one concrete failing run, the forks replayed against it, pointers last |
 
 **adr-review** — a read-only agent that reviews the *decision*, not the implementation. It checks an ADR is actually decided (no hedging), that alternatives are weighed honestly (no strawmen), that consequences include the downsides, and that load-bearing decisions respect project invariants. Every finding is tagged and tied to a specific ADR section, and every Critical/Important finding carries a **materialization** score (0–1: how likely the flagged problem actually bites) plus the condition that triggers it — below 0.30 a finding is demoted to FYI and a Critical needs ≥ 0.50, so the review can't hold up a decision on true-but-never-happens findings. A condition the reviewer can name but cannot check is marked `unverified` rather than scored, which keeps the decision open instead of burying the finding at the floor. The verdict is APPROVE or NEEDS REVISION. If the ADR file is ambiguous, it lists `docs/adrs/` and asks rather than guessing.
 
@@ -115,6 +116,12 @@ Findings carry two orthogonal scores — `confidence` ("is this claim true?") an
 **check-likelihood** — the ad-hoc counterpart to the two gates above. An agent hands you a fork — *"decide between A and B, because X could happen"* — and X is often true and also never going to happen here; taking the fork buys permanent complexity to defend against nothing. Point this at the single claim. It writes the trigger condition ("this bites when…"), then hunts the artifact, `.claude/rules/`, the code, and the real scale for the invariant that settles it, and returns a materialization score with the `file:line` it relied on — a score with no quote is a guess wearing a number. A condition it can name but cannot check comes back `unverified` rather than scored, so a missing answer never quietly becomes a low one. When the claim is attached to a proposal it also prices the fork — cost now vs. cost if it fires vs. **cost of adding the guard later**, usually the deciding number — and lands on **revisit the decision** / simple path / take the fork / defer with a named signal to revisit / **cannot say yet**. Before pricing any guard it asks what decision made the condition possible — often the honest answer is that an earlier choice is the cause, and changing it removes the failure mode instead of guarding against it, so that verdict is offered even when the guard is cheap. `Cannot say yet` is the landing for an `unverified` score: without it the "never guess low" rule — right for scoring a risk — pushes the agent into taking the fork, and an unread file quietly becomes permanent complexity. On greenfield, where the code doesn't exist yet and nothing can be read, a silent plan is treated as a finding about the plan (name the sentence that would settle it) rather than an automatic `unverified`, so the tool doesn't become a source of paralysis. Read-only, and budgeted to a triage rather than an audit: **5 file reads**, counted rather than timed, because an agent can count files and cannot feel five minutes. It predicts the file list before opening anything, and when the evidence turns out to be spread over a dozen files it stops and offers to hand the read to a subagent — the cost of a big read isn't the wait, it's a dozen files landing in the planning context you were trying to protect. Separately, it offers a fresh adversarial subagent or a Codex cross-check when the score sits near a decision boundary or the fork is hard to reverse, but never spends those minutes without asking.
 
 > **Reacts to skepticism.** Besides `/planning:check-likelihood`, it triggers on the way you'd actually push back — "how likely is that", "does that actually happen", "has that ever happened", "that sounds theoretical", "isn't that an edge case" — so doubting a risk an agent raised runs the check instead of starting an argument. No requirements beyond the repo itself; the optional Codex escalation reuses `refine-plan-against-codex`'s wrapper.
+
+**decision-brief** — the format an agent should use when it hands a fork back to you. You wrote the design while fully focused; by the time an agent hits a judgement call three days later, the plan and the ADR are gone from your head, and a verdict built out of section names and internal terms asks you to reload a whole design from a pointer before you can read the question. This fixes the shape. First settle the problem — name the guard you reached for and what it leaves in place, run `/planning:check-likelihood` or a root-cause tool if one is available, and say plainly when the verdict is judgement rather than a checked result. Then four parts, in order: **the story** (one concrete run in time order, real values not variable names, ending badly, with one clause saying whether it was reproduced or derived — the two read identically and only one is evidence); **the forks** (two to four, cheapest first, each with its cost now *and* its cost if added later, each **replaying** the same story to its new ending, each labelled *removes the cause* or *guards only*); **the recommendation** (one option, one question, answerable in one word, plus an offer to expand any fork — offering to re-explain costs you nothing, a pointer asks you to go read); and **the pointers last**, one line, never inside the story. If the cause is a decision made earlier, revising that decision has to be one of the forks — otherwise you get A vs B when the honest answer is that the earlier split was wrong.
+
+It deliberately does *not* fire for a failure the agent can fix itself, a yes/no on a step just described, work done in this session, or anything small and reversible — a four-part brief on a two-minute fork spends the attention the format exists to protect. The send check is a single question: could you pick an option without opening the plan, the ADR, or the code? In Claude Code, the story and forks go in the message and the choice goes to `AskUserQuestion`, where each option description carries *what we do + cost + removes or guards* — an option description that is itself a pointer defeats the whole thing.
+
+> **Pairs with the `Direct` output style.** The style below already says lead with the answer and skip trailing summaries; this skill is the documented exception — the story leads, and the closing question is the next action rather than a recap. Repo-agnostic; `/planning:check-likelihood` is used when present and skipped when not. It has eval coverage under [`plugins/planning/evals/`](plugins/planning/evals/) — one case that it fires with the right shape, and **two that it stays quiet**, because the failure mode of this format is over-firing.
 
 ### code-review
 
@@ -214,6 +221,8 @@ Where side-quest findings and the work queue live, so neither derails the curren
 
 **Direct** sets the working relationship first: Claude and I are both senior engineers, so it is told to hold its own opinion, disagree openly, challenge a wrong premise, and never soften a real problem — the point is to stop the model from treating me as an authority it can't argue with. On top of that: plain English and short replies, concrete `A:`/`B:` choices instead of guessing intent or pre-deciding, and a lead-with-a-diagram rule for anything structural (ASCII in chat, Mermaid in files and Artifacts, since chat clients don't render Mermaid).
 
+A **Scope** section bounds all of it: these rules shape text written *for me to read*, and nothing else. Subagent prompts, plans, ADRs, commit messages, and anything under `docs/` keep full detail — exact errors, `file:line`, provenance, stated uncertainty. Brevity applied to text another agent consumes is information loss that never reaches a human to be noticed. Same axis as the diagram rule: the destination decides, not the topic.
+
 Install by symlink so edits here take effect immediately, then pick it with `/output-style`:
 
 ```bash
@@ -232,6 +241,15 @@ python3 tests/test-planning-state.py
 ```
 
 GitHub Actions runs them — plus frontmatter, `shellcheck`, and manifest checks — on every push and PR (see [`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
+
+Behaviour that only shows up when a model reads a skill is covered by eval cases instead, in the native `claude plugin eval` format under a plugin's own `evals/` directory ([`plugins/planning/evals/`](plugins/planning/evals/) so far):
+
+```bash
+claude plugin eval planning@silver-cc-tools        # + no-plugin baseline arm
+claude plugin eval ./plugins/planning --ablation with-without
+```
+
+These are not in CI — they cost money and need a live agent. Targeting a plugin by name adds the baseline arm automatically; a path target needs `--ablation with-without`, and without a baseline a score says nothing about whether the skill changed anything.
 
 ## License
 

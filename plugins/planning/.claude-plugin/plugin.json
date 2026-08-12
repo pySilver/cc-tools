@@ -1,6 +1,6 @@
 {
   "name": "planning",
-  "description": "Pre-code design gates: ADR review (adr-review agent), refining implementation plans against Codex (refine-plan-against-codex skill), and adjudicating a single raised risk (check-likelihood skill).",
+  "description": "Pre-code design gates: ADR review (adr-review agent), refining implementation plans against Codex (refine-plan-against-codex skill), adjudicating a single raised risk (check-likelihood skill), and rebuilding the owner's context before they choose (decision-brief skill).",
   "author": {
     "name": "Silver"
   }

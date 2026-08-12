@@ -9,7 +9,7 @@
     {
       "name": "planning",
       "source": "./plugins/planning",
-      "description": "Pre-code design gates: ADR review, refining implementation plans against Codex, and adjudicating how likely a raised risk is to actually happen."
+      "description": "Pre-code design gates: ADR review, refining implementation plans against Codex, adjudicating how likely a raised risk is to actually happen, and briefing the owner before they pick between design forks."
     },
     {
       "name": "code-review",

@@ -1,0 +1,105 @@
+schema_version: "1.1"
+name: decision-brief-fires
+description: >
+  A judgement call the owner must make, about a design they approved days ago
+  and have not looked at since. The report arrives as file:line pointers, plan
+  section numbers, and a pre-chosen guard. This is the case decision-brief
+  exists for: without it the answer is a correct verdict the owner cannot read.
+tags: [decision-brief, planning]
+plugins: [planning]
+runs: 3
+
+execution:
+  max_turns: 4
+  timeout_seconds: 300
+  prompt: |
+    You are six hours into an implementation I approved three days ago; I have
+    not looked at the design since. Your report: not merge-safe, one MAJOR
+    defect. The stale-skip at product_upsert.py:254 resolves
+    last_seen_generation from the sighting carried on the inbound message
+    rather than from the Product's owning sighting, contrary to plan section
+    4.2. _confirm_unhides (:590) re-checks the barrier but not the generation.
+    A row lock in the materializer would close the concurrent window. Tell me
+    what you found and what you want to do.
+
+expected_outcome: >
+  A concrete walkthrough first, then two to four costed forks each replayed
+  against that walkthrough, one recommendation, one question, and the
+  file:line and plan-section pointers on a single line at the end.
+
+graders:
+  - type: llm
+    name: story-leads-and-is-concrete
+    weight: 2
+    criteria: |
+      The response opens with a concrete walkthrough of how the failure
+      happens, in time order, using named stand-ins and specific values
+      (for example "run 10", "source A", "product P") rather than variable
+      names or a restatement of the defect.
+
+      A reader who has not opened the plan or the code must be able to follow
+      it. Restating the defect in abstract terms ("a stale message can be
+      applied after a newer one because the comparison uses the wrong
+      reference generation") is a FAIL even though it is accurate.
+
+      Also passes only if the response says somewhere whether the failure was
+      reproduced or derived from the design. Silence on that point is a FAIL.
+
+  - type: llm
+    name: separates-cause-from-guard
+    weight: 2
+    criteria: |
+      The prompt offers a row lock. The response must not adopt it as the
+      recommendation without stating what it leaves in place.
+
+      PASS if the response identifies the cause in its own plain words (the
+      comparison resolves the generation from the wrong side) as distinct from
+      the symptom (the concurrent window), and treats the row lock as a guard
+      rather than a fix.
+
+      FAIL if it recommends the row lock as the primary answer, or repeats the
+      prompt's framing without examining it.
+
+  - type: llm
+    name: forks-are-costed-and-replayed
+    weight: 2
+    criteria: |
+      The response offers two to four options. For each option it gives:
+      what it costs, a replay of the SAME scenario from the walkthrough
+      showing how it now ends, and an explicit statement of whether it removes
+      the cause or only guards against it.
+
+      A summary of an option's effect ("this would prevent the regression") is
+      not a replay. The replay must run the scenario's own events to their new
+      outcome.
+
+      FAIL on one option, on five or more, or on options with no cost.
+
+  - type: llm
+    name: one-recommendation-one-question
+    weight: 1
+    criteria: |
+      The response ends with exactly one recommendation and exactly one
+      question, and that question is answerable with a single word or number.
+
+      FAIL if it asks two or more questions, ends with an open-ended prompt
+      such as "let me know how you want to proceed", or gives no
+      recommendation at all while claiming to be neutral.
+
+  - type: llm
+    name: pointers-last
+    weight: 1
+    criteria: |
+      product_upsert.py:254, :590 and plan section 4.2 appear on a single line
+      at or near the end of the response.
+
+      FAIL if any of them appears in the opening paragraph, or is embedded
+      inside the walkthrough, or is used as the way the problem is introduced.
+
+  - type: regex
+    name: no-uh-oh
+    weight: 1
+    target: last_message
+    pattern: "\\b(uh oh|oh no|there seems to be a problem)\\b"
+    flags: "i"
+    match: not_contains

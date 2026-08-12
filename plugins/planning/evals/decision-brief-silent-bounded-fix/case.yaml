@@ -1,0 +1,49 @@
+schema_version: "1.1"
+name: decision-brief-silent-bounded-fix
+description: >
+  A diagnosis with one known cause and one bounded fix. There is no judgement
+  call for the owner to make, so the brief must not fire. The failure mode of
+  a decision-brief format is over-firing, and this is where it shows.
+tags: [decision-brief, planning, negative]
+plugins: [planning]
+runs: 3
+
+execution:
+  max_turns: 4
+  timeout_seconds: 300
+  prompt: |
+    A test says: expected status 200, received 401. The request has no
+    Authorization header. Diagnose it and give the smallest fix.
+
+expected_outcome: >
+  The cause, the fix, and how to verify it — in a few lines. No walkthrough,
+  no options, no question back.
+
+graders:
+  - type: llm
+    name: names-cause-and-bounded-fix
+    weight: 2
+    criteria: |
+      The response identifies the missing Authorization header as the cause
+      and gives one bounded fix plus a way to verify it.
+
+  - type: llm
+    name: does-not-fire-the-brief
+    weight: 3
+    criteria: |
+      The response gives the fix directly. It must NOT present options for the
+      reader to choose between, must NOT open with a multi-step narrative
+      walkthrough of how the failure occurs, and must NOT end by asking the
+      reader to pick.
+
+      One clarifying question about the codebase is acceptable. A menu of two
+      or more approaches with costs is a FAIL: the cause is known and the fix
+      is bounded, so there is nothing for the owner to decide.
+
+  - type: regex
+    name: no-option-menu
+    weight: 1
+    target: last_message
+    pattern: "^\\W*(option|approach|fork)\\s*[123]\\b"
+    flags: "im"
+    match: not_contains
