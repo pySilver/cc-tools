@@ -130,9 +130,14 @@ Findings carry two orthogonal scores — `confidence` ("is this claim true?") an
 
 | Component | Trigger | Description |
 |-----------|---------|-------------|
-| skill | `/git:finalize-feature-branch [default-branch]` | Rebase onto the default branch, collapse to one commit, verify, optionally push |
+| skill | `/git:finalize-feature-branch [default-branch]` | Rebase onto the default branch, collapse to one commit, verify, merge into the default branch and push |
 
-**finalize-feature-branch** — takes an approved feature branch to exactly one commit ahead of the default branch. It detects the default branch (or asks), previews what will change, fetches and rebases (resolving clean conflicts, aborting on unclear ones), collapses multiple commits via `git reset --soft` + commit (never interactive rebase), proposes a commit message derived from the branch name, runs the project's tests/linter, then offers a `--force-with-lease` push. Each step confirms before acting. Repo-agnostic — plain git.
+**finalize-feature-branch** — takes an approved feature branch to exactly one commit ahead of the default branch. It detects the default branch (or asks), previews what will change, fetches and rebases (resolving clean conflicts, aborting on unclear ones), collapses multiple commits via `git reset --soft` + commit (never interactive rebase), proposes a commit message derived from the branch name, verifies, then lands the branch. Each step confirms before acting. Repo-agnostic — plain git.
+
+Two things it is opinionated about:
+
+- **Landing defaults to merge, not publish.** The first offer is fast-forward the branch into the default branch locally and `git push origin <default>`; publishing the feature branch with `--force-with-lease` is the second option, for when a PR is wanted. The default branch is never force-pushed, and a rejected push stops the run rather than escalating.
+- **The full test suite is skipped when the rebase pulled in nothing but documentation** — and only then. `reset --soft` rewrites history, not the tree, so the only thing that can break a verified branch is incoming upstream work; the skill diffs the pre-fetch merge-base against the new default-branch tip to see exactly what that was. A resolved conflict, no passing suite earlier in the session, or a single unclassifiable file all force a full run. `.md` is not automatically documentation: files under `tests/`, `requirements*.txt`, doctested `.rst`, and repos that ship markdown *as source* are named as never-docs. Anything left unclassified prompts a question instead of a guess, and a skip is always reported with its reason.
 
 ### research
 

@@ -1,8 +1,8 @@
 ---
 name: finalize-feature-branch
-description: After review approval, rebase onto the default branch, collapse the feature branch into a single commit, verify it, and optionally force-push the rewritten branch.
+description: After review approval, rebase onto the default branch, collapse the feature branch into a single commit, verify it, then merge it into the default branch and push that. Skips the full test suite when the rebase brought in nothing but documentation.
 disable-model-invocation: true
-allowed-tools: Bash, Read, Glob, Grep
+allowed-tools: Bash, Read, Glob, Grep, AskUserQuestion
 ---
 
 # Finalize Feature Branch as One Commit
@@ -37,6 +37,12 @@ Before making changes, gather and show:
 - Commit list: `git log origin/{DEFAULT_BRANCH}..HEAD --oneline`
 - Whether origin/{DEFAULT_BRANCH} appears up to date using: `git fetch origin --dry-run`
 
+Record, before any fetch, the commit the branch is currently based on:
+- `git merge-base HEAD origin/{DEFAULT_BRANCH}`
+
+Store it as BASE_BEFORE. Step 9 needs it to tell what the rebase actually pulled in.
+Take it now — after the fetch, the old value is unrecoverable.
+
 Ask the user to confirm via AskUserQuestion:
 - "Proceed"
 - "Abort"
@@ -58,6 +64,9 @@ If conflicts occur:
 - If resolution is clear, stage resolved files and run: `git rebase --continue`
 - If resolution is unclear or the rebase fails, run: `git rebase --abort`
 - Report the issue and stop
+
+Remember whether any conflict had to be resolved. A resolved conflict means you
+wrote code that nothing has ever run, so step 9 must not skip the test suite.
 
 ## 6. Inspect Ahead Commits
 
@@ -105,33 +114,118 @@ Run:
 Require exactly 1 commit ahead of `origin/{DEFAULT_BRANCH}`.
 If not, report the issue and stop.
 
-## 9. Run Verification
+## 9. Decide Whether the Full Test Suite Must Run
+
+The finalize step usually changes nothing a test could see: `git reset --soft` +
+commit rewrites history, not the tree. The one thing that can change the tree is
+the rebase pulling in upstream work. So the question is narrow — what did the
+rebase bring in, and can it break anything?
+
+Compute the incoming upstream change:
+- `git diff --name-only {BASE_BEFORE} origin/{DEFAULT_BRANCH}`
+
+Call that set INCOMING. If BASE_BEFORE equals `origin/{DEFAULT_BRANCH}`, INCOMING
+is empty and the branch was already up to date.
+
+Run the full suite — do not skip — if any of these holds:
+- The rebase in step 5 required conflict resolution
+- No full suite ran earlier in this session, or it did not pass, or the feature
+  branch's own code changed after that run
+- INCOMING contains any file that is not documentation
+- You cannot confidently classify a file in INCOMING
+
+Skip the suite only when INCOMING is empty or documentation-only **and** a full
+run already passed in this session against the current feature-branch code.
+A skip is a claim about test coverage — never make it silently. Report the skip,
+the INCOMING file list, and which earlier run it is relying on.
+
+### What counts as documentation
+
+Documentation:
+- `*.md`, `*.mdx`, `*.rst`, `*.adoc`, `*.txt`, and files under `docs/`, `doc/`, `adrs/`
+- `LICENSE`, `NOTICE`, `AUTHORS`, `CHANGELOG*`, `CONTRIBUTING*`, `CODE_OF_CONDUCT*`
+
+Never documentation, whatever the extension — check each of these before deciding:
+- Anything under `test/`, `tests/`, `spec/`, `testdata/`, `fixtures/`, `__snapshots__/`.
+  Tests read these files, so editing prose in one can fail an assertion.
+- Dependency and build manifests: `requirements*.txt`, `constraints*.txt`,
+  `CMakeLists.txt`, `MANIFEST.in`, any lockfile.
+- Markdown or text the project ships as **source** rather than prose. A repo whose
+  product is prompts, skills, agents, templates, or content has `.md` files that are
+  the code. Look at where the file lives, not at its extension.
+- Markdown or rst executed as doctests. Grep the project config for
+  `--doctest-glob`, `doctest_namespace`, or a Sphinx `doctest` builder first.
+
+Anything that matches neither list is unclassified, and unclassified is not
+documentation.
+
+### When in doubt, ask
+
+If any file in INCOMING is unclassified, or the earlier session run is only
+probably still valid, do not guess in either direction. Show the INCOMING file
+list, name the specific files or facts you are unsure about, and ask via
+AskUserQuestion:
+- "Run the full suite"
+- "Skip the suite"
+
+## 10. Run Verification
 
 - Check CLAUDE.md or common project files for the test command
-- Run the project's test suite
-- Run the project's linter if applicable
-- Report results
+- Run the full test suite, unless step 9 decided to skip it
+- Run the project's linter regardless — it is cheap and scoped to the final tree
+- Report results, and state explicitly if the suite was skipped
 
-## 10. Offer Optional Push
+If anything fails, stop before step 11. Do not merge or push a failing branch.
 
-Ask the user via AskUserQuestion:
-- "Push with force-with-lease"
-- "Skip push"
+## 11. Land the Branch
 
-If the user chooses push, run:
+Default flow: the feature branch is finished, so it goes into DEFAULT_BRANCH
+locally and DEFAULT_BRANCH is pushed. Publishing the feature branch itself is the
+exception, for when a pull request is wanted.
+
+Ask via AskUserQuestion, in this order:
+- "Merge into {DEFAULT_BRANCH} and push" (default)
+- "Push feature branch with force-with-lease"
+- "Do nothing"
+
+### Merge into DEFAULT_BRANCH and push
+
+Check the local DEFAULT_BRANCH first:
+- `git rev-list --left-right --count {DEFAULT_BRANCH}...origin/{DEFAULT_BRANCH}`
+- If it is behind, fast-forward it: `git checkout {DEFAULT_BRANCH}` then `git merge --ff-only origin/{DEFAULT_BRANCH}`
+- If it has diverged (any commits on the left side), stop and report. Do not merge.
+
+Then:
+- `git checkout {DEFAULT_BRANCH}`
+- `git merge --ff-only {CURRENT_BRANCH}`
+- `git push origin {DEFAULT_BRANCH}`
+
+`--ff-only` is required. HEAD was just rebased onto `origin/{DEFAULT_BRANCH}`, so a
+fast-forward is the only correct outcome; if git refuses one, something moved
+underneath and a merge commit would hide it. Stop and report instead.
+
+Never force-push DEFAULT_BRANCH. If the push is rejected, someone else pushed
+while you worked — report the rejection and stop, do not retry with force.
+
+Leave the checkout on DEFAULT_BRANCH and say so in the report. The feature branch
+is untouched; deleting it is not this skill's job.
+
+### Push feature branch with force-with-lease
+
 - `git push --force-with-lease`
 
 If push fails, report the error and stop.
 
-## 11. Report
+## 12. Report
 
 Summarize:
 - CURRENT_BRANCH
 - DEFAULT_BRANCH
 - Whether rebase was clean or had conflicts
+- What the rebase pulled in, and whether the test suite ran or was skipped and why
 - Whether commits were collapsed
 - Final commit message
-- Whether the branch was pushed
+- What was pushed, if anything, and which branch the checkout is now on
 - Test/lint results
 - Any issues encountered
 
