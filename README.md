@@ -18,6 +18,8 @@ Add the marketplace, then install the plugins you want:
     /plugin install research@silver-cc-tools
     /plugin install basedpyright-lsp@silver-cc-tools
     /plugin install pyrefly-lsp@silver-cc-tools
+    /plugin install tracking@silver-cc-tools
+    /plugin install output-styles@silver-cc-tools
 
 Test a plugin locally before installing:
 
@@ -28,7 +30,7 @@ Validate the marketplace and a plugin:
     claude plugin validate .
     claude plugin validate ./plugins/planning
 
-After install, components are namespaced by plugin: skills are invoked as `/planning:refine-plan-against-codex`, `/code-review:code-hygiene`, `/git:finalize-feature-branch`, `/research:web-research`. The `adr-review` agent is picked up automatically (or when you ask for it by name). `basedpyright-lsp` and `pyrefly-lsp` have no command to invoke — each registers a language server that activates automatically when you open a `.py`/`.pyi` file. They claim the same extensions, so **enable only one**: with both on, the first server registered wins and the other never starts.
+After install, components are namespaced by plugin: skills are invoked as `/planning:refine-plan-against-codex`, `/code-review:code-hygiene`, `/git:finalize-feature-branch`, `/research:web-research`. The `adr-review` agent is picked up automatically (or when you ask for it by name). `basedpyright-lsp` and `pyrefly-lsp` have no command to invoke — each registers a language server that activates automatically when you open a `.py`/`.pyi` file. They claim the same extensions, so **enable only one**: with both on, the first server registered wins and the other never starts. `output-styles` has no command either — it adds **Direct** to the `/config` → **Output style** picker, where you select it.
 
 <details>
 <summary>Manual install (alternative)</summary>
@@ -56,6 +58,11 @@ cp -r plugins/git/skills/finalize-feature-branch ~/.claude/skills/
 **research** — `web-research` skill:
 ```bash
 cp -r plugins/research/skills/web-research ~/.claude/skills/
+```
+
+**output-styles** — the `Direct` output style:
+```bash
+cp plugins/output-styles/output-styles/direct.md ~/.claude/output-styles/
 ```
 
 **basedpyright-lsp** / **pyrefly-lsp** — there's nothing to copy: a language server isn't a skill or agent, so it can't be dropped into `~/.claude`. Load one as a plugin directory instead:
@@ -89,6 +96,7 @@ Enable `/plugin` → **Marketplaces** → **Enable auto-update** to refresh the 
 | [basedpyright-lsp](#basedpyright-lsp) | Python LSP (basedpyright) for Claude — navigation + diagnostics, from the project's pinned venv |
 | [pyrefly-lsp](#pyrefly-lsp) | Same, backed by [pyrefly](https://pyrefly.org/) instead — pick whichever your type-check gate runs |
 | [tracking](#tracking) | Standing issue register (`docs/issues/`) + one project status board (`docs/STATUS.md`) |
+| [output-styles](#output-styles) | **Direct** — peer-to-peer tone, plain English, choice-first, diagrams-first |
 
 ### planning
 
@@ -121,7 +129,7 @@ Findings carry two orthogonal scores — `confidence` ("is this claim true?") an
 
 It deliberately does *not* fire for a failure the agent can fix itself, a yes/no on a step just described, work done in this session, or anything small and reversible — a four-part brief on a two-minute fork spends the attention the format exists to protect. The send check is a single question: could you pick an option without opening the plan, the ADR, or the code? In Claude Code, the story and forks go in the message and the choice goes to `AskUserQuestion`, where each option description carries *what we do + cost + removes or guards* — an option description that is itself a pointer defeats the whole thing.
 
-> **Pairs with the `Direct` output style.** The style below already says lead with the answer and skip trailing summaries; this skill is the documented exception — the story leads, and the closing question is the next action rather than a recap. Repo-agnostic; `/planning:check-likelihood` is used when present and skipped when not. It has eval coverage under [`plugins/planning/evals/`](plugins/planning/evals/) — one case that it fires with the right shape, and **two that it stays quiet**, because the failure mode of this format is over-firing.
+> **Pairs with the `Direct` output style** (the [output-styles](#output-styles) plugin below). The style already says lead with the answer and skip trailing summaries; this skill is the documented exception — the story leads, and the closing question is the next action rather than a recap. Repo-agnostic; `/planning:check-likelihood` is used when present and skipped when not. It has eval coverage under [`plugins/planning/evals/`](plugins/planning/evals/) — one case that it fires with the right shape, and **two that it stays quiet**, because the failure mode of this format is over-firing.
 
 ### code-review
 
@@ -211,23 +219,21 @@ Where side-quest findings and the work queue live, so neither derails the curren
 
 > **Tuned for my setup.** Assumes the `docs/` layout (`docs/issues/`, `docs/plans/`, `docs/STATUS.md`, dated reviews under `docs/reviews/<date>/`) and a root `CLAUDE.md` to wire the board into. The register/board shapes are project-agnostic otherwise.
 
-## Output styles
+### output-styles
 
-[`output-styles/`](output-styles/) holds Claude Code [output styles](https://docs.claude.com/en/docs/claude-code/output-styles) — not plugins (output styles aren't a plugin component), so they're installed by hand.
+| Component | Trigger | Description |
+|-----------|---------|-------------|
+| output style | `/config` → **Output style** → **Direct** | Peer-to-peer tone, plain English, choice-first, diagrams-first |
 
-| Style | Description |
-|-------|-------------|
-| [communication-style.md](output-styles/communication-style.md) | **Direct** — peer-to-peer tone, plain English, choice-first, diagrams-first |
+Ships [`direct.md`](plugins/output-styles/output-styles/direct.md) as a Claude Code [output style](https://code.claude.com/docs/en/output-styles) — a system-prompt modification, not a skill, so there's nothing to invoke. Install the plugin, then pick **Direct** under `/config` → **Output style** (or set `"outputStyle": "Direct"` in a settings file). It takes effect on the next `/clear` or session, since the system prompt is read once at session start. `keep-coding-instructions: true` is set, so Claude's built-in software-engineering instructions stay in place and this layers on top.
+
+`force-for-plugin` is deliberately **not** set: enabling the plugin offers the style, it doesn't impose it. If you want it applied automatically everywhere, add `force-for-plugin: true` to the frontmatter of your own copy — it overrides the user's `outputStyle` setting, which is why it isn't the shipped default.
 
 **Direct** sets the working relationship first: Claude and I are both senior engineers, so it is told to hold its own opinion, disagree openly, challenge a wrong premise, and never soften a real problem — the point is to stop the model from treating me as an authority it can't argue with. On top of that: plain English and short replies, concrete `A:`/`B:` choices instead of guessing intent or pre-deciding, and a lead-with-a-diagram rule for anything structural (ASCII in chat, Mermaid in files and Artifacts, since chat clients don't render Mermaid).
 
 A **Scope** section bounds all of it: these rules shape text written *for me to read*, and nothing else. Subagent prompts, plans, ADRs, commit messages, and anything under `docs/` keep full detail — exact errors, `file:line`, provenance, stated uncertainty. Brevity applied to text another agent consumes is information loss that never reaches a human to be noticed. Same axis as the diagram rule: the destination decides, not the topic.
 
-Install by symlink so edits here take effect immediately, then pick it with `/output-style`:
-
-```bash
-ln -s "$PWD/output-styles/communication-style.md" ~/.claude/output-styles/communication-style.md
-```
+> **Editing it.** Unlike a `SKILL.md`, an output style is part of the system prompt: edits need `/reload-plugins` (or a restart) *and* a `/clear` before they show up. To iterate on a fork of it without installing, run `claude --plugin-dir plugins/output-styles`.
 
 ## Development
 

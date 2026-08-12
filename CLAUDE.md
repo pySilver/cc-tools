@@ -9,17 +9,26 @@ A **Claude Code plugin marketplace** — a catalog, not an application. It distr
 ## Architecture
 
 - `.claude-plugin/marketplace.json` (repo root) is the catalog. Its `name` is `silver-cc-tools`; each entry in `plugins[]` points at a plugin via a **relative `source` path** (`./plugins/<name>`). Relative sources only resolve when the marketplace is added from git (e.g. `pySilver/cc-tools`), not from a raw `marketplace.json` URL.
-- Each plugin lives in `plugins/<name>/` with its own `.claude-plugin/plugin.json` and an `agents/` and/or `skills/` directory. Plugins are grouped **by domain**, not by component type:
-  - `planning` — `adr-review` agent + `refine-plan-against-codex` skill (pre-code design gates)
+- Each plugin lives in `plugins/<name>/` with its own `.claude-plugin/plugin.json` and an `agents/`, `skills/`, and/or `output-styles/` directory. Plugins are grouped **by domain**, not by component type:
+  - `planning` — `adr-review` agent + `refine-plan-against-codex`, `check-likelihood`, `decision-brief` skills (pre-code design gates)
   - `code-review` — `code-hygiene` skill
   - `git` — `finalize-feature-branch` skill
   - `research` — `web-research` skill
+  - `tracking` — `log-issue`, `status-board` skills
+  - `basedpyright-lsp` / `pyrefly-lsp` — one `.lsp.json` each, no skill or agent
+  - `output-styles` — the `Direct` output style (the one exception to by-domain grouping: a style is a system-prompt change with no domain, so it is grouped by component type)
+- **Every `plugin.json` here is metadata only — component paths are auto-discovered, never declared.** A manifest listing no `skills`/`agents`/`outputStyles` field is correct, not broken: those fields *replace* the default `skills/`, `agents/`, `output-styles/` directories, so adding one that points at the default path is a no-op. Don't "fix" a manifest by declaring what is already found.
 - Skills are `skills/<skill>/SKILL.md` (YAML frontmatter: `name`, `description`, optional `allowed-tools`, `model`, `disable-model-invocation`). Agents are `agents/<agent>.md` (frontmatter: `name`, `description`, `model`, `tools`, `color`).
-- After install, skills are namespaced as `/<plugin>:<skill>` (e.g. `/code-review:code-hygiene`); agents are referenced by bare name (`adr-review`).
+- After install, skills are namespaced as `/<plugin>:<skill>` (e.g. `/code-review:code-hygiene`); agents are referenced by bare name (`adr-review`). `disable-model-invocation: true` (used by `finalize-feature-branch`) blocks *Claude* from auto-triggering a skill — the user's `/<plugin>:<skill>` still resolves and runs.
 
-## `output-styles/` is not part of the marketplace
+## Output styles ship as a plugin, not a symlink
 
-`output-styles/*.md` are Claude Code output styles. Output styles are **not** a plugin component type, so these files get no `plugin.json` and no `plugins[]` entry — they are installed by symlinking into `~/.claude/output-styles/`. Changing one syncs to `README.md` (the Output styles section) and `CHANGELOG.md` only; leave `.claude-plugin/marketplace.json` alone.
+`output-styles/` **is** an official plugin component type (default dir `output-styles/`, manifest override `outputStyles`), so `plugins/output-styles/output-styles/direct.md` is a normal plugin like any other — it gets a `plugin.json`, a `plugins[]` entry, and the full four-way sync below. Do not reintroduce the old symlink-into-`~/.claude/output-styles/` install path.
+
+Two things about output styles that differ from skills:
+
+- The style's name in the `/config` picker comes from its frontmatter `name:` (`Direct`), **not** from the file name or the plugin name. Output styles are not namespaced by plugin.
+- `force-for-plugin: true` would apply the style automatically to anyone who enables the plugin, overriding their own `outputStyle` setting. It is deliberately unset — enabling the plugin offers the style, it does not impose it.
 
 ## Load-bearing invariant: plugins are intentionally version-less
 
@@ -28,7 +37,7 @@ The `plugin.json` files **deliberately omit `version`**. For a git-hosted market
 - **Do not add a `version` field** unless deliberately switching to pinned releases — and if you do, you must bump it on *every* release or installed users will never see updates (Claude Code skips a plugin whose version is unchanged).
 - `CHANGELOG.md` is therefore **date-anchored, newest first** (not version-headed like typical changelogs). New work goes under `## Unreleased`, grouped by plugin.
 
-## When adding or changing a plugin/skill/agent
+## When adding or changing a plugin/skill/agent/output-style
 
 Four things must stay in sync — changing the files alone is not enough:
 

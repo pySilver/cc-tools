@@ -42,6 +42,11 @@
       "name": "tracking",
       "source": "./plugins/tracking",
       "description": "Lightweight project-state tracking: a standing issue register under docs/issues/ (log-issue) and a single status board at docs/STATUS.md (status-board)."
+    },
+    {
+      "name": "output-styles",
+      "source": "./plugins/output-styles",
+      "description": "Claude Code output styles: Direct — peer-to-peer tone, plain English, choice-first, diagrams-first."
     }
   ]
 }
