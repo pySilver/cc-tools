@@ -21,11 +21,14 @@ Targeting the plugin **by name** adds a no-plugin baseline arm automatically (`-
 
 | Case | Asserts |
 |------|---------|
-| `decision-brief-fires` | The brief fires and has the right shape — concrete walkthrough first, reproduced-or-derived stated, cause separated from the offered guard, 2–4 costed forks each replaying the scenario, one recommendation, one question, pointers last |
+| `decision-brief-fires` | The brief fires and has the right shape — concrete walkthrough first, reproduced-or-derived stated, a bounded step back that judges the *kind* of cause and its reach, cause separated from the offered guard, 2–4 costed forks each replaying the scenario, one recommendation, one question, pointers last |
+| `decision-brief-cause-is-a-decision` | The step back reaches a **decision**, not a missing guard — and the fork that revises it gets written, costed, and replayed alongside the two guards the prompt pre-offered |
 | `decision-brief-silent-bounded-fix` | It stays **silent** on a known cause with a bounded fix |
 | `decision-brief-silent-known-cause` | It stays **silent** on a plain error report |
 
-Two of the three cases are negative on purpose. The failure mode of a decision-brief format is **over-firing** — a four-part brief on a two-minute fork spends exactly the attention the format exists to protect — so a suite that only measures whether the shape appears would score an over-firing skill as perfect.
+Two of the four cases are negative on purpose. The failure mode of a decision-brief format is **over-firing** — a five-part brief on a two-minute fork spends exactly the attention the format exists to protect — so a suite that only measures whether the shape appears would score an over-firing skill as perfect.
+
+The two positive cases are deliberately opposed on the step back. In `decision-brief-fires` the plan was right and the build diverged from it, so the honest step back is short and says *local*; in `decision-brief-cause-is-a-decision` an approved ADR is what makes the failure possible, so the honest step back names that decision and the forks have to include revising it. A skill that always reaches for "this is a design flaw" scores well on one and badly on the other, which is the point — manufacturing a root cause is as wrong as skipping it.
 
 ## Writing more
 

@@ -1,0 +1,141 @@
+schema_version: "1.1"
+name: decision-brief-cause-is-a-decision
+description: >
+  The fork arrives pre-framed as a choice between two guards, and the owner has
+  already picked a favourite. The actual cause is a decision in an ADR they
+  approved last week and have not looked at since, and the same decision has
+  two other exits nobody has hit yet. This is the case the step back exists
+  for: both offered options are honest patches, and answering the question as
+  asked is what hides that.
+tags: [decision-brief, planning, step-back]
+plugins: [planning]
+runs: 3
+
+execution:
+  max_turns: 4
+  timeout_seconds: 300
+  prompt: |
+    Picking up the availability sync you approved last week; I have not looked
+    at the design since. Last night the nightly reconciler overwrote a webhook
+    update from 20 minutes earlier on 340 rows. Two ways to close it: add a
+    written_at guard so the reconciler skips rows with a newer timestamp, or
+    have the reconciler skip anything touched in the last hour. The guard looks
+    cleaner to me. Which do you want?
+
+    Context you may not still have: ADR 2026-07-14 put the webhook consumer and
+    the nightly reconciler on the same `availability` column and settled it with
+    "the later write wins". The reconciler writes `price` and `lead_time_days`
+    on the same pass, the same way.
+
+expected_outcome: >
+  A concrete walkthrough of one overwritten row, then a step back naming the
+  ADR's shared-column decision as what makes the overwrite possible and
+  flagging that price and lead_time_days have the same exposure, then options
+  that include revising that decision alongside the two guards, one
+  recommendation, one question, pointers last.
+
+graders:
+  - type: llm
+    name: step-back-names-the-decision
+    weight: 3
+    criteria: |
+      The response identifies that the overwrite is possible because ADR
+      2026-07-14 put two writers on one column and settled conflicts with
+      last-write-wins — a decision — rather than because a guard is missing.
+
+      FAIL if the cause is given as "the reconciler does not check
+      written_at", "there is no staleness check", or any other phrasing of the
+      absent guard. A missing guard is what the offered options add; it is not
+      why the condition exists.
+
+      FAIL if the response never states a cause at all and goes straight from
+      the failure to the options.
+
+  - type: llm
+    name: names-the-unhit-blast-radius
+    weight: 2
+    criteria: |
+      The response says somewhere that the same cause reaches beyond the
+      column that failed — `price` and `lead_time_days` are written by the
+      same pass in the same way and can be overwritten the same way, even
+      though nobody has reported it.
+
+      PASS if it names those fields or clearly says every column the
+      reconciler shares with the webhook consumer has the same exposure.
+
+      FAIL if it treats the incident as confined to `availability`, or only
+      mentions the other fields as an aside inside a pointer line without
+      connecting them to the cause.
+
+  - type: llm
+    name: offers-the-revise-fork
+    weight: 3
+    criteria: |
+      The options include one that revises the ADR's decision — a single
+      writer for the column, per-column ownership, the reconciler emitting
+      corrections through the webhook path, or an equivalent restructuring —
+      and it gets the same treatment as the others: what it costs, and a
+      replay of the walkthrough showing how the 340-row overwrite now ends.
+
+      FAIL if the response offers only the two guards from the prompt. FAIL if
+      revising the decision appears only as a passing remark, a "longer term
+      we could", or a line in a pointer section, with no cost and no replay.
+
+      PASS if the response argues the revise option is off the table for a
+      named reason (migration cost, deployed consumers, timing) — but only if
+      it says so where the option would have been, rather than omitting it.
+
+  - type: llm
+    name: does-not-inherit-the-framing
+    weight: 2
+    criteria: |
+      The prompt asserts the written_at guard "looks cleaner" and asks the
+      agent to pick between two guards. The response must not simply answer
+      that question.
+
+      PASS if it says plainly that both offered options hold the symptom down
+      and leave the cause in place, whether or not it ends up recommending one
+      of them.
+
+      FAIL if it recommends the written_at guard because the owner preferred
+      it, or evaluates the two guards against each other without ever stating
+      what they both leave standing.
+
+  - type: llm
+    name: story-leads-and-is-concrete
+    weight: 2
+    criteria: |
+      The response opens with a concrete run in time order — one named row,
+      the webhook write, the reconciler pass 20 minutes later, the value the
+      row ends up with — before any option or any ADR reference.
+
+      Invented specifics (a SKU, a timestamp, a before/after value) are
+      expected and fine. It must also say whether the failure was reproduced
+      or derived from the design.
+
+      FAIL if the response opens with the cause, the ADR, the options, or an
+      abstract restatement ("a later write can clobber an earlier one").
+
+  - type: llm
+    name: one-recommendation-one-question
+    weight: 1
+    criteria: |
+      The response ends with exactly one recommendation and exactly one
+      question, and that question is answerable with a single word or number.
+
+      If it recommends a guard while having called the cause a decision, it
+      must say why — timing, migration cost, blast radius — rather than
+      recommending it silently.
+
+      FAIL on two or more questions, on an open-ended "let me know how you
+      want to proceed", or on no recommendation at all.
+
+  - type: llm
+    name: pointers-last
+    weight: 1
+    criteria: |
+      ADR 2026-07-14 and any column or file references appear on a single line
+      at or near the end.
+
+      FAIL if the ADR id is how the problem is introduced, or if it appears
+      inside the opening walkthrough.
