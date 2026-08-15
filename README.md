@@ -30,19 +30,18 @@ Validate the marketplace and a plugin:
     claude plugin validate .
     claude plugin validate ./plugins/planning
 
-After install, components are namespaced by plugin: skills are invoked as `/planning:refine-plan-against-codex`, `/code-review:code-hygiene`, `/git:finalize-feature-branch`, `/research:web-research`. The `adr-review` agent is picked up automatically (or when you ask for it by name). `basedpyright-lsp` and `pyrefly-lsp` have no command to invoke — each registers a language server that activates automatically when you open a `.py`/`.pyi` file. They claim the same extensions, so **enable only one**: with both on, the first server registered wins and the other never starts. `output-styles` has no command either — it adds **Direct** to the `/config` → **Output style** picker, where you select it.
+After install, components are namespaced by plugin: skills are invoked as `/planning:check-likelihood`, `/code-review:code-hygiene`, `/git:finalize-feature-branch`, `/research:web-research`. `basedpyright-lsp` and `pyrefly-lsp` have no command to invoke — each registers a language server that activates automatically when you open a `.py`/`.pyi` file. They claim the same extensions, so **enable only one**: with both on, the first server registered wins and the other never starts. `output-styles` has no command either — it adds **Direct** to the `/config` → **Output style** picker, where you select it.
 
 <details>
 <summary>Manual install (alternative)</summary>
 
 Copy the files you want straight into your Claude Code config directory. Agents go under `~/.claude/agents/`, skills under `~/.claude/skills/`. Restart Claude Code afterward.
 
-**planning** — `adr-review` agent + `refine-plan-against-codex` skill:
+**planning** — `check-likelihood` + `decision-brief` skills:
 ```bash
-cp plugins/planning/agents/adr-review.md ~/.claude/agents/
-cp -r plugins/planning/skills/refine-plan-against-codex ~/.claude/skills/
-chmod +x ~/.claude/skills/refine-plan-against-codex/references/*.sh \
-         ~/.claude/skills/refine-plan-against-codex/references/state.py
+cp -r plugins/planning/skills/check-likelihood ~/.claude/skills/
+cp -r plugins/planning/skills/decision-brief ~/.claude/skills/
+chmod +x ~/.claude/skills/check-likelihood/references/run-codex.sh
 ```
 
 **code-review** — `code-hygiene` skill:
@@ -72,7 +71,7 @@ claude --plugin-dir plugins/basedpyright-lsp
 claude --plugin-dir plugins/pyrefly-lsp
 ```
 
-Note: installed manually, skills lose the `plugin:` namespace — invoke them by bare name (`/refine-plan-against-codex`, `/code-hygiene`, etc.).
+Note: installed manually, skills lose the `plugin:` namespace — invoke them by bare name (`/check-likelihood`, `/code-hygiene`, etc.).
 
 </details>
 
@@ -89,7 +88,7 @@ Enable `/plugin` → **Marketplaces** → **Enable auto-update** to refresh the 
 
 | Plugin | Description |
 |--------|-------------|
-| [planning](#planning) | Pre-code design gates — ADR review, plan hardening against Codex, risk triage, decision briefs |
+| [planning](#planning) | Pre-code design gates — risk triage, decision briefs |
 | [code-review](#code-review) | Find agentic code smells: needless complexity and AI-speak docstrings/comments |
 | [git](#git) | Finalize a feature branch — rebase, squash to one commit, verify, push |
 | [research](#research) | Grounded web research with source-quality discipline and inline citations |
@@ -100,30 +99,16 @@ Enable `/plugin` → **Marketplaces** → **Enable auto-update** to refresh the 
 
 ### planning
 
-Quality gates that run *before* code is written: review the decision (ADR), then harden the plan — plus two tools for the moment a gate hands something back to you, one to test whether a raised risk is real and one to make the resulting fork readable.
+Two tools for the moment a review hands something back to you, *before* any code is written: one to test whether a raised risk is real, and one to make the resulting fork readable.
 
 | Component | Trigger | Description |
 |-----------|---------|-------------|
-| agent | `adr-review` | Reviews an Architecture Decision Record for decision quality before a plan is built on it |
-| skill | `/planning:refine-plan-against-codex <plan.md>` | Hunt once, then verify-only rounds until every finding is confirmed fixed |
 | skill | `/planning:check-likelihood [claim]` | Adjudicates one raised risk — how likely is it here, and is it worth the fork it justifies |
 | skill | `/planning:decision-brief` | Rebuilds your context before you pick — one concrete failing run, why it became possible, the forks replayed against it, pointers last |
 
-**adr-review** — a read-only agent that reviews the *decision*, not the implementation. It checks an ADR is actually decided (no hedging), that alternatives are weighed honestly (no strawmen), that consequences include the downsides, and that load-bearing decisions respect project invariants. Every finding is tagged and tied to a specific ADR section, and every Critical/Important finding carries a **materialization** score (0–1: how likely the flagged problem actually bites) plus the condition that triggers it — below 0.30 a finding is demoted to FYI and a Critical needs ≥ 0.50, so the review can't hold up a decision on true-but-never-happens findings. A condition the reviewer can name but cannot check is marked `unverified` rather than scored, which keeps the decision open instead of burying the finding at the floor. The verdict is APPROVE or NEEDS REVISION. If the ADR file is ambiguous, it lists `docs/adrs/` and asks rather than guessing.
+**check-likelihood** — the ad-hoc counterpart to a batch review gate. An agent hands you a fork — *"decide between A and B, because X could happen"* — and X is often true and also never going to happen here; taking the fork buys permanent complexity to defend against nothing. Point this at the single claim. It writes the trigger condition ("this bites when…"), then hunts the artifact, `.claude/rules/`, the code, and the real scale for the invariant that settles it, and returns a materialization score with the `file:line` it relied on — a score with no quote is a guess wearing a number. A condition it can name but cannot check comes back `unverified` rather than scored, so a missing answer never quietly becomes a low one. When the claim is attached to a proposal it also prices the fork — cost now vs. cost if it fires vs. **cost of adding the guard later**, usually the deciding number — and lands on **revisit the decision** / simple path / take the fork / defer with a named signal to revisit / **cannot say yet**. Before pricing any guard it asks what decision made the condition possible — often the honest answer is that an earlier choice is the cause, and changing it removes the failure mode instead of guarding against it, so that verdict is offered even when the guard is cheap. `Cannot say yet` is the landing for an `unverified` score: without it the "never guess low" rule — right for scoring a risk — pushes the agent into taking the fork, and an unread file quietly becomes permanent complexity. On greenfield, where the code doesn't exist yet and nothing can be read, a silent plan is treated as a finding about the plan (name the sentence that would settle it) rather than an automatic `unverified`, so the tool doesn't become a source of paralysis. Read-only, and budgeted to a triage rather than an audit: **5 file reads**, counted rather than timed, because an agent can count files and cannot feel five minutes. It predicts the file list before opening anything, and when the evidence turns out to be spread over a dozen files it stops and offers to hand the read to a subagent — the cost of a big read isn't the wait, it's a dozen files landing in the planning context you were trying to protect. Separately, it offers a fresh adversarial subagent or a Codex cross-check when the score sits near a decision boundary or the fork is hard to reverse, but never spends those minutes without asking.
 
-> **Tuned for my setup.** It expects ADRs in `docs/adrs/YYYY-MM-DD-<task>.md` and reads project context from a `docs/adrs/*-dev-workflow.md`, the root `CLAUDE.md`, and `.claude/rules/*.md`. On a repo without those, it still reviews the ADR but the load-bearing checks lose their teeth. Adapt the paths in `agents/adr-review.md` to reuse it elsewhere.
-
-**refine-plan-against-codex** — drives an external review of a single implementation plan, structured so that it **ends**. Round 1 hunts: a subagent runs Codex against the whole plan and returns structured JSON findings, an independent **arbiter** subagent classifies each one real-defect vs prose-nitpick and re-scores it blind, and what survives becomes a fixed list. Every round after that only **verifies** — scoped to the diff of the previous round's fixes, one question per open finding (is this addressed, yes or no), and structurally unable to add to the list. Anything else Codex notices goes to `parked[]`, reported at the end and never fixed inside the loop.
-
-That shape is the point. A full re-review every round does not converge: "find what's wrong" is unbounded, each fix is new text to criticize, and a memory-wiped re-review resamples the artifact instead of working down a list. Measured on one plan (2026-08-04), worst-finding severity by round ran 0.42 → 0.48 → 0.86 — *rising*, because each round's best finding attacked the previous round's fix. Verify rounds keep that signal (they read exactly that diff, so a fix that reintroduces its own finding comes back `fixed: false`) and drop the part that made the loop endless. The open list only shrinks, so termination is by construction: `completed_verified` when it empties, `completed_cap` at the round budget (default 4, `REFINE_PLAN_MAX_ROUNDS`).
-
-Findings carry two orthogonal scores — `confidence` ("is this claim true?") and **materialization** ("if the plan ships as written, how likely is it that this actually bites?"). Codex self-scores both; the arbiter re-scores materialization without seeing Codex's number and overrides it. Below 0.30 a finding is recorded but never fixed; a real high/critical below 0.50 gets fixed but no longer keeps the loop alive. Each finding also carries a **cause** and a `fix_kind` — Codex must ask what decision makes the condition possible before proposing anything, and say whether its fix is a *guard* (a lock, retry, or branch that holds the symptom down) or a *design* change (the condition only exists because of a choice the plan already made). The arbiter re-answers that independently, because Codex has an incentive to say "guard": a guard is the smaller edit and stays inside the implementer's licence. Design-level findings never reach the implementer — restructuring a plan is the opposite of the minimum-scope edit that rule exists to enforce — so they go to you, with four options. State and per-round commits live beside the plan. Run it *after* a plan draft exists and *before* execution.
-
-> **Requirements:** the `codex` CLI on `PATH`, `python3`, and the plan in a git-tracked location. Codex is slow (2–5 min/round), so prefer running it unattended. Repo-agnostic otherwise; defaults to `docs/plans/*.md` (override with `PLAN_GLOB` or an explicit path). The codex model defaults to `gpt-5.6-sol` — set `CODEX_MODEL=<name>` to override. Tune the round budget with `REFINE_PLAN_MAX_ROUNDS` (default `4`) and the materialization thresholds with `REFINE_PLAN_MATERIALIZATION_FLOOR` (default `0.3`, `0` disables filtering) and `REFINE_PLAN_MATERIALIZATION_GATE` (default `0.5`).
-
-**check-likelihood** — the ad-hoc counterpart to the two gates above. An agent hands you a fork — *"decide between A and B, because X could happen"* — and X is often true and also never going to happen here; taking the fork buys permanent complexity to defend against nothing. Point this at the single claim. It writes the trigger condition ("this bites when…"), then hunts the artifact, `.claude/rules/`, the code, and the real scale for the invariant that settles it, and returns a materialization score with the `file:line` it relied on — a score with no quote is a guess wearing a number. A condition it can name but cannot check comes back `unverified` rather than scored, so a missing answer never quietly becomes a low one. When the claim is attached to a proposal it also prices the fork — cost now vs. cost if it fires vs. **cost of adding the guard later**, usually the deciding number — and lands on **revisit the decision** / simple path / take the fork / defer with a named signal to revisit / **cannot say yet**. Before pricing any guard it asks what decision made the condition possible — often the honest answer is that an earlier choice is the cause, and changing it removes the failure mode instead of guarding against it, so that verdict is offered even when the guard is cheap. `Cannot say yet` is the landing for an `unverified` score: without it the "never guess low" rule — right for scoring a risk — pushes the agent into taking the fork, and an unread file quietly becomes permanent complexity. On greenfield, where the code doesn't exist yet and nothing can be read, a silent plan is treated as a finding about the plan (name the sentence that would settle it) rather than an automatic `unverified`, so the tool doesn't become a source of paralysis. Read-only, and budgeted to a triage rather than an audit: **5 file reads**, counted rather than timed, because an agent can count files and cannot feel five minutes. It predicts the file list before opening anything, and when the evidence turns out to be spread over a dozen files it stops and offers to hand the read to a subagent — the cost of a big read isn't the wait, it's a dozen files landing in the planning context you were trying to protect. Separately, it offers a fresh adversarial subagent or a Codex cross-check when the score sits near a decision boundary or the fork is hard to reverse, but never spends those minutes without asking.
-
-> **Reacts to skepticism.** Besides `/planning:check-likelihood`, it triggers on the way you'd actually push back — "how likely is that", "does that actually happen", "has that ever happened", "that sounds theoretical", "isn't that an edge case" — so doubting a risk an agent raised runs the check instead of starting an argument. No requirements beyond the repo itself; the optional Codex escalation reuses `refine-plan-against-codex`'s wrapper.
+> **Reacts to skepticism.** Besides `/planning:check-likelihood`, it triggers on the way you'd actually push back — "how likely is that", "does that actually happen", "has that ever happened", "that sounds theoretical", "isn't that an edge case" — so doubting a risk an agent raised runs the check instead of starting an argument. No requirements beyond the repo itself; the optional Codex escalation goes through its own `references/run-codex.sh` and needs the `codex` CLI.
 
 **decision-brief** — the format an agent should use when it hands a fork back to you. You wrote the design while fully focused; by the time an agent hits a judgement call three days later, the plan and the ADR are gone from your head, and a verdict built out of section names and internal terms asks you to reload a whole design from a pointer before you can read the question. This fixes the shape. First settle the problem — name the guard you reached for and what it leaves in place, run `/planning:check-likelihood` or a root-cause tool if one is available, and say plainly when the verdict is judgement rather than a checked result. Then five parts, in order: **the story** (one concrete run in time order, real values not variable names, ending badly, with one clause saying whether it was reproduced or derived — the two read identically and only one is evidence); **the step back** (2–5 lines: why this became possible, asking why until the answer is a decision someone made rather than a line of code, plus how far the same cause reaches — then landing on *local*, *design*, or *unknown*); **the forks** (two to four, cheapest first, each with its cost now *and* its cost if added later, each **replaying** the same story to its new ending, each labelled *removes the cause* or *guards only*); **the recommendation** (one option, one question, answerable in one word, plus an offer to expand any fork — offering to re-explain costs you nothing, a pointer asks you to go read); and **the pointers last**, one line, never inside the story.
 
@@ -239,16 +224,13 @@ A **Scope** section bounds all of it: these rules shape text written *for me to 
 
 ## Development
 
-Most of this repo is markdown, but the `refine-plan-against-codex` skill ships real executable code, so it has tests under [`tests/`](tests/) — black-box bash for `state.py`'s CLI, `extract-sentinels.sh`, and the `run-codex.sh` wrapper (`codex` and `git` are PATH stubs), plus a Python `unittest` for `state.py`'s parser internals. They're hermetic (no network, `codex`, or git needed):
+Most of this repo is markdown, but `check-likelihood` ships one executable helper, so it has a test under [`tests/`](tests/) — black-box bash for the `run-codex.sh` wrapper, with `codex` and `git` as PATH stubs. It's hermetic (no network, `codex`, or git needed):
 
 ```bash
-bash tests/test-planning-refine-state.sh
-bash tests/test-planning-extract-sentinels.sh
 bash tests/test-planning-run-codex.sh
-python3 tests/test-planning-state.py
 ```
 
-GitHub Actions runs them — plus frontmatter, `shellcheck`, and manifest checks — on every push and PR (see [`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
+GitHub Actions runs it — plus frontmatter, `shellcheck`, and manifest checks — on every push and PR (see [`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
 
 Behaviour that only shows up when a model reads a skill is covered by eval cases instead, in the native `claude plugin eval` format under a plugin's own `evals/` directory ([`plugins/planning/evals/`](plugins/planning/evals/) so far):
 

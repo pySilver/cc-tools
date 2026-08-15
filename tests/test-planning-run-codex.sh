@@ -1,5 +1,5 @@
 #!/bin/bash
-# behavioral tests for refine-plan-against-codex's run-codex.sh wrapper
+# behavioral tests for check-likelihood's run-codex.sh wrapper
 # contract (references/README.md): invokes `codex exec --sandbox read-only`
 # with a default model of gpt-5.6-sol; CODEX_MODEL=<name> overrides the
 # default; CODEX_NO_OVERRIDES=1 skips the -c overrides entirely; the
@@ -11,7 +11,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
-RUN_CODEX="$REPO_ROOT/plugins/planning/skills/refine-plan-against-codex/references/run-codex.sh"
+RUN_CODEX="$REPO_ROOT/plugins/planning/skills/check-likelihood/references/run-codex.sh"
 
 passed=0
 failed=0
@@ -94,7 +94,7 @@ assert_not_contains() {
     fi
 }
 
-echo "testing run-codex.sh (refine-plan-against-codex)"
+echo "testing run-codex.sh (check-likelihood)"
 echo "========================================================"
 
 # test 1: default invocation shape — default model, read-only sandbox,

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# run-codex.sh — codex wrapper owned by the refine-plan-against-codex
+# run-codex.sh — codex wrapper owned by the check-likelihood
 # skill. Forked from the planning plugin's wrapper
 # (~/.claude/plugins/cache/umputun-cc-thingz/planning/3.7.1/skills/exec/
 # scripts/run-codex.sh) on 2026-05-18 because the wedge-fix patch we

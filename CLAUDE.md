@@ -10,7 +10,7 @@ A **Claude Code plugin marketplace** — a catalog, not an application. It distr
 
 - `.claude-plugin/marketplace.json` (repo root) is the catalog. Its `name` is `silver-cc-tools`; each entry in `plugins[]` points at a plugin via a **relative `source` path** (`./plugins/<name>`). Relative sources only resolve when the marketplace is added from git (e.g. `pySilver/cc-tools`), not from a raw `marketplace.json` URL.
 - Each plugin lives in `plugins/<name>/` with its own `.claude-plugin/plugin.json` and an `agents/`, `skills/`, and/or `output-styles/` directory. Plugins are grouped **by domain**, not by component type:
-  - `planning` — `adr-review` agent + `refine-plan-against-codex`, `check-likelihood`, `decision-brief` skills (pre-code design gates)
+  - `planning` — `check-likelihood`, `decision-brief` skills (pre-code design gates)
   - `code-review` — `code-hygiene` skill
   - `git` — `finalize-feature-branch` skill
   - `research` — `web-research` skill
@@ -19,7 +19,7 @@ A **Claude Code plugin marketplace** — a catalog, not an application. It distr
   - `output-styles` — the `Direct` output style (the one exception to by-domain grouping: a style is a system-prompt change with no domain, so it is grouped by component type)
 - **Every `plugin.json` here is metadata only — component paths are auto-discovered, never declared.** A manifest listing no `skills`/`agents`/`outputStyles` field is correct, not broken: those fields *replace* the default `skills/`, `agents/`, `output-styles/` directories, so adding one that points at the default path is a no-op. Don't "fix" a manifest by declaring what is already found.
 - Skills are `skills/<skill>/SKILL.md` (YAML frontmatter: `name`, `description`, optional `allowed-tools`, `model`, `disable-model-invocation`). Agents are `agents/<agent>.md` (frontmatter: `name`, `description`, `model`, `tools`, `color`).
-- After install, skills are namespaced as `/<plugin>:<skill>` (e.g. `/code-review:code-hygiene`); agents are referenced by bare name (`adr-review`). `disable-model-invocation: true` (used by `finalize-feature-branch`) blocks *Claude* from auto-triggering a skill — the user's `/<plugin>:<skill>` still resolves and runs.
+- After install, skills are namespaced as `/<plugin>:<skill>` (e.g. `/code-review:code-hygiene`); agents are referenced by bare name. `disable-model-invocation: true` (used by `finalize-feature-branch`) blocks *Claude* from auto-triggering a skill — the user's `/<plugin>:<skill>` still resolves and runs.
 
 ## Output styles ship as a plugin, not a symlink
 
@@ -67,13 +67,10 @@ The "no version specified" warning from `claude plugin validate ./plugins/<name>
 
 ## Testing
 
-The one substantial piece of executable code — `refine-plan-against-codex`'s `state.py` plus its `extract-sentinels.sh` and `run-codex.sh` — has a flat `tests/` suite of black-box bash scripts (assert helpers + hermetic `mktemp -d` dirs) and one Python `unittest` file for `state.py`'s parse internals. All tests are hermetic: no network, no `codex`, no git required (the `run-codex.sh` test stubs `codex` and `git` on `PATH`).
+The one piece of executable code — `check-likelihood`'s `run-codex.sh` wrapper — has a black-box bash test under `tests/` (assert helpers + a hermetic `mktemp -d` dir). It is hermetic: no network, no `codex`, no git required, since the test stubs `codex` and `git` on `PATH`.
 
 ```bash
-bash tests/test-planning-refine-state.sh        # state.py CLI lifecycle (init/resume/record/detect-stuck/summary/finalize)
-bash tests/test-planning-extract-sentinels.sh   # extract-sentinels.sh behavior
 bash tests/test-planning-run-codex.sh           # run-codex.sh model default + CODEX_MODEL/CODEX_NO_OVERRIDES overrides
-python3 tests/test-planning-state.py            # parse_findings / _actionable / derive_slug
 ```
 
 Skill *behaviour* — what a model actually does when a skill loads — is covered by eval cases instead, in the native `claude plugin eval` format at `plugins/<name>/evals/<case>/case.yaml` (schema 1.1). Only `planning` has them so far. They are **not** in CI (they cost money and need a live agent):
@@ -85,16 +82,15 @@ claude plugin eval ./plugins/planning --ablation with-without  # path target nee
 
 When adding cases for a skill whose risk is *over-firing*, write the negative cases too — a suite that only checks the shape appears will score an over-firing skill as perfect. See `plugins/planning/evals/README.md`.
 
-`state.py` is **execute-only and not modified by the tests** — the Python test imports it read-only by path via `importlib`; the bash test isolates state with `REFINE_PLAN_STATE_ROOT`. `.github/workflows/ci.yml` runs these on every push to `main` and on every PR, alongside markdown-frontmatter validation, `shellcheck`, and a portable manifest check (the `claude` CLI isn't on GH runners).
+`run-codex.sh` is **execute-only and not modified by its test** — the test stubs `codex` and `git` on `PATH` and asserts the invocation shape. `.github/workflows/ci.yml` runs it on every push to `main` and on every PR, alongside markdown-frontmatter validation, `shellcheck`, and a portable manifest check (the `claude` CLI isn't on GH runners).
 
 ## Bundled tools assume the author's external projects — do not "generalize" them unasked
 
 Several tools hardcode conventions from the author's own repos. These paths are intentional, not bugs:
 
-- `adr-review` reads `docs/adrs/YYYY-MM-DD-*.md`, a `docs/adrs/*-dev-workflow.md`, and `.claude/rules/*.md`.
 - `code-hygiene` is Python/Django-specific (globs `.py`, skips `migrations/`, has Django/Pydantic exemptions).
 - `web-research` prefers a Context7 MCP and `gh` when present.
-- `refine-plan-against-codex` requires the `codex` CLI and `python3`, and its `references/*.sh` + `state.py` are **execute-only** — do not read them into context during a run; their contracts live in `references/README.md`.
+- `check-likelihood`'s optional Codex escalation requires the `codex` CLI, and its `references/run-codex.sh` is **execute-only** — do not read it into context during a check; its contract lives in `references/README.md`.
 
 ## Repo hygiene
 

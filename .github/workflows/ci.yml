@@ -98,7 +98,3 @@ jobs:
       - name: Run shell tests
         run: |
           for t in tests/test-*.sh; do bash "$t"; done
-
-      - name: Run python tests
-        run: |
-          python3 tests/test-planning-state.py

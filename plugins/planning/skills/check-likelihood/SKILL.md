@@ -28,10 +28,11 @@ nothing.
 This skill adjudicates one claim, fast. It is **read-only** — it never
 edits the artifact and never takes the fork for you.
 
-> Related but different: `adr-review` scores materialization inside a full
-> ADR review, and `refine-plan-against-codex`'s arbiter scores inside the
-> codex loop. Both are batch gates on a whole document. This is the ad-hoc
-> one — point it at a single claim mid-conversation.
+> Related but different: a review gate scores materialization across a whole
+> document — an ADR, a plan, a diff — and reports it alongside every other
+> finding. Those are batch gates, and they need a filed subject to run on.
+> This is the ad-hoc one: point it at a single claim mid-conversation, before
+> anything has been filed.
 
 ## What it answers, in order
 
@@ -53,8 +54,8 @@ Stop at the first one that settles it. A claim that fails #1 never reaches
   misidentified claim fails loudly instead of quietly.
 - Several claims → adjudicate up to 3, sharing one 5-read budget across all
   of them; a file read for one claim is already read for the next. At 4 or
-  more, do not start — offer the highest-severity three, or `adr-review` /
-  the refine loop, which are built to batch.
+  more, do not start — offer the highest-severity three, or hand the whole
+  set to whatever review gate the project batches documents with.
 
 ## Step 1: Write the trigger sentence
 
@@ -269,11 +270,12 @@ they cost minutes:
   general-purpose`, prompted to *argue the condition IS reachable* and to
   cite lines. Adversarial framing is the point; a neutral second pass just
   agrees with the first.
-- **Codex cross-model** (2-5 min) — reuse the sibling skill's wrapper, same
-  plugin:
-  `bash ${CLAUDE_PLUGIN_ROOT}/skills/refine-plan-against-codex/references/run-codex.sh '<prompt>'`.
-  Worth it when the fork is expensive and a different architecture's blind
-  spots are the value.
+- **Codex cross-model** (2-5 min) — through this skill's own wrapper:
+  `bash ${CLAUDE_PLUGIN_ROOT}/skills/check-likelihood/references/run-codex.sh '<prompt>'`.
+  Always the wrapper, never a hand-rolled `codex exec` — it adds the
+  `</dev/null` stdin fix, without which codex can hang at 0% CPU. Worth it
+  when the fork is expensive and a different architecture's blind spots are
+  the value.
 
 ## Output
 
@@ -364,5 +366,5 @@ thing under ~15 lines per claim.
 - Opening files past the 5-read budget instead of reporting the scope
 - Starting a big read inline when delegating would have kept the context clean
 - Predicting scope *after* opening the first few files, which is not predicting
-- Adjudicating a whole review's worth of findings one at a time (use
-  `adr-review` or the refine loop)
+- Adjudicating a whole review's worth of findings one at a time — that is a
+  batch gate's job, not this one's
