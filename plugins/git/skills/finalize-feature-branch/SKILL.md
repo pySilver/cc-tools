@@ -179,14 +179,39 @@ If anything fails, stop before step 11. Do not merge or push a failing branch.
 
 ## 11. Land the Branch
 
-Default flow: the feature branch is finished, so it goes into DEFAULT_BRANCH
-locally and DEFAULT_BRANCH is pushed. Publishing the feature branch itself is the
+Default flow: the feature branch is finished, so it goes into DEFAULT_BRANCH and
+DEFAULT_BRANCH is published. Publishing the feature branch itself is the
 exception, for when a pull request is wanted.
 
-Ask via AskUserQuestion, in this order:
+First find out whether the local merge is even available. Run:
+- `git worktree list --porcelain`
+- `git rev-parse --show-toplevel`
+
+If a worktree other than this one holds `branch refs/heads/{DEFAULT_BRANCH}`, that
+branch is locked to that checkout. Store that worktree's path as WORKTREE_PATH.
+`git checkout {DEFAULT_BRANCH}` will fail with
+`fatal: '{DEFAULT_BRANCH}' is already used by worktree at <path>`, and
+`git fetch . HEAD:{DEFAULT_BRANCH}` refuses for the same reason. Do not attempt
+either, and never move the ref behind that checkout's back with `git update-ref`
+or `git branch -f` — the other worktree's index would still describe the old
+commit, so it would come up looking like every file the branch added had been
+deleted there. The commit goes straight to the remote instead, and the local
+branch catches up afterwards.
+
+Ask via AskUserQuestion, in this order.
+
+If DEFAULT_BRANCH is free:
 - "Merge into {DEFAULT_BRANCH} and push" (default)
 - "Push feature branch with force-with-lease"
 - "Do nothing"
+
+If DEFAULT_BRANCH is held by another worktree:
+- "Push to origin/{DEFAULT_BRANCH} directly" (default)
+- "Push feature branch with force-with-lease"
+- "Do nothing"
+
+In the second case, say in the question why the local merge is not on offer and
+name WORKTREE_PATH.
 
 ### Merge into DEFAULT_BRANCH and push
 
@@ -210,6 +235,36 @@ while you worked — report the rejection and stop, do not retry with force.
 Leave the checkout on DEFAULT_BRANCH and say so in the report. The feature branch
 is untouched; deleting it is not this skill's job.
 
+### Push to origin/DEFAULT_BRANCH directly
+
+Same landing, one hop fewer: the commit reaches the remote default branch without
+a local checkout of it. It is still a fast-forward — step 5 rebased HEAD onto
+`origin/{DEFAULT_BRANCH}` and nothing has moved since.
+
+Confirm that before pushing:
+- `git merge-base --is-ancestor origin/{DEFAULT_BRANCH} HEAD`
+- If it fails, `origin/{DEFAULT_BRANCH}` moved after the rebase. Stop and report.
+
+Then:
+- `git push origin HEAD:{DEFAULT_BRANCH}`
+
+Plain push — no `--force`, no `--force-with-lease`. The remote refuses a
+non-fast-forward on its own, which is exactly the wanted behaviour: a rejection
+means someone else pushed while you worked, so report it and stop.
+
+The push updates the remote only. The local {DEFAULT_BRANCH} in WORKTREE_PATH is
+now one commit behind `origin/{DEFAULT_BRANCH}`; report that either way. Whether
+to fast-forward it depends on whether that checkout is dirty:
+- `git -C {WORKTREE_PATH} status --porcelain`
+- If it prints nothing, offer via AskUserQuestion to run
+  `git -C {WORKTREE_PATH} merge --ff-only origin/{DEFAULT_BRANCH}` — it is a
+  fast-forward, but it does change files in a checkout the user may be sitting in
+- If it prints anything, do not touch that worktree. Report the command so the
+  user can run it once their work there is settled
+
+This worktree's checkout does not move: it stays on CURRENT_BRANCH. Say so in the
+report.
+
 ### Push feature branch with force-with-lease
 
 - `git push --force-with-lease`
@@ -225,7 +280,11 @@ Summarize:
 - What the rebase pulled in, and whether the test suite ran or was skipped and why
 - Whether commits were collapsed
 - Final commit message
+- Which landing path was taken — local merge, direct push to the remote default
+  branch because another worktree holds it, or feature-branch publish
 - What was pushed, if anything, and which branch the checkout is now on
+- For the direct-push path: whether the local default branch in the other
+  worktree was fast-forwarded or left behind, and its path
 - Test/lint results
 - Any issues encountered
 
