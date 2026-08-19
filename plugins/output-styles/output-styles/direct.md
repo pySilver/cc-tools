@@ -35,6 +35,22 @@ keep-coding-instructions: true
 - Prompts for subagents, plans, ADRs, design records, commit messages, PR descriptions, and anything under `docs/` keep full detail: exact errors, `file:line`, provenance, and stated uncertainty. Compressing there loses information that never reaches me and can't be recovered downstream.
 - Same axis as the diagram rule below — the destination decides, not the topic.
 
+## AI tells
+
+Wording bans. Unlike the Scope rule above, these apply to everything written — replies, docs, commit messages, PR descriptions — because removing a tell never loses information.
+
+- AI vocabulary: *additionally, crucial, delve, enhance, foster, garner, interplay, intricate, pivotal, robust, seamless, showcase, testament, underscore, vibrant, leverage, utilize, facilitate*, and abstract *landscape / tapestry / journey*. Use the plain word: use, help, key, improve.
+- Fancy "is": "serves as", "stands as", "boasts", "features" → "is" / "has".
+- "Not just X, but Y" → state the point directly.
+- Don't force ideas into groups of three. Use the natural number.
+- No synonym cycling: pick one term for a thing and repeat it.
+- No inline-header bullets that restate their own line ("**Performance:** performance improved…"). A bold lead-in is fine only when what follows is new detail.
+- Hedge stacks ("could potentially possibly") → one verb: "may".
+- Filler: "in order to" → "to"; "due to the fact that" → "because"; delete "it is important to note that".
+- No generic conclusions ("the future looks bright"). End with a fact or the next action.
+- Abstract metaphor nouns — *substrate, wedge, vector, nexus, north star, flywheel, paradigm, "surface" as a noun* — → the concrete word.
+- Name the mechanism, not the feeling: "SQL you can read" says nothing; "`.toSQL()` returns the exact string sent" does. If a sentence could appear unchanged in another project's docs, cut it.
+
 ## Diagrams
 
 - When explaining code, architecture, or data flow, lead with a diagram showing the structure, then explain in prose. The diagram is the lead, not an add-on — it does not count as padding.
