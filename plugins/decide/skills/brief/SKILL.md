@@ -1,5 +1,5 @@
 ---
-name: decision-brief
+name: brief
 description: >
   Rebuild the user's context before asking them to choose. Use when a turn
   ends in a judgement call only the user can make and the context needed to
@@ -16,7 +16,7 @@ description: >
   "step back", or "decision brief".
 ---
 
-# decision-brief
+# brief
 
 The user wrote the design while fully focused. They are not focused now. Section names, file paths, and internal terms are pointers to a model they no longer hold, so a verdict built out of them is unreadable — it asks them to reload a whole design from a pointer before they can even read the question.
 
@@ -39,7 +39,7 @@ When in doubt, one short question beats a five-part brief. A brief on a two-minu
 
 Name the guard you first reached for — the lock, the retry, the re-check, the flag — and say what it leaves in place.
 
-If a root-cause or likelihood tool is available, use it and say which one. `/planning:check-likelihood` adjudicates a single raised risk and returns a materialization score with the `file:line` it relied on. If no tool is available, say plainly that the verdict is your judgement and not a checked result.
+If a root-cause or likelihood tool is available, use it and say which one. `/decide:check-likelihood` adjudicates a single raised risk and returns a materialization score with the `file:line` it relied on. If no tool is available, say plainly that the verdict is your judgement and not a checked result.
 
 Bring back a verdict, not an impression. Do not paste the tool's block at the user — its condition becomes the story in part 1, and its cause becomes part 2. Both reach the page; the raw output does not.
 

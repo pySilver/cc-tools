@@ -10,7 +10,7 @@ A **Claude Code plugin marketplace** — a catalog, not an application. It distr
 
 - `.claude-plugin/marketplace.json` (repo root) is the catalog. Its `name` is `silver-cc-tools`; each entry in `plugins[]` points at a plugin via a **relative `source` path** (`./plugins/<name>`). Relative sources only resolve when the marketplace is added from git (e.g. `pySilver/cc-tools`), not from a raw `marketplace.json` URL.
 - Each plugin lives in `plugins/<name>/` with its own `.claude-plugin/plugin.json` and an `agents/`, `skills/`, and/or `output-styles/` directory. Plugins are grouped **by domain**, not by component type:
-  - `planning` — `check-likelihood`, `decision-brief` skills (pre-code design gates)
+  - `decide` — `interview-me`, `check-likelihood`, `brief` skills (decision gates: a human has to make a call)
   - `code-review` — `code-hygiene` skill
   - `git` — `finalize-feature-branch` skill
   - `research` — `web-research` skill
@@ -70,17 +70,17 @@ The "no version specified" warning from `claude plugin validate ./plugins/<name>
 The one piece of executable code — `check-likelihood`'s `run-codex.sh` wrapper — has a black-box bash test under `tests/` (assert helpers + a hermetic `mktemp -d` dir). It is hermetic: no network, no `codex`, no git required, since the test stubs `codex` and `git` on `PATH`.
 
 ```bash
-bash tests/test-planning-run-codex.sh           # run-codex.sh model default + CODEX_MODEL/CODEX_NO_OVERRIDES overrides
+bash tests/test-decide-run-codex.sh           # run-codex.sh model default + CODEX_MODEL/CODEX_NO_OVERRIDES overrides
 ```
 
 Skill *behaviour* — what a model actually does when a skill loads — is covered by eval cases instead, in the native `claude plugin eval` format at `plugins/<name>/evals/<case>/case.yaml` (schema 1.1). Only `planning` has them so far. They are **not** in CI (they cost money and need a live agent):
 
 ```bash
-claude plugin eval planning@silver-cc-tools                    # adds no-plugin baseline arm
-claude plugin eval ./plugins/planning --ablation with-without  # path target needs the flag
+claude plugin eval decide@silver-cc-tools                    # adds no-plugin baseline arm
+claude plugin eval ./plugins/decide --ablation with-without  # path target needs the flag
 ```
 
-When adding cases for a skill whose risk is *over-firing*, write the negative cases too — a suite that only checks the shape appears will score an over-firing skill as perfect. See `plugins/planning/evals/README.md`.
+When adding cases for a skill whose risk is *over-firing*, write the negative cases too — a suite that only checks the shape appears will score an over-firing skill as perfect. See `plugins/decide/evals/README.md`.
 
 `run-codex.sh` is **execute-only and not modified by its test** — the test stubs `codex` and `git` on `PATH` and asserts the invocation shape. `.github/workflows/ci.yml` runs it on every push to `main` and on every PR, alongside markdown-frontmatter validation, `shellcheck`, and a portable manifest check (the `claude` CLI isn't on GH runners).
 
@@ -93,5 +93,7 @@ Several tools hardcode conventions from the author's own repos. These paths are 
 - `check-likelihood`'s optional Codex escalation requires the `codex` CLI, and its `references/run-codex.sh` is **execute-only** — do not read it into context during a check; its contract lives in `references/README.md`.
 
 ## Repo hygiene
+
+`NOTICE` at the repo root carries the attributions that vendored MIT work requires — currently `decide/interview-me`. When adopting a skill from another repo, add its notice there and say in the skill's own README prose what was changed, rather than presenting adapted work as original.
 
 `.gitignore` excludes `.claude/` (local Claude Code state, including `settings.local.json`) and `.DS_Store`. The `.claude-plugin/` directories are *not* ignored — they are the manifests.

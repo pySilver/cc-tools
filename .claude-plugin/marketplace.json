@@ -7,9 +7,9 @@
   "description": "Personal collection of Claude Code agents and skills.",
   "plugins": [
     {
-      "name": "planning",
-      "source": "./plugins/planning",
-      "description": "Pre-code design gates: adjudicating how likely a raised risk is to actually happen, and briefing the owner before they pick between design forks."
+      "name": "decide",
+      "source": "./plugins/decide",
+      "description": "Decision gates: interviewing the owner for what they actually want, adjudicating how likely a raised risk is to actually happen, and briefing the owner before they pick between design forks."
     },
     {
       "name": "code-review",

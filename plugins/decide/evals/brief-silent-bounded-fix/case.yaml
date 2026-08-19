@@ -1,11 +1,11 @@
 schema_version: "1.1"
-name: decision-brief-silent-bounded-fix
+name: brief-silent-bounded-fix
 description: >
   A diagnosis with one known cause and one bounded fix. There is no judgement
   call for the owner to make, so the brief must not fire. The failure mode of
-  a decision-brief format is over-firing, and this is where it shows.
-tags: [decision-brief, planning, negative]
-plugins: [planning]
+  a brief format is over-firing, and this is where it shows.
+tags: [brief, decide, negative]
+plugins: [decide]
 runs: 3
 
 execution:

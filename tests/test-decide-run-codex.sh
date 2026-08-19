@@ -11,7 +11,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
-RUN_CODEX="$REPO_ROOT/plugins/planning/skills/check-likelihood/references/run-codex.sh"
+RUN_CODEX="$REPO_ROOT/plugins/decide/skills/check-likelihood/references/run-codex.sh"
 
 passed=0
 failed=0

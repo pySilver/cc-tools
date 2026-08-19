@@ -1,12 +1,12 @@
 schema_version: "1.1"
-name: decision-brief-fires
+name: brief-fires
 description: >
   A judgement call the owner must make, about a design they approved days ago
   and have not looked at since. The report arrives as file:line pointers, plan
-  section numbers, and a pre-chosen guard. This is the case decision-brief
+  section numbers, and a pre-chosen guard. This is the case brief
   exists for: without it the answer is a correct verdict the owner cannot read.
-tags: [decision-brief, planning]
-plugins: [planning]
+tags: [brief, decide]
+plugins: [decide]
 runs: 3
 
 execution:

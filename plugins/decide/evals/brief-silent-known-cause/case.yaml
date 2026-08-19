@@ -1,11 +1,11 @@
 schema_version: "1.1"
-name: decision-brief-silent-known-cause
+name: brief-silent-known-cause
 description: >
   An error report where the cause is already known and the fix is bounded.
   Tests the plain error-report shape — location, cause, fix, verification, no
   filler — and that the brief stays silent.
-tags: [decision-brief, planning, negative]
-plugins: [planning]
+tags: [brief, decide, negative]
+plugins: [decide]
 runs: 3
 
 execution:

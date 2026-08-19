@@ -1,5 +1,5 @@
 schema_version: "1.1"
-name: decision-brief-cause-is-a-decision
+name: brief-cause-is-a-decision
 description: >
   The fork arrives pre-framed as a choice between two guards, and the owner has
   already picked a favourite. The actual cause is a decision in an ADR they
@@ -7,8 +7,8 @@ description: >
   two other exits nobody has hit yet. This is the case the step back exists
   for: both offered options are honest patches, and answering the question as
   asked is what hides that.
-tags: [decision-brief, planning, step-back]
-plugins: [planning]
+tags: [brief, decide, step-back]
+plugins: [decide]
 runs: 3
 
 execution:

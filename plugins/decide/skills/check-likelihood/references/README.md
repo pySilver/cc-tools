@@ -30,5 +30,5 @@ Adds:
   with a comment explaining the failure mode it defends against.
 
 Usage: `bash run-codex.sh '<prompt>'`. Output on stdout, exit code from
-codex. Covered by `tests/test-planning-run-codex.sh`, which stubs
+codex. Covered by `tests/test-decide-run-codex.sh`, which stubs
 `codex` and `git` on `PATH`.
