@@ -14,7 +14,7 @@ A **Claude Code plugin marketplace** — a catalog, not an application. It distr
   - `code-review` — `code-hygiene` skill
   - `git` — `finalize-feature-branch` skill
   - `research` — `web-research` skill
-  - `tracking` — `log-issue`, `status-board` skills
+  - `tracking` — `backlog`, `status-board` skills
   - `basedpyright-lsp` / `pyrefly-lsp` — one `.lsp.json` each, no skill or agent
   - `output-styles` — the `Direct` output style (the one exception to by-domain grouping: a style is a system-prompt change with no domain, so it is grouped by component type)
 - **Every `plugin.json` here is metadata only — component paths are auto-discovered, never declared.** A manifest listing no `skills`/`agents`/`outputStyles` field is correct, not broken: those fields *replace* the default `skills/`, `agents/`, `output-styles/` directories, so adding one that points at the default path is a no-op. Don't "fix" a manifest by declaring what is already found.
@@ -94,6 +94,6 @@ Several tools hardcode conventions from the author's own repos. These paths are 
 
 ## Repo hygiene
 
-`NOTICE` at the repo root carries the attributions that vendored MIT work requires — currently `decide/interview-me`. When adopting a skill from another repo, add its notice there and say in the skill's own README prose what was changed, rather than presenting adapted work as original.
+`NOTICE` at the repo root carries the attributions that vendored MIT work requires — currently `decide/interview-me` and `tracking/backlog`. When adopting a skill from another repo, add its notice there and say in the skill's own README prose what was changed, rather than presenting adapted work as original.
 
 `.gitignore` excludes `.claude/` (local Claude Code state, including `settings.local.json`) and `.DS_Store`. The `.claude-plugin/` directories are *not* ignored — they are the manifests.

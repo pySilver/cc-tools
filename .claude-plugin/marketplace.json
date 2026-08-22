@@ -41,7 +41,7 @@
     {
       "name": "tracking",
       "source": "./plugins/tracking",
-      "description": "Lightweight project-state tracking: a standing issue register under docs/issues/ (log-issue) and a single status board at docs/STATUS.md (status-board)."
+      "description": "Lightweight project-state tracking: a deferred-work backlog under docs/backlog/ (backlog) and a single status board at docs/STATUS.md (status-board)."
     },
     {
       "name": "output-styles",

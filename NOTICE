@@ -43,3 +43,49 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## tracking/backlog
+
+`plugins/tracking/skills/backlog/SKILL.md` is adapted from the `backlog` skill
+in the `workflow` plugin of [umputun/cc-thingz](https://github.com/umputun/cc-thingz).
+
+Retained as published: the fixed `docs/backlog/` store with one slug-named file
+per item and no index, the `worth: yes | later | no` / `where` / `added`
+frontmatter and the meaning of each value, the create-then-`git rm` lifecycle,
+the slug argument, the read-verify-report-offer loop with `AskUserQuestion`, the
+default-branch detection and the refusal to write onto another branch unasked,
+dedupe on `where` then slug, the staged-index check before offering to commit,
+and the rules section.
+
+Changes made: `where` takes `path` or `path:symbol` instead of `path:line`, and
+verification checks the symbol rather than the line; an admission gate was added
+ahead of writing, with routing for findings that fail it (fix now, the status
+board, a dated review's own register); the free body gained a contract — the
+concrete run with real values, the misreading to prevent, options with costs
+and a recommendation for a `later`, and a provenance line; the slug form is
+`/tracking:backlog <slug>`; and the skill's triggers absorb those of the
+`log-issue` skill it replaces.
+
+```
+MIT License
+
+Copyright (c) 2026 Umputun
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```

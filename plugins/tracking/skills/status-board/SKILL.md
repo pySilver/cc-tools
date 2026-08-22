@@ -35,7 +35,7 @@ visible:
 
 And one structural rule for the board itself: **pointers, never copies.** A
 queue line links its ADR, plan, or issue file; it never restates their
-content. An issue register (`docs/issues/`) gets a single pointer line, not
+content. The backlog (`docs/backlog/`) gets a single pointer line, not
 mirrored entries — two lists of the same thing always diverge.
 
 ## Step 1 — locate or initialize
@@ -84,9 +84,9 @@ Last touched: YYYY-MM-DD
 
 - <item> — trigger: <the observable event that reopens it>
 
-## Issue register
+## Backlog
 
-Open defects and decisions live in [docs/issues/](issues/) — not mirrored
+Deferred work and open decisions live in [docs/backlog/](backlog/) — not mirrored
 here.
 ```
 
@@ -126,7 +126,7 @@ When invoked with the board already present:
    moves up; a newly surfaced gate lands under *Gated on owner*; deferred
    work lands under *Parked* **with a trigger**.
 3. Keep every line a pointer. If an update would paste content in, link the
-   file instead — and if the content has no file, that is a `log-issue` or a
+   file instead — and if the content has no file, that is a `backlog` item or a
    plan, not a board entry.
 4. Update `Last touched`, show the diff of the board to the user, done. Do
    not expand into executing queue items — the board records, it does not
