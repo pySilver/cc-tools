@@ -95,7 +95,7 @@ Enable `/plugin` → **Marketplaces** → **Enable auto-update** to refresh the 
 | [research](#research) | Grounded web research with source-quality discipline and inline citations |
 | [basedpyright-lsp](#basedpyright-lsp) | Python LSP (basedpyright) for Claude — navigation + diagnostics, from the project's pinned venv |
 | [pyrefly-lsp](#pyrefly-lsp) | Same, backed by [pyrefly](https://pyrefly.org/) instead — pick whichever your type-check gate runs |
-| [tracking](#tracking) | Deferred-work backlog (`docs/backlog/`) + one project status board (`docs/STATUS.md`) |
+| [tracking](#tracking) | Deferred-work backlog (`docs/backlog/`) — one slug-named file per item, `git rm`'d when fixed |
 | [output-styles](#output-styles) | **Direct** — peer-to-peer tone, plain English, choice-first, diagrams-first |
 
 ### decide
@@ -200,18 +200,15 @@ Started as `pyrefly lsp` (pyrefly speaks stdio by default — no `--stdio` flag)
 
 ### tracking
 
-Where side-quest findings and the work queue live, so neither derails the current task nor evaporates. Born from a repo audit that found six "active" plans of which zero were actionable — the cure is one board with a WIP limit, plus a register for the findings that are real but not today's job.
+Where side-quest findings live, so they neither derail the current task nor evaporate — a register for the items that are real but not today's job.
 
 | Component | Trigger | Description |
 |-----------|---------|-------------|
 | skill | `/tracking:backlog [slug]` | Read, work, and append deferred-work items in `docs/backlog/` — one slug-named file per item, `worth: yes/later/no`, no index, `git rm` in the fixing commit |
-| skill | `/tracking:status-board` | Create or update `docs/STATUS.md` — executing now, the ordered queue, owner gates, parked-with-trigger; wires a pointer + two WIP rules into `CLAUDE.md` on init |
 
 **backlog** — a defect, open decision, or follow-up surfaces mid-conversation; this writes it into `docs/backlog/` instead of letting it derail the work or vanish, and reads it back later. One file per item, named by a slug that names the defect (`reopen-fallback-ignores-frontmost.md`) so it can be cited from a commit and dedupe is a filename check; **no index file** — the directory listing is the index. Three frontmatter fields: `worth: yes | later | no` (the triage call the list is ordered by — `later` must name the unknown that would settle it, `no` is kept deliberately so the next review that touches the file does not rediscover and re-argue it), `where: path` or `path:symbol` (never a line number — those rot), and `added` (never updated, so it reads as age). Items pass a three-part admission gate (real and re-derivable from code; not being done now; not owned by a dated review) and the body is written for a reader without the conversation: the concrete run with real values, the misreading to prevent, options with costs plus a recommendation for a `later`, and provenance. Reading the list verifies every `where` against the tree and reports stale anchors as stale rather than as work, then offers fix-a-named-item / drop / leave via `AskUserQuestion`; `/tracking:backlog <slug>` jumps to one item. Appending dedupes on `where` then slug, refuses to write onto a non-default branch without asking (a note on a feature branch gets swept into that PR or dies with it), checks the index for pre-existing staged work before offering to commit, and offers commit and push together. No checkbox, no resolved state: the item is `git rm`'d in the commit that lands its fix. Adapted from [umputun/cc-thingz](https://github.com/umputun/cc-thingz) (MIT); see [`NOTICE`](NOTICE) for what was kept and what changed.
 
-**status-board** — one screen answering "what is the state of this project": *Executing now* (max 1), *Next* (ordered), *Gated on owner*, *Parked* (every item carries a named re-entry trigger — a parked item with no trigger is forgetting with extra steps). The board carries **pointers, never copies** — a queue line links its ADR/plan/issue; the issue register gets one pointer line, never mirrored entries. Two standing rules ride with it and get wired into `CLAUDE.md` at init: a plan is written and refined only at queue front and executed immediately after (a refined-plan inventory is what rots), and the plans directory holds at most 2 files. Initialization reads the repo's actual state (plans dir, recent commits, any existing tracker) and **confirms the queue order with you before writing** — ordering is an owner decision. Update mode moves items between sections, keeps every line a pointer, and shows the diff.
-
-> **Tuned for my setup.** Assumes the `docs/` layout (`docs/backlog/`, `docs/plans/`, `docs/STATUS.md`, dated reviews under `docs/reviews/<date>/`) and a root `CLAUDE.md` to wire the board into. The backlog/board shapes are project-agnostic otherwise. `backlog` is Git-only by design.
+> **Tuned for my setup.** Assumes the `docs/` layout (`docs/backlog/`, dated reviews under `docs/reviews/<date>/`). The item shape is project-agnostic otherwise. `backlog` is Git-only by design.
 
 ### output-styles
 

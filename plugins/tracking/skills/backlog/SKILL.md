@@ -40,8 +40,6 @@ An item belongs here only when **all three** hold:
 When the gate fails, say where the finding belongs instead of filing it:
 
 - Fixable in a few minutes with no decision needed → offer to fix it now.
-- Already scheduled work → it belongs on the project's status board (`docs/STATUS.md` if present), not
-  here; the board points at this directory with one line and never mirrors it.
 - Born in a dated review with its own register → log it there.
 
 ## Item format

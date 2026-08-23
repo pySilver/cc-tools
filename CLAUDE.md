@@ -14,7 +14,7 @@ A **Claude Code plugin marketplace** — a catalog, not an application. It distr
   - `code-review` — `code-hygiene` skill
   - `git` — `finalize-feature-branch` skill
   - `research` — `web-research` skill
-  - `tracking` — `backlog`, `status-board` skills
+  - `tracking` — `backlog` skill
   - `basedpyright-lsp` / `pyrefly-lsp` — one `.lsp.json` each, no skill or agent
   - `output-styles` — the `Direct` output style (the one exception to by-domain grouping: a style is a system-prompt change with no domain, so it is grouped by component type)
 - **Every `plugin.json` here is metadata only — component paths are auto-discovered, never declared.** A manifest listing no `skills`/`agents`/`outputStyles` field is correct, not broken: those fields *replace* the default `skills/`, `agents/`, `output-styles/` directories, so adding one that points at the default path is a no-op. Don't "fix" a manifest by declaring what is already found.

@@ -1,6 +1,6 @@
 {
   "name": "tracking",
-  "description": "Lightweight project-state tracking: a deferred-work backlog under docs/backlog/ (backlog skill) and a single status board at docs/STATUS.md (status-board skill).",
+  "description": "Lightweight project-state tracking: a deferred-work backlog under docs/backlog/, one slug-named file per item.",
   "author": {
     "name": "Silver"
   }
