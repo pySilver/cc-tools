@@ -97,4 +97,10 @@ jobs:
 
       - name: Run shell tests
         run: |
-          for t in tests/test-*.sh; do bash "$t"; done
+          shopt -s nullglob
+          tests=(tests/test-*.sh)
+          if [ ${#tests[@]} -eq 0 ]; then
+            echo 'No shell tests present'
+            exit 0
+          fi
+          for t in "${tests[@]}"; do bash "$t"; done

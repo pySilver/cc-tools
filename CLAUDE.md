@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-A **Claude Code plugin marketplace** — a catalog, not an application. It distributes the author's personal agents and skills as installable plugins. There is no build step and no application runtime; the "code" is plugin manifests plus skill/agent markdown (and a few helper scripts inside one skill).
+A **Claude Code plugin marketplace** — a catalog, not an application. It distributes the author's personal agents and skills as installable plugins. There is no build step and no application runtime; the "code" is plugin manifests plus skill/agent markdown (and the two language-server launcher scripts).
 
 ## Architecture
 
 - `.claude-plugin/marketplace.json` (repo root) is the catalog. Its `name` is `silver-cc-tools`; each entry in `plugins[]` points at a plugin via a **relative `source` path** (`./plugins/<name>`). Relative sources only resolve when the marketplace is added from git (e.g. `pySilver/cc-tools`), not from a raw `marketplace.json` URL.
 - Each plugin lives in `plugins/<name>/` with its own `.claude-plugin/plugin.json` and an `agents/`, `skills/`, and/or `output-styles/` directory. Plugins are grouped **by domain**, not by component type:
-  - `decide` — `interview-me`, `check-likelihood`, `brief` skills (decision gates: a human has to make a call)
+  - `decide` — `interview-me`, `brief` skills (decision gates: a human has to make a call)
   - `code-review` — `code-hygiene` skill
   - `git` — `finalize-feature-branch` skill
   - `research` — `web-research` skill
@@ -67,13 +67,9 @@ The "no version specified" warning from `claude plugin validate ./plugins/<name>
 
 ## Testing
 
-The one piece of executable code — `check-likelihood`'s `run-codex.sh` wrapper — has a black-box bash test under `tests/` (assert helpers + a hermetic `mktemp -d` dir). It is hermetic: no network, no `codex`, no git required, since the test stubs `codex` and `git` on `PATH`.
+Nothing here is under unit test right now. The only executable code is the two `.lsp.json` launcher wrappers, and `tests/` does not exist. CI's shell-test step globs `tests/test-*.sh` and no-ops when nothing matches, so adding a test means dropping a file in `tests/` and nothing else.
 
-```bash
-bash tests/test-decide-run-codex.sh           # run-codex.sh model default + CODEX_MODEL/CODEX_NO_OVERRIDES overrides
-```
-
-Skill *behaviour* — what a model actually does when a skill loads — is covered by eval cases instead, in the native `claude plugin eval` format at `plugins/<name>/evals/<case>/case.yaml` (schema 1.1). Only `planning` has them so far. They are **not** in CI (they cost money and need a live agent):
+Skill *behaviour* — what a model actually does when a skill loads — is covered by eval cases instead, in the native `claude plugin eval` format at `plugins/<name>/evals/<case>/case.yaml` (schema 1.1). Only `decide` has them so far. They are **not** in CI (they cost money and need a live agent):
 
 ```bash
 claude plugin eval decide@silver-cc-tools                    # adds no-plugin baseline arm
@@ -82,7 +78,7 @@ claude plugin eval ./plugins/decide --ablation with-without  # path target needs
 
 When adding cases for a skill whose risk is *over-firing*, write the negative cases too — a suite that only checks the shape appears will score an over-firing skill as perfect. See `plugins/decide/evals/README.md`.
 
-`run-codex.sh` is **execute-only and not modified by its test** — the test stubs `codex` and `git` on `PATH` and asserts the invocation shape. `.github/workflows/ci.yml` runs it on every push to `main` and on every PR, alongside markdown-frontmatter validation, `shellcheck`, and a portable manifest check (the `claude` CLI isn't on GH runners).
+`.github/workflows/ci.yml` runs on every push to `main` and on every PR: markdown-frontmatter validation, `shellcheck` over every `.sh`, a portable manifest check (the `claude` CLI isn't on GH runners), and the shell-test glob.
 
 ## Bundled tools assume the author's external projects — do not "generalize" them unasked
 
@@ -90,7 +86,6 @@ Several tools hardcode conventions from the author's own repos. These paths are 
 
 - `code-hygiene` is Python/Django-specific (globs `.py`, skips `migrations/`, has Django/Pydantic exemptions).
 - `web-research` prefers a Context7 MCP and `gh` when present.
-- `check-likelihood`'s optional Codex escalation requires the `codex` CLI, and its `references/run-codex.sh` is **execute-only** — do not read it into context during a check; its contract lives in `references/README.md`.
 
 ## Repo hygiene
 

@@ -194,7 +194,6 @@ This skill produces **intent**. Everything below consumes it, and none of them p
 - **A brainstorm or ideation skill** — downstream. It generates and compares approaches, which is only worth doing once the target is explicit. Hand it the confirmed intent, not the original ask.
 - **A planner** (`/planning:make` and equivalents) — downstream. A plan built on an unconfirmed ask inherits the misfit into every task.
 - **An ADR** — downstream. The decision an ADR records is a choice *between* options that serve a known intent; without the intent the alternatives can't be weighed honestly.
-- **`check-likelihood`** — different question, later moment. That skill adjudicates one raised risk against an artifact that already exists. This one runs before an artifact exists.
 - **`brief`** — adjacent but opposite direction. `brief` rebuilds *the user's* context so they can choose; `interview-me` rebuilds *your* context so you stop guessing.
 - **A review panel** — opposite end of the timeline. Review checks a drafted artifact against the code and the conventions. It cannot tell you the artifact was aimed at the wrong target, because it never saw the intent.
 

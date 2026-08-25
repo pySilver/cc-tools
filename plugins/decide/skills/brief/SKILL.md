@@ -39,7 +39,7 @@ When in doubt, one short question beats a five-part brief. A brief on a two-minu
 
 Name the guard you first reached for — the lock, the retry, the re-check, the flag — and say what it leaves in place.
 
-If a root-cause or likelihood tool is available, use it and say which one. `/decide:check-likelihood` adjudicates a single raised risk and returns a materialization score with the `file:line` it relied on. If no tool is available, say plainly that the verdict is your judgement and not a checked result.
+If a root-cause or likelihood tool is available, use it and say which one. A tool that returns a materialization score with the `file:line` it relied on settles the problem; an impression does not. If no tool is available, say plainly that the verdict is your judgement and not a checked result.
 
 Bring back a verdict, not an impression. Do not paste the tool's block at the user — its condition becomes the story in part 1, and its cause becomes part 2. Both reach the page; the raw output does not.
 

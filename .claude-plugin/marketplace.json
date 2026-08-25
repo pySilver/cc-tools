@@ -9,7 +9,7 @@
     {
       "name": "decide",
       "source": "./plugins/decide",
-      "description": "Decision gates: interviewing the owner for what they actually want, adjudicating how likely a raised risk is to actually happen, and briefing the owner before they pick between design forks."
+      "description": "Decision gates: interviewing the owner for what they actually want, and briefing the owner before they pick between design forks."
     },
     {
       "name": "code-review",

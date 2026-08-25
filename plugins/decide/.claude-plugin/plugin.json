@@ -1,6 +1,6 @@
 {
   "name": "decide",
-  "description": "Decision gates: extracting what the user actually wants before anything is drafted (interview-me skill), adjudicating a single raised risk (check-likelihood skill), and rebuilding the owner's context before they choose (brief skill).",
+  "description": "Decision gates: extracting what the user actually wants before anything is drafted (interview-me skill), and rebuilding the owner's context before they choose (brief skill).",
   "author": {
     "name": "Silver"
   }
