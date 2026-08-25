@@ -39,9 +39,9 @@ When in doubt, one short question beats a five-part brief. A brief on a two-minu
 
 Name the guard you first reached for — the lock, the retry, the re-check, the flag — and say what it leaves in place.
 
-If a root-cause or likelihood tool is available, use it and say which one. A tool that returns a materialization score with the `file:line` it relied on settles the problem; an impression does not. If no tool is available, say plainly that the verdict is your judgement and not a checked result.
+Settle it yourself from the code: state the condition as one checkable sentence, read the files that would hold the guard, and quote the line that settles it. Say plainly that the verdict is your judgement and what it rests on. Where the project runs revmux and the claim is genuinely disputed — two readings of the evidence, or a fork whose cost is high — offer a `--profile likelihood` round rather than running one inside the brief: it adjudicates the single claim on two vendors side by side, and it costs minutes, which is the user's to spend.
 
-Bring back a verdict, not an impression. Do not paste the tool's block at the user — its condition becomes the story in part 1, and its cause becomes part 2. Both reach the page; the raw output does not.
+Bring back a verdict, not an impression. Do not paste a round's findings at the user — the condition becomes the story in part 1, and the cause becomes part 2. Both reach the page; the raw output does not.
 
 Settling the problem is not the same as reporting it settled. The finding that the fork exists because of an earlier decision is worth more to the user than any option you could write, and it is exactly the finding that dies if part 2 stays in your head.
 
