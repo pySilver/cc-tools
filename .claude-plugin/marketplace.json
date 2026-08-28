@@ -12,11 +12,6 @@
       "description": "Decision gates: interviewing the owner for what they actually want, and briefing the owner before they pick between design forks."
     },
     {
-      "name": "code-review",
-      "source": "./plugins/code-review",
-      "description": "Analyze app code for agentic smells: overly complex patterns and verbose/stale AI-speak comments."
-    },
-    {
       "name": "git",
       "source": "./plugins/git",
       "description": "Finalize a feature branch: rebase onto default, squash, verify, and optionally force-push."

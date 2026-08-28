@@ -13,7 +13,6 @@ Add the marketplace, then install the plugins you want:
     /plugin marketplace add pySilver/cc-tools
 
     /plugin install decide@silver-cc-tools
-    /plugin install code-review@silver-cc-tools
     /plugin install git@silver-cc-tools
     /plugin install research@silver-cc-tools
     /plugin install basedpyright-lsp@silver-cc-tools
@@ -30,7 +29,7 @@ Validate the marketplace and a plugin:
     claude plugin validate .
     claude plugin validate ./plugins/decide
 
-After install, components are namespaced by plugin: skills are invoked as `/decide:interview-me`, `/code-review:code-hygiene`, `/git:finalize-feature-branch`, `/research:web-research`. `basedpyright-lsp` and `pyrefly-lsp` have no command to invoke — each registers a language server that activates automatically when you open a `.py`/`.pyi` file. They claim the same extensions, so **enable only one**: with both on, the first server registered wins and the other never starts. `output-styles` has no command either — it adds **Direct** to the `/config` → **Output style** picker, where you select it.
+After install, components are namespaced by plugin: skills are invoked as `/decide:interview-me`, `/git:finalize-feature-branch`, `/research:web-research`. `basedpyright-lsp` and `pyrefly-lsp` have no command to invoke — each registers a language server that activates automatically when you open a `.py`/`.pyi` file. They claim the same extensions, so **enable only one**: with both on, the first server registered wins and the other never starts. `output-styles` has no command either — it adds **Direct** to the `/config` → **Output style** picker, where you select it.
 
 <details>
 <summary>Manual install (alternative)</summary>
@@ -41,11 +40,6 @@ Copy the files you want straight into your Claude Code config directory. Agents 
 ```bash
 cp -r plugins/decide/skills/interview-me ~/.claude/skills/
 cp -r plugins/decide/skills/brief ~/.claude/skills/
-```
-
-**code-review** — `code-hygiene` skill:
-```bash
-cp -r plugins/code-review/skills/code-hygiene ~/.claude/skills/
 ```
 
 **git** — `finalize-feature-branch` skill:
@@ -70,7 +64,7 @@ claude --plugin-dir plugins/basedpyright-lsp
 claude --plugin-dir plugins/pyrefly-lsp
 ```
 
-Note: installed manually, skills lose the `plugin:` namespace — invoke them by bare name (`/interview-me`, `/code-hygiene`, etc.).
+Note: installed manually, skills lose the `plugin:` namespace — invoke them by bare name (`/interview-me`, `/web-research`, etc.).
 
 </details>
 
@@ -88,7 +82,6 @@ Enable `/plugin` → **Marketplaces** → **Enable auto-update** to refresh the 
 | Plugin | Description |
 |--------|-------------|
 | [decide](#decide) | Pre-code design gates — intent interviews, risk triage, decision briefs |
-| [code-review](#code-review) | Find agentic code smells: needless complexity and AI-speak docstrings/comments |
 | [git](#git) | Finalize a feature branch — rebase, squash to one commit, verify, push |
 | [research](#research) | Grounded web research with source-quality discipline and inline citations |
 | [basedpyright-lsp](#basedpyright-lsp) | Python LSP (basedpyright) for Claude — navigation + diagnostics, from the project's pinned venv |
@@ -116,16 +109,6 @@ The step back is what makes the menu safe to answer. A readable fork is still th
 It deliberately does *not* fire for a failure the agent can fix itself, a yes/no on a step just described, work done in this session, or anything small and reversible — a five-part brief on a two-minute fork spends the attention the format exists to protect. Two send checks: could you pick an option without opening the plan, the ADR, or the code — and can you tell whether picking from this menu is patching over something? In Claude Code, the story, the step back, and the forks go in the message and the choice goes to `AskUserQuestion`, where each option description carries *what we do + cost + removes or guards* — an option description that is itself a pointer defeats the whole thing.
 
 > **Pairs with the `Direct` output style** (the [output-styles](#output-styles) plugin below). The style already says lead with the answer and skip trailing summaries; this skill is the documented exception — the story leads, and the closing question is the next action rather than a recap. Repo-agnostic; a root-cause or likelihood tool is used when one is present and skipped when not. It has eval coverage under [`plugins/decide/evals/`](plugins/decide/evals/) — one case that it fires with the right shape, and **two that it stays quiet**, because the failure mode of this format is over-firing.
-
-### code-review
-
-| Component | Trigger | Description |
-|-----------|---------|-------------|
-| skill | `/code-review:code-hygiene <app-path>` | Read-only scan for "agentic code smells" across a code app |
-
-**code-hygiene** — finds code that is technically correct but needlessly complex, plus verbose, stale, or AI-speak docstrings and comments — the residue of AI review-fix loops. It discovers files, batches them, and runs parallel review agents that classify findings into 14 calibrated categories (tautological expressions, impossible-state guards, defensive dead code, comment-explains-WHAT-not-WHY, stale historical references, AI-speak, commented-out code, bare TODOs, and more). Output is a grouped, confidence-rated report. It is **read-only** — it reports for human review and never edits. TODO/FIXME markers are flagged, never deleted.
-
-> **Tuned for my setup.** Built for Python/Django: it globs `.py` files, skips `migrations/` and tests, and several category exemptions assume Django models, Pydantic schemas, and `.claude/rules/` conventions. The category taxonomy is broadly useful, but the calibration is Python-specific.
 
 ### git
 

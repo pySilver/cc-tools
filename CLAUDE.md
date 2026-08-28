@@ -11,7 +11,6 @@ A **Claude Code plugin marketplace** — a catalog, not an application. It distr
 - `.claude-plugin/marketplace.json` (repo root) is the catalog. Its `name` is `silver-cc-tools`; each entry in `plugins[]` points at a plugin via a **relative `source` path** (`./plugins/<name>`). Relative sources only resolve when the marketplace is added from git (e.g. `pySilver/cc-tools`), not from a raw `marketplace.json` URL.
 - Each plugin lives in `plugins/<name>/` with its own `.claude-plugin/plugin.json` and an `agents/`, `skills/`, and/or `output-styles/` directory. Plugins are grouped **by domain**, not by component type:
   - `decide` — `interview-me`, `brief` skills (decision gates: a human has to make a call)
-  - `code-review` — `code-hygiene` skill
   - `git` — `finalize-feature-branch` skill
   - `research` — `web-research` skill
   - `tracking` — `backlog` skill
@@ -19,7 +18,7 @@ A **Claude Code plugin marketplace** — a catalog, not an application. It distr
   - `output-styles` — the `Direct` output style (the one exception to by-domain grouping: a style is a system-prompt change with no domain, so it is grouped by component type)
 - **Every `plugin.json` here is metadata only — component paths are auto-discovered, never declared.** A manifest listing no `skills`/`agents`/`outputStyles` field is correct, not broken: those fields *replace* the default `skills/`, `agents/`, `output-styles/` directories, so adding one that points at the default path is a no-op. Don't "fix" a manifest by declaring what is already found.
 - Skills are `skills/<skill>/SKILL.md` (YAML frontmatter: `name`, `description`, optional `allowed-tools`, `model`, `disable-model-invocation`). Agents are `agents/<agent>.md` (frontmatter: `name`, `description`, `model`, `tools`, `color`).
-- After install, skills are namespaced as `/<plugin>:<skill>` (e.g. `/code-review:code-hygiene`); agents are referenced by bare name. `disable-model-invocation: true` (used by `finalize-feature-branch`) blocks *Claude* from auto-triggering a skill — the user's `/<plugin>:<skill>` still resolves and runs.
+- After install, skills are namespaced as `/<plugin>:<skill>` (e.g. `/decide:interview-me`); agents are referenced by bare name. `disable-model-invocation: true` (used by `finalize-feature-branch`) blocks *Claude* from auto-triggering a skill — the user's `/<plugin>:<skill>` still resolves and runs.
 
 ## Output styles ship as a plugin, not a symlink
 
@@ -84,7 +83,6 @@ When adding cases for a skill whose risk is *over-firing*, write the negative ca
 
 Several tools hardcode conventions from the author's own repos. These paths are intentional, not bugs:
 
-- `code-hygiene` is Python/Django-specific (globs `.py`, skips `migrations/`, has Django/Pydantic exemptions).
 - `web-research` prefers a Context7 MCP and `gh` when present.
 
 ## Repo hygiene
