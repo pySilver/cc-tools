@@ -171,7 +171,7 @@ mod.time.time = lambda: now[0]
 mod.time.sleep = lambda s: now.__setitem__(0, now[0] + s)
 glyph = {"status": "blocked" if scenario == "already" else "active", "changed": now[0]}
 page = {"open": scenario != "nopage"}
-posts = []
+posts, looks = [], []
 def reply(stdout, code=0):
     return types.SimpleNamespace(stdout=stdout, stderr="", returncode=code)
 def ctl(*args, check=True):
@@ -180,6 +180,7 @@ def ctl(*args, check=True):
         glyph.update(status=args[2], changed=now[0])
         return reply("ok")
     if args[0] == "tree":
+        looks.append(now[0])
         if scenario == "race" and now[0] >= 1001 and not glyph.get("raced"):  # a slower Stop hook posts at t=1001
             glyph.update(status="active", changed=1001.0, raced=True)
         if scenario == "answered" and now[0] >= 1000.4:
@@ -189,13 +190,14 @@ def ctl(*args, check=True):
             {"id": "S1", "status": glyph["status"], "statusChangedAt": glyph["changed"], "htmlOverlays": overlays}]}]}}}))
     return reply(json.dumps({"ok": True, "result": {"pageOutcome": {"pageID": "P1", "outcome": "pending"}}}))
 mod.ctl = ctl
+mod.agtermctl = lambda: "/usr/bin/true"  # in_agterm() also wants the binary; CI runners have none
 mod.defaults = lambda: {}
 mod.sys.stdin = types.SimpleNamespace(isatty=lambda: False, read=lambda: "{}")
 if scenario == "timeout":
     code = mod.wait_page("P1", 60, status=True)
 else:
     code = mod.hook_stop()
-print(json.dumps({"code": code, "posts": posts}))
+print(json.dumps({"code": code, "posts": posts, "looks": len(looks)}))
 PY
 )
 glyph() { "$PY" -I -B -c "$GLYPH" "$B" "$1" 2>/dev/null | tail -1 || true; }
@@ -206,9 +208,9 @@ check() {  # check NAME SCENARIO PYTHON-EXPR-ON-r
 }
 check "Stop hook re-posts the question after a slower hook paints over it" race \
   '[p[:2] for p in r["posts"]] == [["blocked", "--auto-reset"], ["blocked", "--auto-reset"]]'
-check "Stop hook stops once the page is answered" answered 'r["posts"] == []'
-check "Stop hook leaves an asking glyph alone" already 'r["posts"] == []'
-check "Stop hook does nothing without a huddle page" nopage 'r["posts"] == []'
+check "Stop hook stops once the page is answered" answered 'r["posts"] == [] and r["looks"] == 2'
+check "Stop hook leaves an asking glyph alone" already 'r["posts"] == [] and r["looks"] == 5'
+check "Stop hook does nothing without a huddle page" nopage 'r["posts"] == [] and r["looks"] == 1'
 check "a timed-out question leaves a glyph that a visit clears" timeout \
   'r["code"] == 4 and r["posts"][-1][:2] == ["blocked", "--auto-reset"]'
 nohook=$(env -u AGTERM_ENABLED "$PY" -I -B "$B" hook-stop < /dev/null; echo "rc=$?")
