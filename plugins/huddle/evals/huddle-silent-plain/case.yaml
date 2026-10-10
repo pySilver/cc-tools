@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: huddle-silent-plain
+description: >
+  A plain question with short text answers, asked inside agterm. Tests that the
+  skill does not over-fire: a page for "which tests now?" costs a context switch
+  and buys nothing.
+tags: [huddle, negative]
+runs: 3
+
+execution:
+  max_turns: 4
+  timeout_seconds: 300
+  allowed_tools: ["Bash", "Read", "Skill"]
+  prompt: |
+    I've finished the rename refactor. Ask me whether you should run the full
+    test suite now or only the unit tests.
+
+expected_outcome: >
+  The agent asks in the terminal, in a line or two, and does not open a page.
+
+graders:
+  - type: tool_used
+    name: no-page
+    weight: 3
+    tool: Bash
+    input_match: "huddle"
+    min: 0
+    max: 0
+
+  - type: llm
+    name: asks-in-text
+    weight: 2
+    criteria: |
+      The reply asks the user to choose between the full suite and the unit
+      tests, briefly. Recommending one is fine and expected. FAIL only if it
+      runs tests, or says it will go ahead without waiting for the answer.

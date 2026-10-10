@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"$AGTERM_SESSION_ID\" ] && command -v python3 >/dev/null 2>&1 && exec \"${CLAUDE_PLUGIN_ROOT}/bin/huddle\" hook-stop; exit 0",
+            "async": true
+          }
+        ]
+      }
+    ]
+  }
+}

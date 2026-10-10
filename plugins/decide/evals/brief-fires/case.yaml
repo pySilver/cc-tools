@@ -6,12 +6,12 @@ description: >
   section numbers, and a pre-chosen guard. This is the case brief
   exists for: without it the answer is a correct verdict the owner cannot read.
 tags: [brief, decide]
-plugins: [decide]
 runs: 3
 
 execution:
   max_turns: 4
   timeout_seconds: 300
+  append_system_prompt: "The repository this conversation is about is not available in this session. Everything you need is in the user's message; answer from it rather than looking for files."
   prompt: |
     You are six hours into an implementation I approved three days ago; I have
     not looked at the design since. Your report: not merge-safe, one MAJOR
@@ -30,6 +30,13 @@ expected_outcome: >
   the end.
 
 graders:
+  - type: tool_used
+    name: brief-invoked
+    arm: with-only
+    tool: Skill
+    input_match: "brief"
+    min: 1
+
   - type: llm
     name: story-leads-and-is-concrete
     weight: 2

@@ -1,0 +1,23 @@
+{
+  "_about": "Visual design choices: radius, spacing, color and type samples as answer cards, several questions in one page",
+  "title": "Card component tokens",
+  "questions": [
+    {"id": "radius", "header": "Radius", "prompt": "Corner radius for cards?", "columns": 4, "options": [
+      {"id": "4", "label": "4 px", "subtitle": "Crisp, data-dense", "preview": {"radius": 4}},
+      {"id": "8", "label": "8 px", "subtitle": "Current buttons", "preview": {"radius": 8}, "recommended": "Matches the buttons already shipped"},
+      {"id": "14", "label": "14 px", "subtitle": "Friendly", "preview": {"radius": 14}},
+      {"id": "24", "label": "24 px", "subtitle": "Pill-like", "preview": {"radius": 24}}]},
+    {"id": "gap", "header": "Spacing", "prompt": "Gap between cards in a row?", "columns": 3, "options": [
+      {"id": "8", "label": "8 px", "preview": {"gap": 8, "items": 4}},
+      {"id": "16", "label": "16 px", "preview": {"gap": 16, "items": 4}, "recommended": true},
+      {"id": "24", "label": "24 px", "preview": {"gap": 24, "items": 4}}]},
+    {"id": "accent", "header": "Accent", "prompt": "Accent palette?", "columns": 3, "options": [
+      {"id": "indigo", "label": "Indigo", "preview": {"colors": ["#eef2ff", "#a5b4fc", "#6366f1", "#3730a3"]}},
+      {"id": "teal", "label": "Teal", "preview": {"colors": ["#f0fdfa", "#5eead4", "#14b8a6", "#115e59"]}, "recommended": "Distinct from the error red at a glance"},
+      {"id": "amber", "label": "Amber", "preview": {"colors": ["#fffbeb", "#fcd34d", "#f59e0b", "#92400e"]}}]},
+    {"id": "type", "header": "Title type", "prompt": "Card title style?", "columns": 3, "options": [
+      {"id": "semibold", "label": "Semibold 17", "preview": {"type": {"size": 17, "weight": 600, "text": "Quarterly report"}}},
+      {"id": "bold-tight", "label": "Bold 19, tight", "preview": {"type": {"size": 19, "weight": 700, "tracking": "-0.02em", "text": "Quarterly report"}}},
+      {"id": "mono", "label": "Mono 15", "preview": {"type": {"family": "ui-monospace, Menlo", "size": 15, "weight": 500, "text": "Quarterly report"}}}]}
+  ]
+}

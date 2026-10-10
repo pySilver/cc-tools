@@ -1,0 +1,9 @@
+{
+  "_about": "Free-text answer only, with code shown for context",
+  "width": "narrow",
+  "title": "Name the error for this case",
+  "context": {"code": "if (invoice.paidAt && invoice.refundedAt > invoice.paidAt) {\n  throw new ???Error(invoice.id)\n}", "lang": "ts"},
+  "prompt": "What should this error be called, and what should its message say to the user?",
+  "mode": "text",
+  "text": {"placeholder": "e.g. InvoiceAlreadyRefundedError — \"This invoice was refunded on …\"", "multiline": true}
+}

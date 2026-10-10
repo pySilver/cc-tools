@@ -1,0 +1,7 @@
+{
+  "name": "huddle",
+  "description": "Ask the user a question as a page in an agterm HTML overlay: options that are diagrams, charts or wireframes, trade-offs side by side, sliders with a live preview, real code and diffs read from disk, several questions with a review. The agent writes a JSON spec or one `huddle q` line and reads the answer back as JSON.",
+  "author": {
+    "name": "Silver"
+  }
+}

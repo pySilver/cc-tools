@@ -1,0 +1,23 @@
+{
+  "_about": "Numbers first: stat tiles, a line chart and a ranked bar chart above the decision",
+  "title": "API latency regressed after Tuesday's release",
+  "context": [
+    {"stats": [
+      {"label": "p95 latency", "value": "412 ms", "delta": "+168% vs last week", "good": false},
+      {"label": "Error rate", "value": "0.4%", "delta": "flat", "good": null},
+      {"label": "Requests / min", "value": "1,920", "delta": "+6%", "good": true}
+    ]},
+    {"row": [
+      {"card": true, "chart": {"type": "line", "title": "p95 latency, ms", "labels": ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],
+        "series": [{"name": "this week", "values": [150, 160, 395, 410, 420, 405, 412]}, {"name": "last week", "values": [148, 152, 155, 150, 158, 149, 154]}],
+        "marks": [{"value": 300, "label": "SLO 300 ms"}]}},
+      {"card": true, "chart": {"type": "hbar", "title": "Time per span, ms (p95)", "labels": ["db.query orders", "render", "auth", "cache"], "values": [281, 64, 38, 12], "unit": " ms", "highlight": 0}}
+    ]}
+  ],
+  "prompt": "What do we do now?",
+  "options": [
+    {"id": "index", "label": "Add the missing index on orders.customer_id", "subtitle": "The release's new filter does a sequential scan", "recommended": "Fixes the cause; reversible in seconds"},
+    {"id": "rollback", "label": "Roll back Tuesday's release", "subtitle": "Back to 150 ms today, re-ship next week"},
+    {"id": "cache", "label": "Cache the order list for 60 s", "subtitle": "Hides the scan; stale lists for a minute"}
+  ]
+}

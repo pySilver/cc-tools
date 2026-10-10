@@ -1,0 +1,62 @@
+schema_version: "1.1"
+name: huddle-fires-code
+description: >
+  A judgement on a specific stretch of code, asked inside agterm. Tests that the
+  agent shows the real code with a `file` block instead of pasting source into
+  the JSON spec by hand.
+tags: [huddle, positive, file-blocks]
+runs: 3
+
+context:
+  scaffold_script: scaffold.sh
+
+execution:
+  max_turns: 8
+  timeout_seconds: 300
+  allowed_tools: ["Bash", "Read", "Skill"]
+  prompt: |
+    `retry.py` lines 4-13 retry failed uploads with a fixed one-second sleep.
+    Before I merge, ask me whether it should switch to exponential backoff
+    with jitter, cap the attempts lower, or stay as it is. Show me the code
+    when you ask.
+
+expected_outcome: >
+  The agent runs huddle with the code shown through
+  `{"code": {"file": "retry.py", "lines": "4-13"}}` (or an equivalent range)
+  and three options, rather than copying the function's source into the spec.
+
+graders:
+  - type: tool_used
+    name: asks-with-huddle
+    weight: 2
+    tool: Bash
+    input_match: "huddle"
+    min: 1
+
+  - type: regex
+    name: names-the-file-in-a-block
+    weight: 2
+    target: trace
+    pattern: 'file\\*":\s*\\*"[^"\\]*retry\.py'
+    match: contains
+
+  - type: llm
+    name: code-comes-from-the-file
+    weight: 3
+    focus: trace
+    criteria: |
+      Look at the huddle spec(s) the agent built, in the Bash command or in a
+      spec file it passed to huddle. PASS only if the code reaches the page
+      through a file block such as {"code": {"file": "retry.py", "lines": "4-13"}}
+      (any range covering the loop is fine). FAIL if the spec carries the
+      function's source as a pasted string (for example a "code" value
+      containing "for _ in range(attempts)"), even if it also names the file.
+
+  - type: llm
+    name: options-match-the-ask
+    weight: 2
+    focus: trace
+    criteria: |
+      The huddle spec (the Bash tool input) offers the three choices the user named: exponential backoff
+      with jitter, fewer attempts, and leaving it as is. FAIL if any is missing
+      or if the agent picks one itself.

@@ -1,0 +1,201 @@
+{
+ "_about": "Charts inside the options: each plan carries its own 12-month cost projection",
+ "title": "Speech-recognition vendor for pronunciation scoring",
+ "context": [
+  {
+   "row": [
+    {
+     "stats": [
+      {
+       "label": "Minutes / month",
+       "value": "410k",
+       "delta": "+9% m/m",
+       "good": null
+      },
+      {
+       "label": "Current bill",
+       "value": "¥286k",
+       "delta": "+11% m/m",
+       "good": false
+      }
+     ]
+    },
+    {
+     "card": true,
+     "chart": {
+      "type": "donut",
+      "title": "Where the minutes go",
+      "labels": [
+       "Shadowing",
+       "Free talk",
+       "Quizzes",
+       "Placement test"
+      ],
+      "values": [
+       52,
+       27,
+       14,
+       7
+      ],
+      "unit": "%",
+      "center": "410k",
+      "size": 170
+     }
+    }
+   ]
+  }
+ ],
+ "prompt": "Which plan for next year? Each card shows its projected monthly cost (¥ thousands).",
+ "columns": 3,
+ "options": [
+  {
+   "id": "payg",
+   "label": "Stay pay-as-you-go",
+   "subtitle": "¥0.7 / min, no commitment",
+   "preview": {
+    "chart": {
+     "type": "area",
+     "labels": [
+      "N",
+      "D",
+      "J",
+      "F",
+      "M",
+      "A",
+      "M",
+      "J",
+      "J",
+      "A",
+      "S",
+      "O"
+     ],
+     "series": [
+      {
+       "name": "pay-as-you-go",
+       "values": [
+        286,
+        312,
+        340,
+        370,
+        398,
+        410,
+        390,
+        380,
+        395,
+        400,
+        400,
+        400
+       ]
+      }
+     ],
+     "unit": "k",
+     "height": 150,
+     "max": 400
+    }
+   },
+   "tags": [
+    "≈ ¥4.48M / yr"
+   ]
+  },
+  {
+   "id": "commit",
+   "label": "Committed 500k min",
+   "subtitle": "¥0.45 / min, 12 months",
+   "recommended": "Saves ≈ ¥1.6M even if growth stops in spring",
+   "preview": {
+    "chart": {
+     "type": "area",
+     "labels": [
+      "N",
+      "D",
+      "J",
+      "F",
+      "M",
+      "A",
+      "M",
+      "J",
+      "J",
+      "A",
+      "S",
+      "O"
+     ],
+     "series": [
+      {
+       "name": "committed",
+       "values": [
+        225,
+        225,
+        225,
+        225,
+        225,
+        225,
+        225,
+        225,
+        225,
+        225,
+        225,
+        225
+       ]
+      }
+     ],
+     "unit": "k",
+     "height": 150,
+     "max": 400
+    }
+   },
+   "tags": [
+    "≈ ¥2.70M / yr"
+   ]
+  },
+  {
+   "id": "selfhost",
+   "label": "Self-host Whisper",
+   "subtitle": "2 GPU nodes + engineering time",
+   "preview": {
+    "chart": {
+     "type": "area",
+     "labels": [
+      "N",
+      "D",
+      "J",
+      "F",
+      "M",
+      "A",
+      "M",
+      "J",
+      "J",
+      "A",
+      "S",
+      "O"
+     ],
+     "series": [
+      {
+       "name": "self-hosted",
+       "values": [
+        380,
+        300,
+        210,
+        160,
+        160,
+        160,
+        160,
+        160,
+        160,
+        160,
+        160,
+        160
+       ]
+      }
+     ],
+     "unit": "k",
+     "height": 150,
+     "max": 400
+    }
+   },
+   "tags": [
+    "≈ ¥2.33M / yr",
+    "3 wks work"
+   ]
+  }
+ ]
+}

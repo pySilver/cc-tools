@@ -5,12 +5,12 @@ description: >
   call for the owner to make, so the brief must not fire. The failure mode of
   a brief format is over-firing, and this is where it shows.
 tags: [brief, decide, negative]
-plugins: [decide]
 runs: 3
 
 execution:
   max_turns: 4
   timeout_seconds: 300
+  append_system_prompt: "The repository this conversation is about is not available in this session. Everything you need is in the user's message; answer from it rather than looking for files."
   prompt: |
     A test says: expected status 200, received 401. The request has no
     Authorization header. Diagnose it and give the smallest fix.
@@ -20,6 +20,14 @@ expected_outcome: >
   no options, no question back.
 
 graders:
+  - type: tool_used
+    name: brief-not-invoked
+    weight: 3
+    tool: Skill
+    input_match: "brief"
+    min: 0
+    max: 0
+
   - type: llm
     name: names-cause-and-bounded-fix
     weight: 2
@@ -28,11 +36,11 @@ graders:
       and gives one bounded fix plus a way to verify it.
 
   - type: llm
-    name: does-not-fire-the-brief
+    name: no-decision-menu
     weight: 3
     criteria: |
-      The response gives the fix directly. It must NOT present options for the
-      reader to choose between, must NOT open with a multi-step narrative
+      Whether or not any skill loaded, the response gives the fix directly. It
+      must NOT present options for the reader to choose between, must NOT open with a multi-step narrative
       walkthrough of how the failure occurs, and must NOT end by asking the
       reader to pick.
 

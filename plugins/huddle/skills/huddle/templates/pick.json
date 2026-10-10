@@ -1,0 +1,18 @@
+{
+  "_about": "Plain single choice: label + gray subtitle, one recommended with its reason, details on demand",
+  "title": "Session storage for the API",
+  "context": "Sessions currently live in process memory, so every deploy logs everyone out. We need a shared store before the second instance goes up next week.",
+  "prompt": "Where should sessions live?",
+  "options": [
+    {"id": "redis", "label": "Redis", "subtitle": "Managed instance, TTL per key",
+     "recommended": "Already running for the job queue, so no new infrastructure",
+     "pros": ["Sub-ms reads", "Native expiry"], "cons": ["Another thing that can be down"]},
+    {"id": "postgres", "label": "Postgres table", "subtitle": "One `sessions` table with an expiry index",
+     "pros": ["No new dependency", "Transactional with user data"], "cons": ["Needs a cleanup job", "Adds load to the primary"]},
+    {"id": "jwt", "label": "Stateless JWT", "subtitle": "Signed cookie, nothing stored server-side",
+     "pros": ["Zero storage"], "cons": ["Cannot revoke a session before it expires"]},
+    {"id": "sticky", "label": "Sticky load balancing", "subtitle": "Keep memory store, pin users to an instance",
+     "cons": ["Deploys still log users out", "Uneven load"]},
+    {"id": "later", "label": "Decide after the load test", "subtitle": "Ship the second instance with sticky sessions first"}
+  ]
+}

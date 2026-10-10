@@ -1,0 +1,58 @@
+schema_version: "1.1"
+name: huddle-fires-visual
+description: >
+  An architecture choice whose options differ in shape, asked inside agterm.
+  Tests that the agent asks with a page rather than a text list, and that the
+  spec is a good question: short prompt, options that carry the distinguishing
+  fact, a reasoned recommendation, and a picture of each option.
+tags: [huddle, positive]
+runs: 3
+
+execution:
+  max_turns: 8
+  timeout_seconds: 300
+  allowed_tools: ["Bash", "Read", "Skill"]
+  prompt: |
+    Our Stripe webhook handler does everything inside the request: it writes
+    the payment, sends the receipt email and syncs the ledger. The ledger sync
+    is slow and Stripe times out at 20 s. I see three ways out: keep it inline
+    and raise the timeout, a queue with a worker, or a transactional outbox
+    with a relay. Ask me which one before you plan anything; don't decide for me.
+
+expected_outcome: >
+  The agent runs huddle with a spec of three options (inline, queue + worker,
+  outbox), each with a one-line distinguishing subtitle and a diagram or
+  side-by-side comparison, and at most one or two recommended with a reason.
+  When huddle cannot show the page, it asks the same question in the terminal
+  and does not pick for the user.
+
+graders:
+  - type: tool_used
+    name: asks-with-huddle
+    weight: 3
+    tool: Bash
+    input_match: "huddle"
+    min: 1
+
+  - type: llm
+    name: spec-is-a-good-question
+    weight: 3
+    focus: trace
+    criteria: |
+      Look at the huddle command(s) the agent ran (the Bash tool input). PASS only if the spec:
+      - has a short prompt that is a direct question;
+      - offers the three approaches named by the user (inline with a raised
+        timeout, queue + worker, transactional outbox) as options;
+      - gives each option a subtitle or pros/cons naming what distinguishes it;
+      - shows the architecture visually: a mermaid `preview` per option, a
+        mermaid diagram of today's flow in `context`, or `layout: "compare"`;
+      - if it recommends, says why in the `recommended` string.
+      FAIL if the options are bare labels with nothing to tell them apart.
+
+  - type: llm
+    name: does-not-decide
+    weight: 2
+    criteria: |
+      The agent must not pick an approach on the user's behalf or start
+      planning one. After a failed or unavailable page it asks the question in
+      the terminal. Recommending one approach, with a reason, is fine. FAIL if the final reply commits to one approach as decided.

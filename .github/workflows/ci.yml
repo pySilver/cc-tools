@@ -89,6 +89,17 @@ jobs:
                   print(f'FAIL: duplicate plugin name: {pname!r}')
                   failed = True
               seen.add(pname)
+              # a malformed hooks.json fails the plugin's load for every user who has it enabled
+              hooks_path = os.path.join(plugin_dir, 'hooks', 'hooks.json')
+              if os.path.isfile(hooks_path):
+                  try:
+                      with open(hooks_path) as fh:
+                          hooks = json.load(fh)
+                      if not isinstance(hooks.get('hooks'), dict):
+                          raise ValueError('top-level \"hooks\" must be an object')
+                  except (OSError, ValueError) as e:
+                      print(f'FAIL: {hooks_path}: {e}')
+                      failed = True
 
           if failed:
               sys.exit(1)

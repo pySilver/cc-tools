@@ -1,0 +1,16 @@
+{
+  "_about": "Short yes / no / other as inline chips, with a diff for context and an optional note",
+  "width": "narrow",
+  "title": "Apply the migration to production?",
+  "context": [
+    {"diff": "@@ migrations/0042_orders_customer_idx.sql @@\n+CREATE INDEX CONCURRENTLY orders_customer_id_idx\n+  ON orders (customer_id);"},
+    {"callout": "Runs `CONCURRENTLY`, so no table lock. Takes about 40 s on the current 3.1 M rows.", "tone": "ok"}
+  ],
+  "prompt": "Run it now?",
+  "layout": "inline",
+  "options": [
+    {"id": "yes", "label": "Yes, run it", "recommended": true},
+    {"id": "staging", "label": "Staging first"},
+    {"id": "no", "label": "No"}
+  ]
+}

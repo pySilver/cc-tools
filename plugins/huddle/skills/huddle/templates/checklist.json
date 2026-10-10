@@ -1,0 +1,18 @@
+{
+  "_about": "Multi-select with bounds, a table for context, details per item",
+  "title": "Release 2.4 scope",
+  "context": {"table": {"columns": ["Item", "Estimate, days", "Asked by"], "rows": [
+    ["CSV export", 1, "3 customers"], ["SSO (SAML)", 4, "1 enterprise lead"], ["Dark mode", 2, "forum"], ["Audit log", 3, "compliance"], ["Faster search", 2, "support"], ["Mobile layout", 5, "analytics"]]}},
+  "prompt": "Which items go into 2.4? The sprint holds about 8 days.",
+  "mode": "multi",
+  "min": 1,
+  "max": 4,
+  "options": [
+    {"id": "csv", "label": "CSV export", "subtitle": "1 day", "recommended": "Smallest, most requested", "default": true},
+    {"id": "sso", "label": "SSO (SAML)", "subtitle": "4 days", "detail": "Blocks one enterprise deal worth more than the rest combined."},
+    {"id": "dark", "label": "Dark mode", "subtitle": "2 days"},
+    {"id": "audit", "label": "Audit log", "subtitle": "3 days", "recommended": "Needed for the compliance review in November"},
+    {"id": "search", "label": "Faster search", "subtitle": "2 days"},
+    {"id": "mobile", "label": "Mobile layout", "subtitle": "5 days"}
+  ]
+}

@@ -5,12 +5,12 @@ description: >
   Tests the plain error-report shape — location, cause, fix, verification, no
   filler — and that the brief stays silent.
 tags: [brief, decide, negative]
-plugins: [decide]
 runs: 3
 
 execution:
   max_turns: 4
   timeout_seconds: 300
+  append_system_prompt: "The repository this conversation is about is not available in this session. Everything you need is in the user's message; answer from it rather than looking for files."
   prompt: |
     Report this failure clearly: build.ts:88 throws ENOENT because
     config/app.json is missing. Include the fix and verification.
@@ -20,6 +20,14 @@ expected_outcome: >
   emotional opener, no options, no question back.
 
 graders:
+  - type: tool_used
+    name: brief-not-invoked
+    weight: 3
+    tool: Skill
+    input_match: "brief"
+    min: 0
+    max: 0
+
   - type: llm
     name: location-cause-fix-verification
     weight: 2
@@ -31,12 +39,12 @@ graders:
       FAIL on emotional filler or an apologetic opener.
 
   - type: llm
-    name: does-not-fire-the-brief
+    name: no-decision-menu
     weight: 3
     criteria: |
-      The response must NOT expand into a multi-option decision brief. The
-      cause is known and the fix is bounded, so there is nothing for the owner
-      to decide.
+      Whether or not any skill loaded, the response must NOT take the shape of
+      a multi-option decision brief. The cause is known and the fix is bounded,
+      so there is nothing for the owner to decide.
 
       FAIL if it offers two or more approaches with costs, opens with a
       narrative walkthrough of how the failure occurs, or ends by asking the

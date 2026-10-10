@@ -8,12 +8,12 @@ description: >
   for: both offered options are honest patches, and answering the question as
   asked is what hides that.
 tags: [brief, decide, step-back]
-plugins: [decide]
 runs: 3
 
 execution:
   max_turns: 4
   timeout_seconds: 300
+  append_system_prompt: "The repository this conversation is about is not available in this session. Everything you need is in the user's message; answer from it rather than looking for files."
   prompt: |
     Picking up the availability sync you approved last week; I have not looked
     at the design since. Last night the nightly reconciler overwrote a webhook
@@ -35,6 +35,13 @@ expected_outcome: >
   recommendation, one question, pointers last.
 
 graders:
+  - type: tool_used
+    name: brief-invoked
+    arm: with-only
+    tool: Skill
+    input_match: "brief"
+    min: 1
+
   - type: llm
     name: step-back-names-the-decision
     weight: 3

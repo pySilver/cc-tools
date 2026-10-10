@@ -1,0 +1,87 @@
+{
+ "_about": "Sliders with a live preview: for values that are a matter of taste (radius, gap, color, speed, size)",
+ "title": "Dashboard cards",
+ "prompt": "Tune the card style until it looks right",
+ "hint": "Drag the sliders — the right side updates as you go; the left keeps today's look for comparison. Presets are starting points.",
+ "controls": [
+  {
+   "id": "radius",
+   "label": "Corner radius",
+   "min": 0,
+   "max": 28,
+   "value": 8,
+   "unit": "px"
+  },
+  {
+   "id": "gap",
+   "label": "Gap between cards",
+   "min": 4,
+   "max": 40,
+   "value": 12,
+   "unit": "px"
+  },
+  {
+   "id": "hue",
+   "label": "Accent",
+   "type": "hue",
+   "value": 220
+  },
+  {
+   "id": "weight",
+   "label": "Title weight",
+   "type": "select",
+   "options": [
+    "500",
+    "600",
+    "700",
+    "800"
+   ],
+   "value": "600"
+  },
+  {
+   "id": "shadow",
+   "label": "Shadow",
+   "type": "toggle",
+   "value": false,
+   "on": "0 6px 18px rgba(0,0,0,.28)",
+   "off": "none"
+  }
+ ],
+ "preview": {
+  "html": "<div style='display:flex;gap:var(--gap);justify-content:center;flex-wrap:wrap'><div style='width:150px;padding:14px;border-radius:var(--radius);background:color-mix(in srgb,var(--fg) 6%,var(--bg));border:1px solid var(--line);box-shadow:{shadow}'><div style='height:54px;border-radius:calc(var(--radius) * .6);background:hsl({hue} 65% 50% / .35);margin-bottom:10px'></div><div style='font-weight:{weight};font-size:14px'>Invoices</div><div style='font-size:12px;color:var(--muted)'>12 due</div><button style='margin-top:10px;width:100%;padding:6px;border:0;border-radius:calc(var(--radius) * .7);background:hsl({hue} 65% 45%);color:#fff;font-weight:600;font-size:12px'>Open</button></div><div style='width:150px;padding:14px;border-radius:var(--radius);background:color-mix(in srgb,var(--fg) 6%,var(--bg));border:1px solid var(--line);box-shadow:{shadow}'><div style='height:54px;border-radius:calc(var(--radius) * .6);background:hsl({hue} 65% 50% / .35);margin-bottom:10px'></div><div style='font-weight:{weight};font-size:14px'>Contracts</div><div style='font-size:12px;color:var(--muted)'>3 to sign</div><button style='margin-top:10px;width:100%;padding:6px;border:0;border-radius:calc(var(--radius) * .7);background:hsl({hue} 65% 45%);color:#fff;font-weight:600;font-size:12px'>Open</button></div><div style='width:150px;padding:14px;border-radius:var(--radius);background:color-mix(in srgb,var(--fg) 6%,var(--bg));border:1px solid var(--line);box-shadow:{shadow}'><div style='height:54px;border-radius:calc(var(--radius) * .6);background:hsl({hue} 65% 50% / .35);margin-bottom:10px'></div><div style='font-weight:{weight};font-size:14px'>Reports</div><div style='font-size:12px;color:var(--muted)'>Q3 ready</div><button style='margin-top:10px;width:100%;padding:6px;border:0;border-radius:calc(var(--radius) * .7);background:hsl({hue} 65% 45%);color:#fff;font-weight:600;font-size:12px'>Open</button></div></div>"
+ },
+ "baseline": true,
+ "options": [
+  {
+   "id": "crisp",
+   "label": "Crisp",
+   "values": {
+    "radius": 3,
+    "gap": 8,
+    "shadow": false,
+    "weight": "600"
+   }
+  },
+  {
+   "id": "soft",
+   "label": "Soft",
+   "values": {
+    "radius": 14,
+    "gap": 16,
+    "shadow": true,
+    "weight": "600"
+   },
+   "recommended": true
+  },
+  {
+   "id": "bold",
+   "label": "Bold",
+   "values": {
+    "radius": 22,
+    "gap": 20,
+    "shadow": true,
+    "weight": "800"
+   }
+  }
+ ]
+}

@@ -1,0 +1,14 @@
+{
+  "_about": "Pick a visual: wireframe SVGs (or screenshots via {\"image\": \"path.png\"}) as answer cards",
+  "title": "Dashboard home layout",
+  "prompt": "Which layout should the home screen use?",
+  "columns": 3,
+  "options": [
+    {"id": "sidebar", "label": "Sidebar + cards", "subtitle": "Navigation always visible", "recommended": "Fits the 9 sections without a menu",
+     "preview": {"svg": "<svg viewBox='0 0 160 100' width='100%' style='max-height:120px'><rect x='1' y='1' width='158' height='98' rx='6' style='fill:none;stroke:var(--line-strong)'/><rect x='6' y='6' width='34' height='88' rx='3' style='fill:var(--panel-2)'/><rect x='46' y='6' width='108' height='12' rx='3' style='fill:var(--panel-2)'/><rect x='46' y='24' width='51' height='32' rx='3' style='fill:color-mix(in srgb,var(--accent) 30%,transparent)'/><rect x='103' y='24' width='51' height='32' rx='3' style='fill:var(--panel-2)'/><rect x='46' y='62' width='108' height='32' rx='3' style='fill:var(--panel-2)'/></svg>"}},
+    {"id": "topnav", "label": "Top nav + feed", "subtitle": "Content gets the full width",
+     "preview": {"svg": "<svg viewBox='0 0 160 100' width='100%' style='max-height:120px'><rect x='1' y='1' width='158' height='98' rx='6' style='fill:none;stroke:var(--line-strong)'/><rect x='6' y='6' width='148' height='12' rx='3' style='fill:var(--panel-2)'/><rect x='30' y='24' width='100' height='20' rx='3' style='fill:color-mix(in srgb,var(--accent) 30%,transparent)'/><rect x='30' y='48' width='100' height='20' rx='3' style='fill:var(--panel-2)'/><rect x='30' y='72' width='100' height='20' rx='3' style='fill:var(--panel-2)'/></svg>"}},
+    {"id": "split", "label": "List + detail", "subtitle": "Mail-style master/detail",
+     "preview": {"svg": "<svg viewBox='0 0 160 100' width='100%' style='max-height:120px'><rect x='1' y='1' width='158' height='98' rx='6' style='fill:none;stroke:var(--line-strong)'/><rect x='6' y='6' width='52' height='14' rx='3' style='fill:color-mix(in srgb,var(--accent) 30%,transparent)'/><rect x='6' y='24' width='52' height='14' rx='3' style='fill:var(--panel-2)'/><rect x='6' y='42' width='52' height='14' rx='3' style='fill:var(--panel-2)'/><rect x='6' y='60' width='52' height='14' rx='3' style='fill:var(--panel-2)'/><rect x='64' y='6' width='90' height='88' rx='3' style='fill:var(--panel-2)'/></svg>"}}
+  ]
+}

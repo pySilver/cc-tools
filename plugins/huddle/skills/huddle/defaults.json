@@ -1,0 +1,6 @@
+{
+  "style": "refined",
+  "size": "auto",
+  "review": "auto",
+  "status": {"asking": ["blocked"], "answered": ["active"]}
+}

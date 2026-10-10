@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-A **Claude Code plugin marketplace** — a catalog, not an application. It distributes the author's personal agents and skills as installable plugins. There is no build step and no application runtime; the "code" is plugin manifests plus skill/agent markdown (and the two language-server launcher scripts).
+A **Claude Code plugin marketplace** — a catalog, not an application. It distributes the author's personal agents and skills as installable plugins. There is no build step and no application runtime; the "code" is plugin manifests plus skill/agent markdown, the two language-server launcher scripts, and huddle's launcher (`plugins/huddle/bin/huddle`, stdlib Python) and page runtime (`huddle.js`, `huddle.css`).
 
 ## Architecture
 
@@ -14,6 +14,7 @@ A **Claude Code plugin marketplace** — a catalog, not an application. It distr
   - `git` — `finalize-feature-branch` skill
   - `research` — `web-research` skill
   - `tracking` — `backlog` skill
+  - `huddle` — `huddle` skill plus the `bin/huddle` command it runs (asking the user as a page in an agterm overlay), and a Stop hook (`hooks/hooks.json`, auto-discovered like the rest) that keeps the asking glyph up when a turn ends with a page still open. Its own plugin, not part of `decide`: claude.ai and Cowork refuse to install a plugin with a top-level `bin/`, and `decide` is pure markdown
   - `basedpyright-lsp` / `pyrefly-lsp` — one `.lsp.json` each, no skill or agent
   - `output-styles` — the `Direct` output style (the one exception to by-domain grouping: a style is a system-prompt change with no domain, so it is grouped by component type)
 - **Every `plugin.json` here is metadata only — component paths are auto-discovered, never declared.** A manifest listing no `skills`/`agents`/`outputStyles` field is correct, not broken: those fields *replace* the default `skills/`, `agents/`, `output-styles/` directories, so adding one that points at the default path is a no-op. Don't "fix" a manifest by declaring what is already found.
@@ -66,9 +67,9 @@ The "no version specified" warning from `claude plugin validate ./plugins/<name>
 
 ## Testing
 
-Nothing here is under unit test right now. The only executable code is the two `.lsp.json` launcher wrappers, and `tests/` does not exist. CI's shell-test step globs `tests/test-*.sh` and no-ops when nothing matches, so adding a test means dropping a file in `tests/` and nothing else.
+CI's shell-test step globs `tests/test-*.sh`, so adding a test means dropping a file in `tests/` and nothing else. `tests/test-huddle.sh` is the only one: it renders every huddle template and demo, checks the spec errors and exit-3 guards, and loads each page in headless Chrome when one is installed (it prints `SKIP` otherwise). It overrides `HOME`, so it resolves the real `python3` first — a version-manager shim reads its config from `HOME`. The `.lsp.json` launcher wrappers have no test.
 
-Skill *behaviour* — what a model actually does when a skill loads — is covered by eval cases instead, in the native `claude plugin eval` format at `plugins/<name>/evals/<case>/case.yaml` (schema 1.1). Only `decide` has them so far. They are **not** in CI (they cost money and need a live agent):
+Skill *behavior* — what a model actually does when a skill loads — is covered by eval cases instead, in the native `claude plugin eval` format at `plugins/<name>/evals/<case>/case.yaml` (schema 1.1). `decide` and `huddle` have them so far. They are **not** in CI (they cost money and need a live agent):
 
 ```bash
 claude plugin eval decide@silver-cc-tools                    # adds no-plugin baseline arm
@@ -77,7 +78,7 @@ claude plugin eval ./plugins/decide --ablation with-without  # path target needs
 
 When adding cases for a skill whose risk is *over-firing*, write the negative cases too — a suite that only checks the shape appears will score an over-firing skill as perfect. See `plugins/decide/evals/README.md`.
 
-`.github/workflows/ci.yml` runs on every push to `main` and on every PR: markdown-frontmatter validation, `shellcheck` over every `.sh`, a portable manifest check (the `claude` CLI isn't on GH runners), and the shell-test glob.
+`.github/workflows/ci.yml` runs on every push to `main` and on every PR: markdown-frontmatter validation, `shellcheck` over every `.sh`, a portable manifest check of every `plugin.json` and any `hooks/hooks.json` (the `claude` CLI isn't on GH runners), and the shell-test glob.
 
 ## Bundled tools assume the author's external projects — do not "generalize" them unasked
 

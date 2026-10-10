@@ -1,0 +1,68 @@
+{
+ "_about": "Sequence diagrams as options, compared with pros and cons",
+ "title": "Keeping mobile users signed in",
+ "context": [
+  {
+   "callout": "Access tokens expire after **15 minutes**. Today the app logs the user out when that happens — 31% of support tickets last month.",
+   "tone": "warn"
+  }
+ ],
+ "prompt": "How should the app refresh its token?",
+ "layout": "compare",
+ "columns": 3,
+ "options": [
+  {
+   "id": "rotating",
+   "label": "Rotating refresh token",
+   "recommended": "Industry default; a stolen token is useless after one use",
+   "tags": [
+    "2 days"
+   ],
+   "preview": {
+    "mermaid": "sequenceDiagram\n  participant A as App\n  participant S as Auth\n  A->>S: refresh_token ① \n  S-->>A: access + refresh ② \n  Note over S: ① revoked\n  A->>S: refresh_token ② \n  S-->>A: access + refresh ③ "
+   },
+   "pros": [
+    "Theft is detectable",
+    "Standard in OAuth 2.1"
+   ],
+   "cons": [
+    "Two tabs refreshing at once can race"
+   ]
+  },
+  {
+   "id": "sliding",
+   "label": "Sliding session",
+   "tags": [
+    "1 day"
+   ],
+   "preview": {
+    "mermaid": "sequenceDiagram\n  participant A as App\n  participant S as API\n  A->>S: request + session\n  S-->>A: response + extended expiry\n  Note over A,S: idle 30 days → expired"
+   },
+   "pros": [
+    "Simplest",
+    "No client logic"
+   ],
+   "cons": [
+    "Server-side session store",
+    "Long-lived secret on device"
+   ]
+  },
+  {
+   "id": "silent",
+   "label": "Silent re-login",
+   "tags": [
+    "3 days"
+   ],
+   "preview": {
+    "mermaid": "sequenceDiagram\n  participant A as App\n  participant K as Keychain\n  participant S as Auth\n  A->>K: read credentials\n  K-->>A: Face ID ✓\n  A->>S: login\n  S-->>A: new access token"
+   },
+   "pros": [
+    "No refresh token at all"
+   ],
+   "cons": [
+    "Biometric prompt every 15 min",
+    "Stores the password"
+   ]
+  }
+ ]
+}

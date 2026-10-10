@@ -18,6 +18,7 @@ Add the marketplace, then install the plugins you want:
     /plugin install basedpyright-lsp@silver-cc-tools
     /plugin install pyrefly-lsp@silver-cc-tools
     /plugin install tracking@silver-cc-tools
+    /plugin install huddle@silver-cc-tools
     /plugin install output-styles@silver-cc-tools
 
 Test a plugin locally before installing:
@@ -51,6 +52,8 @@ cp -r plugins/git/skills/finalize-feature-branch ~/.claude/skills/
 ```bash
 cp -r plugins/research/skills/web-research ~/.claude/skills/
 ```
+
+**huddle** — there's nothing useful to copy: the skill calls `bin/huddle`, which only a plugin puts on `PATH`. Load it as a plugin directory instead (`claude --plugin-dir plugins/huddle`).
 
 **output-styles** — the `Direct` output style:
 ```bash
@@ -87,6 +90,7 @@ Enable `/plugin` → **Marketplaces** → **Enable auto-update** to refresh the 
 | [basedpyright-lsp](#basedpyright-lsp) | Python LSP (basedpyright) for Claude — navigation + diagnostics, from the project's pinned venv |
 | [pyrefly-lsp](#pyrefly-lsp) | Same, backed by [pyrefly](https://pyrefly.org/) instead — pick whichever your type-check gate runs |
 | [tracking](#tracking) | Deferred-work backlog (`docs/backlog/`) — one slug-named file per item, `git rm`'d when fixed |
+| [huddle](#huddle) | Questions as a page in an agterm overlay — diagrams, trade-offs side by side, real code, sliders |
 | [output-styles](#output-styles) | **Direct** — peer-to-peer tone, plain English, choice-first, diagrams-first |
 
 ### decide
@@ -186,6 +190,43 @@ Where side-quest findings live, so they neither derail the current task nor evap
 
 > **Tuned for my setup.** Assumes the `docs/` layout (`docs/backlog/`, dated reviews under `docs/reviews/<date>/`). The item shape is project-agnostic otherwise. `backlog` is Git-only by design.
 
+### huddle
+
+| Component | Trigger | Description |
+|-----------|---------|-------------|
+| skill | `/huddle:huddle`, or a question that reads better as a page | Asks the question as a page in an [agterm](https://github.com/umputun/agterm) HTML overlay over the agent's own session and hands the answer back as JSON |
+| command | `huddle` (on the Bash tool's `PATH`) | The launcher the skill runs: `huddle q …` for one line, `huddle -` for a JSON spec, `huddle wait`, `huddle render`, `huddle demo` |
+
+**huddle** — a text prompt is the wrong shape for many of the questions an agent asks a developer. "Which of these three architectures?" wants the three diagrams. "Is this the right fix?" wants the code. "How round should the cards be?" wants a slider and a preview, not a list of pixel values. huddle gives the agent a page for those: options that carry a picture (mermaid diagrams, wireframes, color, radius and type samples, charts), up to nine choices with a gray subtitle, a reasoned **Recommended** badge and pros and cons, alternatives side by side, sliders with a live preview and the starting look beside it, several related questions on one page with a review of every answer before anything is sent, and a free-text box on every question, so a note travels with the choice or replaces it. The keys are `1`–`9`, arrows, `Tab` for the note, `⏎` to send, and `⌥⏎` for "let's talk in the terminal instead". The page takes the terminal theme's colors, and while it waits the session's sidebar row shows the same amber "asking" glyph a built-in question gets. The agent writes a small JSON spec, or one line: `huddle q "Which store?" "*Redis|already runs|no new service" "Postgres|one table"`.
+
+What I changed from the upstream skill, mostly to make it hold up as a daily tool:
+
+- **It is a command, not a path.** The launcher lives in the plugin's `bin/`, which Claude Code puts on the Bash tool's `PATH`, so the agent can type `huddle wait <id>` turns later without carrying a path around, and the skill's `allowed-tools: Bash(huddle *)` pre-authorizes it in the turn that loads the skill. Upstream set `H=…/huddle.py` once and used `$H` afterwards, which is empty in every later Bash call because shell state does not persist between them.
+- **Real code, from disk.** `{"code": {"file": "src/x.py", "lines": "40-62"}}` reads the lines when the page is built and shows them numbered under their path; `diff`, `md` and `mermaid` take a `file` the same way. Escaping source into JSON by hand is where a spec breaks or the snippet you decide on quietly stops matching the file. A whole file over 300 lines is refused: name the lines the question is about.
+- **It refuses to ask nobody.** A `claude -p` run started from an agterm shell inherits `AGTERM_ENABLED=1`, so upstream would open a page inside ralphex or a plan executor and stall it for 570 s. Claude Code sets `CLAUDE_CODE_SESSION_ATTENDED=0` there; huddle reads it and exits 3 without opening anything. The skill also tells subagents to hand their question to whoever started them.
+- **Failures say what they are.** An overlay slot already taken is exit 5 `busy` instead of a bare error, and when the overlay in the way is a huddle page, the reply carries its id — usually the agent's own question, left pending by a timeout, whose id was lost with the call that opened it; `huddle wait` on an invalid page id or a stopped agterm fails at once instead of spinning out its 570 s and reporting `pending`; a malformed spec gets the JSON error, never a traceback.
+- **The one remote script is verified.** Diagrams need mermaid, which is fetched once from jsDelivr and inlined into a page that runs with agterm's bridge — and that bridge can type into terminals. The bundle is now checked against a pinned sha256 on every use; on a mismatch the diagrams show as source and stderr says why.
+- **The agent doesn't check for agterm; huddle does.** Upstream's description names `AGTERM_ENABLED=1` as the condition for using it. In eval runs of my first rewrite, which kept that condition, the agent spent a Bash call checking the variable, and where that call was not allowed it never asked with a page at all (0 of 6 runs). The description now says to run `huddle` without checking; it tried in 6 of 6. For that to be safe, the browser fallback outside agterm is now opt-in: a plain terminal gets exit 3 and nothing opens.
+- **The "asking" glyph tells the truth.** Status hooks that repaint the sidebar after every tool call and at turn end (mine do) covered a question waiting in the background, so the sidebar said "working" while a page sat unanswered. **The plugin installs a Stop hook** (`hooks/hooks.json`): when a turn ends with a huddle page still open, it re-posts the asking glyph, and because hooks run in parallel and in no fixed order, it keeps re-posting over any slower hook for 6 s (a hook slower than that wins), then exits. It runs async, so the turn's end never waits on it, and its shell guard skips Python entirely outside agterm or without `python3`. It does nothing mid-turn, so a long test run keeps its working glyph, and the glyph it posts clears when you visit the session, so a question you close with nobody waiting does not strand an amber triangle. One case it misses: Stop does not run when you interrupt a turn with Escape, so the glyph stays as the last hook left it until the next turn ends — but then you are at that session, where the page is.
+- `q` options take a third field for the recommendation's reason (`*Label|subtitle|why`), `api.select` on a single-choice question replaces the choice instead of adding a second one, and the "when to ask with a page" rules defer to whatever your own `CLAUDE.md` says about asking.
+
+> **If your own instructions say how to ask questions, huddle needs an exception there.** Mine say "plain numbered lists, never a question widget", and with that rule in place the agent never reached for huddle: 0 of 9 tries across a visual, a code and a plain question, in `claude -p` runs with my real configuration and the real launcher. With this line added (measured both appended to the system prompt and as a Claude-only rules file, `~/.claude/rules/huddle.md`, rather than in a rules file Codex also reads), the visual question went to huddle 3 of 3 times (a side-by-side layout with three or four mermaid diagrams each), the code question 3 of 3 (always through a `file` block), and the plain question 0 of 3:
+>
+> ```markdown
+> An exception to the shared rule that questions are plain numbered lists. Inside
+> agterm, when you are about to ask me to choose between alternatives that differ
+> in structure (architectures, data flows, layouts) or in trade-offs worth seeing
+> side by side, to judge specific code or a diff, or to tune a value by eye, load
+> the huddle skill and ask with it. Yes/no questions and questions with short text
+> answers stay numbered lists.
+> ```
+>
+> A looser first wording ("options that are diagrams or layouts, trade-offs side by side") fired on the code question but not the architecture one, which the agent read as "one plain question"; naming what the agent is *about to do* is what made it work.
+>
+> **Permissions.** `allowed-tools` only covers the turn that loads the skill; the grant clears at your next message. If you don't run in auto mode, add `"Bash(huddle *)"` to `permissions.allow` so a `huddle wait` in a later turn doesn't prompt. Plugin `bin/` directories come after your own `PATH` entries, so a `huddle` of your own would shadow this one.
+>
+> **Needs agterm 0.34+ and Python 3** (standard library only). Outside agterm it opens nothing and exits 3, so the agent asks in the terminal; `"browser": true` in `~/.config/huddle/defaults.json` serves the page on `127.0.0.1` in your browser instead. Personal defaults — style, panel size, the status glyph, a sound when a question arrives — live in `~/.config/huddle/defaults.json`. `tests/test-huddle.sh` renders every template and demo and loads each page in headless Chrome when one is installed. Four eval cases under [`plugins/huddle/evals/`](plugins/huddle/evals/) check that the agent reaches for a page on a visual or code question, with a spec worth showing, and stays in the terminal for a one-line one. Screenshots are in the [upstream README](https://github.com/skkap/claude-skills/tree/master/plugins/huddle). Adapted from [skkap/claude-skills](https://github.com/skkap/claude-skills) (MIT); see [`NOTICE`](NOTICE) for what was kept and what changed.
+
 ### output-styles
 
 | Component | Trigger | Description |
@@ -206,9 +247,9 @@ A **Scope** section bounds all of it: these rules shape text written *for me to 
 
 ## Development
 
-This repo is markdown apart from the two language-server launcher scripts, and carries no unit tests at present. GitHub Actions checks frontmatter, `shellcheck`, and the manifests on every push and PR (see [`.github/workflows/ci.yml`](.github/workflows/ci.yml)); its shell-test step runs whatever matches `tests/test-*.sh`, so a test only needs a file dropped in `tests/`.
+This repo is markdown apart from the two language-server launcher scripts and huddle's launcher and page runtime. GitHub Actions checks frontmatter, `shellcheck`, and the manifests on every push and PR (see [`.github/workflows/ci.yml`](.github/workflows/ci.yml)); its shell-test step runs whatever matches `tests/test-*.sh`, so a test only needs a file dropped in `tests/`. The one there now, `tests/test-huddle.sh`, covers huddle.
 
-Behaviour that only shows up when a model reads a skill is covered by eval cases instead, in the native `claude plugin eval` format under a plugin's own `evals/` directory ([`plugins/decide/evals/`](plugins/decide/evals/) so far):
+Behavior that only shows up when a model reads a skill is covered by eval cases instead, in the native `claude plugin eval` format under a plugin's own `evals/` directory ([`plugins/decide/evals/`](plugins/decide/evals/) and [`plugins/huddle/evals/`](plugins/huddle/evals/) so far):
 
 ```bash
 claude plugin eval decide@silver-cc-tools        # + no-plugin baseline arm

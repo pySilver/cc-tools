@@ -1,0 +1,15 @@
+{
+  "_about": "Side-by-side comparison cards with pros/cons always visible; several recommended",
+  "title": "Search for the document archive",
+  "prompt": "Which search approach should we build first?",
+  "recommendation": "**Postgres full-text** now, add **embeddings** later for the fuzzy queries — both reuse the database we already run.",
+  "layout": "compare",
+  "options": [
+    {"id": "pg_fts", "label": "Postgres full-text", "subtitle": "tsvector + GIN index", "recommended": "Cheapest to ship; covers exact-term search", "tags": ["1 day"],
+     "pros": ["No new service", "Japanese via pg_bigm", "Ranked results"], "cons": ["Weak at synonyms", "No typo tolerance"]},
+    {"id": "embeddings", "label": "Embeddings (pgvector)", "subtitle": "Semantic search over chunks", "recommended": "Best answer quality for vague queries", "tags": ["3–4 days"],
+     "pros": ["Finds meaning, not words", "Same database"], "cons": ["Embedding cost per document", "Harder to explain a result"]},
+    {"id": "meili", "label": "Meilisearch", "subtitle": "Dedicated search engine", "tags": ["2 days"],
+     "pros": ["Typo tolerance", "Instant UI feel"], "cons": ["New service to run and sync", "Second copy of the data"]}
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "_about": "Architecture question: mermaid diagram as context, each option previews its own diagram",
+  "title": "Where does the webhook processing run?",
+  "context": [
+    {"mermaid": "flowchart LR\n  S[Stripe] -->|webhook| A[API]\n  A --> DB[(Postgres)]\n  A --> E[Email]\n  A --> L[Ledger sync]", "caption": "Today: everything runs inside the request, so a slow ledger sync times the webhook out."}
+  ],
+  "prompt": "How should we move the slow work out of the request?",
+  "options": [
+    {"id": "queue", "label": "Queue + worker", "subtitle": "API enqueues, worker does email and ledger", "recommended": "Retries for free and the API answers in <50 ms",
+     "preview": {"mermaid": "flowchart LR\n  S[Stripe] --> A[API]\n  A --> Q[[Queue]]\n  Q --> W[Worker]\n  W --> E[Email]\n  W --> L[Ledger]"}},
+    {"id": "outbox", "label": "Transactional outbox", "subtitle": "Write events in the same transaction, relay later",
+     "preview": {"mermaid": "flowchart LR\n  A[API] --> DB[(DB + outbox)]\n  DB --> R[Relay]\n  R --> E[Email]\n  R --> L[Ledger]"}},
+    {"id": "inline", "label": "Keep inline, raise timeout", "subtitle": "Smallest change; Stripe allows 20 s",
+     "preview": {"mermaid": "flowchart LR\n  S[Stripe] --> A[API]\n  A --> E[Email]\n  A --> L[Ledger]"}}
+  ]
+}

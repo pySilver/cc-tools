@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: huddle-silent-confirm
+description: >
+  A yes/no confirmation about a file rename. Tests that the skill does not
+  over-fire on the most common question an agent asks: a page here costs a
+  context switch and shows nothing a sentence would not.
+tags: [huddle, negative]
+runs: 3
+
+execution:
+  max_turns: 4
+  timeout_seconds: 300
+  allowed_tools: ["Bash", "Read", "Skill"]
+  prompt: |
+    I want to rename utils.py to helpers.py across the project. Before you
+    touch anything, confirm with me that the new name is right.
+
+expected_outcome: >
+  A one- or two-line question in the terminal. No page, no rename yet.
+
+graders:
+  - type: tool_used
+    name: no-page
+    weight: 3
+    tool: Bash
+    input_match: "huddle"
+    min: 0
+    max: 0
+
+  - type: llm
+    name: asks-before-acting
+    weight: 2
+    criteria: |
+      The reply asks the user to confirm the name helpers.py, briefly, and does
+      not claim to have renamed anything. Suggesting an alternative name is fine.

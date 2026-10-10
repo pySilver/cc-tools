@@ -39,6 +39,11 @@
       "description": "Lightweight project-state tracking: a deferred-work backlog under docs/backlog/, one slug-named file per item."
     },
     {
+      "name": "huddle",
+      "source": "./plugins/huddle",
+      "description": "Ask the user as a page in an agterm overlay: visual options, side-by-side trade-offs, real code from disk, sliders with a live preview, several questions with a review. Needs agterm 0.34+ and Python 3."
+    },
+    {
       "name": "output-styles",
       "source": "./plugins/output-styles",
       "description": "Claude Code output styles: Direct — peer-to-peer tone, plain English, choice-first, diagrams-first."

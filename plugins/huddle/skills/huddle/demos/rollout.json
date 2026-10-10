@@ -1,0 +1,83 @@
+{
+ "_about": "Plans as gantt charts and branch strategies as git graphs",
+ "title": "Shipping the new lesson engine",
+ "context": {
+  "stats": [
+   {
+    "label": "Active learners",
+    "value": "18,400"
+   },
+   {
+    "label": "Lessons to migrate",
+    "value": "1,262"
+   },
+   {
+    "label": "Engine crash rate (old)",
+    "value": "0.8%",
+    "delta": "target < 0.1%",
+    "good": false
+   }
+  ]
+ },
+ "questions": [
+  {
+   "id": "plan",
+   "header": "Rollout",
+   "prompt": "Which rollout plan?",
+   "columns": 1,
+   "layout": "grid",
+   "options": [
+    {
+     "id": "staged",
+     "label": "Staged: 5% → 25% → 100%",
+     "subtitle": "Feature flag, a week per stage",
+     "recommended": "A bad lesson reaches 920 people, not 18,400",
+     "preview": {
+      "mermaid": "gantt\n  todayMarker off\n  dateFormat YYYY-MM-DD\n  axisFormat %b %d\n  section Build\n  Migrate lessons :a1, 2026-10-12, 10d\n  section Rollout\n  Stage 1 · 920 learners:b1, after a1, 7d\n  Stage 2 · 4,600 :b2, after b1, 7d\n  Everyone:b3, after b2, 3d"
+     }
+    },
+    {
+     "id": "bigbang",
+     "label": "Big bang",
+     "subtitle": "Everyone on one date, old engine kept for rollback",
+     "preview": {
+      "mermaid": "gantt\n  todayMarker off\n  dateFormat YYYY-MM-DD\n  axisFormat %b %d\n  section Build\n  Migrate lessons :a1, 2026-10-12, 10d\n  section Rollout\n  Freeze + QA     :b1, after a1, 5d\n  Launch          :milestone, after b1, 0d"
+     }
+    },
+    {
+     "id": "parallel",
+     "label": "Opt-in beta, then default",
+     "subtitle": "Learners choose the new engine from settings",
+     "preview": {
+      "mermaid": "gantt\n  todayMarker off\n  dateFormat YYYY-MM-DD\n  axisFormat %b %d\n  section Build\n  Migrate lessons :a1, 2026-10-12, 10d\n  section Rollout\n  Opt-in beta     :b1, after a1, 21d\n  Default for all :b2, after b1, 3d"
+     }
+    }
+   ]
+  },
+  {
+   "id": "branching",
+   "header": "Branching",
+   "prompt": "Which branch strategy while it ships?",
+   "columns": 2,
+   "options": [
+    {
+     "id": "trunk",
+     "label": "Trunk + flags",
+     "subtitle": "Everything merges to master daily",
+     "recommended": "Matches the flag-based rollout",
+     "preview": {
+      "mermaid": "gitGraph\n  commit\n  branch engine\n  commit\n  checkout main\n  merge engine\n  commit\n  branch fix\n  commit\n  checkout main\n  merge fix\n  commit"
+     }
+    },
+    {
+     "id": "long-lived",
+     "label": "Long-lived engine branch",
+     "subtitle": "Merged once at launch",
+     "preview": {
+      "mermaid": "gitGraph\n  commit\n  branch engine\n  commit\n  commit\n  checkout main\n  commit\n  commit\n  checkout engine\n  commit\n  checkout main\n  merge engine"
+     }
+    }
+   ]
+  }
+ ]
+}

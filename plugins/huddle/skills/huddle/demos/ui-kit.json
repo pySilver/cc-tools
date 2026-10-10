@@ -1,0 +1,101 @@
+{
+ "_about": "Real UI components as options, then built-in sliders to fine-tune them live",
+ "title": "Button and control style for the app",
+ "questions": [
+  {
+   "id": "kit",
+   "header": "Kit",
+   "prompt": "Which component style?",
+   "columns": 4,
+   "options": [
+    {
+     "id": "crisp",
+     "label": "Crisp",
+     "subtitle": "4 px, flat",
+     "preview": {
+      "html": "<div style='display:flex;flex-direction:column;gap:10px;align-items:center;padding:6px'><div style='display:flex;gap:8px'><button style='padding:8px 14px;border-radius:4px;font:600 13px -apple-system;border:0;cursor:default;background:#2563eb;color:#fff;box-shadow:none'>Start lesson</button><button style='padding:8px 14px;border-radius:4px;font:600 13px -apple-system;border:0;cursor:default;background:transparent;color:var(--fg);border:1px solid var(--line-strong)'>Later</button></div><div style='display:flex;gap:10px;align-items:center;font-size:12px;color:var(--muted)'><span style='width:34px;height:20px;border-radius:8px;background:#2563eb;position:relative;display:inline-block'><span style='position:absolute;right:2px;top:2px;width:16px;height:16px;border-radius:8px;background:#fff'></span></span>Daily reminder</div><div style='width:200px;padding:7px 10px;border-radius:4px;border:1px solid var(--line-strong);font-size:12px;color:var(--muted);text-align:left'>メールアドレス</div></div>"
+     }
+    },
+    {
+     "id": "soft",
+     "label": "Soft",
+     "subtitle": "10 px, gentle shadow",
+     "preview": {
+      "html": "<div style='display:flex;flex-direction:column;gap:10px;align-items:center;padding:6px'><div style='display:flex;gap:8px'><button style='padding:8px 14px;border-radius:10px;font:600 13px -apple-system;border:0;cursor:default;background:#0d9488;color:#fff;box-shadow:0 4px 14px rgba(13,148,136,.35)'>Start lesson</button><button style='padding:8px 14px;border-radius:10px;font:600 13px -apple-system;border:0;cursor:default;background:transparent;color:var(--fg);border:1px solid var(--line-strong)'>Later</button></div><div style='display:flex;gap:10px;align-items:center;font-size:12px;color:var(--muted)'><span style='width:34px;height:20px;border-radius:10px;background:#0d9488;position:relative;display:inline-block'><span style='position:absolute;right:2px;top:2px;width:16px;height:16px;border-radius:8px;background:#fff'></span></span>Daily reminder</div><div style='width:200px;padding:7px 10px;border-radius:10px;border:1px solid var(--line-strong);font-size:12px;color:var(--muted);text-align:left'>メールアドレス</div></div>"
+     },
+     "recommended": "Friendly for learners; still reads as a serious tool"
+    },
+    {
+     "id": "pill",
+     "label": "Pill",
+     "subtitle": "Fully rounded",
+     "preview": {
+      "html": "<div style='display:flex;flex-direction:column;gap:10px;align-items:center;padding:6px'><div style='display:flex;gap:8px'><button style='padding:8px 14px;border-radius:999px;font:600 13px -apple-system;border:0;cursor:default;background:#7c3aed;color:#fff;box-shadow:none'>Start lesson</button><button style='padding:8px 14px;border-radius:999px;font:600 13px -apple-system;border:0;cursor:default;background:transparent;color:var(--fg);border:1px solid var(--line-strong)'>Later</button></div><div style='display:flex;gap:10px;align-items:center;font-size:12px;color:var(--muted)'><span style='width:34px;height:20px;border-radius:10px;background:#7c3aed;position:relative;display:inline-block'><span style='position:absolute;right:2px;top:2px;width:16px;height:16px;border-radius:8px;background:#fff'></span></span>Daily reminder</div><div style='width:200px;padding:7px 10px;border-radius:999px;border:1px solid var(--line-strong);font-size:12px;color:var(--muted);text-align:left'>メールアドレス</div></div>"
+     }
+    },
+    {
+     "id": "playful",
+     "label": "Playful",
+     "subtitle": "14 px, heavy weight",
+     "preview": {
+      "html": "<div style='display:flex;flex-direction:column;gap:10px;align-items:center;padding:6px'><div style='display:flex;gap:8px'><button style='padding:8px 14px;border-radius:14px;font:800 13px -apple-system;border:0;cursor:default;background:#ea580c;color:#fff;box-shadow:0 3px 0 #9a3412'>Start lesson</button><button style='padding:8px 14px;border-radius:14px;font:800 13px -apple-system;border:0;cursor:default;background:transparent;color:var(--fg);border:1px solid var(--line-strong)'>Later</button></div><div style='display:flex;gap:10px;align-items:center;font-size:12px;color:var(--muted)'><span style='width:34px;height:20px;border-radius:10px;background:#ea580c;position:relative;display:inline-block'><span style='position:absolute;right:2px;top:2px;width:16px;height:16px;border-radius:8px;background:#fff'></span></span>Daily reminder</div><div style='width:200px;padding:7px 10px;border-radius:14px;border:1px solid var(--line-strong);font-size:12px;color:var(--muted);text-align:left'>メールアドレス</div></div>"
+     }
+    }
+   ]
+  },
+  {
+   "id": "tune",
+   "header": "Fine-tune",
+   "prompt": "Fine-tune the buttons",
+   "hint": "Values come back with your answer.",
+   "controls": [
+    {
+     "id": "radius",
+     "label": "Radius",
+     "min": 0,
+     "max": 24,
+     "value": 10,
+     "unit": "px"
+    },
+    {
+     "id": "hue",
+     "label": "Color",
+     "type": "hue",
+     "value": 174
+    },
+    {
+     "id": "size",
+     "label": "Size",
+     "min": 11,
+     "max": 18,
+     "value": 14,
+     "unit": "px"
+    },
+    {
+     "id": "weight",
+     "label": "Weight",
+     "type": "select",
+     "options": [
+      "500",
+      "600",
+      "700",
+      "800"
+     ],
+     "value": "600"
+    },
+    {
+     "id": "lift",
+     "label": "Lift on hover",
+     "type": "toggle",
+     "value": true,
+     "on": "0 4px 14px rgba(0,0,0,.35)",
+     "off": "none"
+    }
+   ],
+   "baseline": "Before",
+   "preview": {
+    "html": "<div style='display:flex;flex-direction:column;gap:14px;align-items:center'><div style='display:flex;gap:10px'><button style='padding:.6em 1.2em;font:{weight} var(--size) -apple-system;border:0;border-radius:var(--radius);background:hsl({hue} 70% 42%);color:#fff;box-shadow:{lift}'>Start lesson</button><button style='padding:.6em 1.2em;font:{weight} var(--size) -apple-system;border-radius:var(--radius);background:transparent;color:var(--fg);border:1px solid var(--line-strong)'>Later</button></div><div style='width:230px;padding:12px 14px;border-radius:calc(var(--radius) + 4px);border:1px solid var(--line-strong)'><div style='font-weight:{weight};font-size:var(--size)'>Today's lesson</div><div style='color:var(--muted);font-size:12px'>12 cards · 8 min</div><div style='height:6px;border-radius:var(--radius);background:var(--panel-2);margin-top:8px'><div style='width:62%;height:100%;border-radius:var(--radius);background:hsl({hue} 70% 42%)'></div></div></div></div>"
+   }
+  }
+ ]
+}
