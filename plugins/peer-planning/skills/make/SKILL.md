@@ -1,6 +1,6 @@
 ---
 name: make
-description: Create an implementation plan in docs/plans/ whose tasks are coarse, outcome-level slices meant for capable executors that find the details themselves, loading the project's .claude/planning-rules.md the same way /planning:make does. Use it whenever the user asks for a peer-planning:make plan, a plan for /peer-planning:exec, a less granular plan, or a plan "for high-effort models", and whenever a plan will be executed with Codex paired in the adjacent pane, even if they only say "plan this".
+description: Create an implementation plan in docs/plans/ whose tasks are coarse, outcome-level slices meant for capable executors that find the details themselves, following the project's .claude/planning-rules.md. Use it whenever the user asks for a peer-planning:make plan, a plan for /peer-planning:exec, a less granular plan, or a plan "for high-effort models", and whenever a plan will be executed with Codex paired in the adjacent pane, even if they only say "plan this".
 ---
 
 # peer-planning:make, plans with coarse tasks
@@ -18,9 +18,8 @@ executor must not re-open, and cut the work into slices that can each be reviewe
 bash ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-rules.sh
 ```
 
-It resolves `planning-rules.md` exactly as `/planning:make` does: the project's
-`.claude/planning-rules.md` first, else the planning plugin's user-level file. The first line
-names the source. Treat the content as binding project convention for the plan's structure,
+It prints the project's `.claude/planning-rules.md`, with a first line naming it, or nothing when
+the project has none. Treat the content as binding project convention for the plan's structure,
 naming, testing and documentation. It supplements this skill, and where it contradicts this
 skill, the rules win: they are the project's own.
 
@@ -125,7 +124,7 @@ second planning round on the same profile.
 Tell the user the plan's path, then offer, as a numbered list:
 
 1. Execute it with `/peer-planning:exec <plan>`.
-2. Execute it another way the project supports, such as ralphex or `/planning:exec`.
+2. Execute it another way the project supports.
 3. Stop here.
 
 Commit the plan only when the user asks. Where it lands, on the feature branch or elsewhere, is
@@ -133,9 +132,9 @@ the project's convention; follow its rules.
 
 ## Rules management
 
-- **Show the rules:** run the resolver and say which layer they came from.
-- **Change project rules:** edit `.claude/planning-rules.md`, which `/planning:make` and
-  `/planning:exec` read too, so say that before editing it.
+- **Show the rules:** run the resolver and say which file they came from.
+- **Change project rules:** edit `.claude/planning-rules.md`. Other planning tools may read it too
+  (`/planning:make` does), so say that before editing it.
 
 This skill never edits its own files. A change to how it plans is a request to the user, not
 something to do mid-plan.

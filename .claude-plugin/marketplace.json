@@ -46,7 +46,7 @@
     {
       "name": "peer-planning",
       "source": "./plugins/peer-planning",
-      "description": "Plan with coarse tasks for high-effort executors, then execute each task with Codex in the adjacent agterm pane: agree the approach, implement through a subagent, review, clear. Needs agterm, its two-agent-chat recipe, Codex, and planning@umputun-cc-thingz."
+      "description": "Plan with coarse tasks for high-effort executors, then execute each task with Codex in the adjacent agterm pane: agree the approach, implement through a subagent, review, clear. Needs agterm, its two-agent-chat recipe, Codex and revmux."
     },
     {
       "name": "output-styles",

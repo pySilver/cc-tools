@@ -1,8 +1,9 @@
 # Implementer prompts
 
 Three prompts go to the implementation subagent: one to start a task, one to apply Codex's
-review, and one to commit. Substitute every `UPPER_CASE` token before sending, because the
-subagent runs in a fresh context and knows none of these values.
+review, and one to commit. A fourth goes to a fresh fixer subagent after each round of the branch
+review. Substitute every `UPPER_CASE` token before sending, because the subagent runs in a fresh
+context and knows none of these values.
 
 ## Start a task
 
@@ -82,4 +83,45 @@ The review passed. Commit TASK_HEADING now:
 3. The commit hook runs the project's gates. If it fails, fix the cause, re-run the task's tests
    and commit again. Never pass --no-verify.
 Reply with the commit SHA and the hook's result, or with the failure you could not fix.
+```
+
+## Fix review findings (sent to a fresh subagent)
+
+```
+A review of the whole branch found the issues below. Verify each one, fix the real ones, and
+commit.
+
+Working directory: WORK_PATH
+Plan: PLAN_FILE_PATH. Its Execution section names the validation commands.
+Progress: PROGRESS_FILE_PATH. Read it for what earlier tasks and review rounds found and fixed.
+
+FINDINGS:
+FINDINGS_LIST
+
+Project rules (apply them throughout):
+USER_RULES
+
+How to work:
+1. For each finding, read the code at its file:line with enough context to judge it. Classify it
+   as confirmed, or as a false positive when the issue does not exist or is already handled.
+2. Fix every confirmed finding, adding the tests a finding asks for.
+3. You write last, after the review, so nothing checks your output. Re-read what you added and
+   hold it to the project rules above.
+4. Validate with the commands in the plan's Execution section and the project rules. Run only the
+   test files you wrote or edited, and report passed + skipped == collected.
+5. Stage the files you changed by name (never `git add -A`) and commit once with a semantic
+   message: fix(scope): address review findings. The commit hook runs the project's gates. If it
+   fails, fix the cause and commit again. Never pass --no-verify.
+6. Leave nothing behind outside the diff: no stray files, processes or containers.
+
+Nobody is available to answer questions. Decide judgment calls from the plan's intent, then the
+project's rules and agent docs, then the surrounding code. When a call is still 50/50, take the
+smaller, more reversible option, and record it.
+
+Your final message is this report and nothing else:
+FIXES: one line per finding, as "fixed: <file:line> — <what changed>" or
+  "false positive: <finding> — <why>"
+COMMIT: the SHA and the hook's result, or the failure you could not fix
+VALIDATION: each command you ran and the summary line of its result
+DECISIONS: judgment calls the findings did not settle, one per line, or "none"
 ```

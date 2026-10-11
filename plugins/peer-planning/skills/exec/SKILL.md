@@ -66,8 +66,8 @@ branch has landed, "Run-record housekeeping" offers to remove it.
 3. **Resolve the plan.** Use the argument, or list `docs/plans/*.md` outside `completed/` and ask
    the user to pick one, as a numbered list rather than a question widget.
 4. **Load the rules.** Run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-rules.sh`. Drop its
-   `SOURCE:` line and keep the rest as `USER_RULES`. It is the same `planning-rules.md` that
-   `/planning:make` and `/planning:exec` read.
+   `SOURCE:` line and keep the rest as `USER_RULES`, the project's `.claude/planning-rules.md`.
+   It prints nothing when the project has none; `USER_RULES` is then "none".
 5. **Resolve the executor.** The first source that names one wins: the user's invocation text, the
    task's own **Executor:** line, the plan's Execution section, then the default, the `implementer`
    agent definition (Opus at medium).
@@ -77,17 +77,18 @@ branch has landed, "Run-record housekeeping" offers to remove it.
      (`.claude/agents/` or `~/.claude/agents/`; `worker`, for example, is Opus at high).
    - If none matches, or the default definition is missing, say so and ask before task 1, offering
      to create one. Never approximate silently.
-6. **Choose where the work happens.** Offer a numbered choice: a new worktree (the default) or the
+6. **Find the default branch.** Take `git symbolic-ref --short refs/remotes/origin/HEAD` without
+   its `origin/` prefix; if that fails, the first of `main` and `master` that exists. Call it
+   `DEFAULT_BRANCH`. A new worktree starts from it, and the branch review diffs against it.
+7. **Choose where the work happens.** Offer a numbered choice: a new worktree (the default) or the
    current feature branch.
    - Never create or switch a branch in the main checkout: other sessions share it.
    - For a worktree:
-     `git worktree add -b <name> .claude/worktrees/<name> <default-branch>`, where `<name>` is the
+     `git worktree add -b <name> .claude/worktrees/<name> DEFAULT_BRANCH`, where `<name>` is the
      plan's file stem without its date.
    - Then run the project's worktree setup if its agent docs name one; in this user's main
      repository that is `uv run scripts/setup-worktree.py`.
    - Call the absolute path `WORK_PATH`.
-7. **Find the planning plugin.** Run `bash ${CLAUDE_SKILL_DIR}/scripts/planning-plugin-root.sh`
-   and keep the result as `PLANNING_ROOT`; the review phase reuses its exec scripts.
 8. **Open the run directory.**
    - `RUN_DIR` is `$(git rev-parse --show-toplevel)/.peer-planning/<plan-stem>`, taken in this
      session's own directory rather than in `WORK_PATH`. Create `RUN_DIR/msgs`.
@@ -241,30 +242,19 @@ them out is how this session remains coherent across a whole plan.
 
 ## After the last task: review, then polish
 
-1. **Review the whole branch the way `/planning:exec` does.** Resolve the project's playbooks
-   through the planning plugin's chain:
-   - `bash $PLANNING_ROOT/skills/exec/scripts/resolve-file.sh prompts/review.md ~/.claude/plugins/data/planning-umputun-cc-thingz`
-   - `bash $PLANNING_ROOT/skills/exec/scripts/resolve-file.sh prompts/fixer.md ~/.claude/plugins/data/planning-umputun-cc-thingz`
-
-   Substitute their placeholders:
-   - `DEFAULT_BRANCH`, from `$PLANNING_ROOT/skills/exec/scripts/detect-branch.sh`, run in
-     `WORK_PATH`;
-   - `PLAN_FILE_PATH`, and `PROGRESS_FILE_PATH` as `RUN_DIR/progress.md`;
-   - `REVIEW_PHASE`;
-   - the playbooks' own plugin-root variable (`CLAUDE_PLUGIN_ROOT` in dollar-brace form), which
-     becomes `PLANNING_ROOT`;
-   - the fixer's `FINDINGS_LIST`.
-
-   Then run the loop:
+1. **Review the whole branch.** Follow the project's `.claude/peer-planning/review.md` if it has
+   one, otherwise `references/review.md`, which runs revmux rounds. Substitute `WORK_PATH`,
+   `DEFAULT_BRANCH`, `PLAN_FILE_PATH`, `PROGRESS_FILE_PATH` (as `RUN_DIR/progress.md`) and
+   `REVIEW_PHASE`. Then run the loop:
    - The first iteration runs `REVIEW_PHASE=comprehensive`, and later ones run `critical`, up to
-     five iterations. Log `stage.start` and `stage.done` for each, with `stage=review`.
-   - Each iteration's findings go to a fresh fixer subagent, with the resolved executor as its
-     `subagent_type`.
-   - In this user's repositories the playbook runs one revmux round through the `revmux:revmux`
-     skill. Launch it from the main checkout with `--workdir WORK_PATH`, so the round's archive
-     stays with the main checkout.
-   - The plugin's smells and external-review phases do not run: the project retires them, and
-     Codex has already reviewed every task.
+     five iterations, until the playbook ends the phase. An iteration whose findings list is
+     empty also ends it: nothing changed, so a re-check would review the same diff. Log
+     `stage.start` and `stage.done` for each, with `stage=review`.
+   - When an iteration's findings list is not empty, spawn a fresh fixer subagent with the "Fix
+     review findings" prompt from `references/implementer-prompt.md` and the resolved executor as
+     its `subagent_type`. When it returns, append its FIXES and DECISIONS to `progress.md` and
+     confirm the commit with `git -C WORK_PATH log -1 --oneline`.
+   - Codex takes no part: it has already reviewed every task.
 2. **Polish.** Run the project's polish step if it has one; here that is `/polish`
    (`.claude/commands/polish.md`), inside `WORK_PATH`. Log `stage.start` and `stage.done` with
    `stage=polish`. It is interactive, and it stops before finalize, which the user runs.
