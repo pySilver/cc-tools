@@ -15,6 +15,7 @@ A **Claude Code plugin marketplace** — a catalog, not an application. It distr
   - `research` — `web-research` skill
   - `tracking` — `backlog` skill
   - `huddle` — `huddle` skill plus the `bin/huddle` command it runs (asking the user as a page in an agterm overlay), and a Stop hook (`hooks/hooks.json`, auto-discovered like the rest) that keeps the asking glyph up when a turn ends with a page still open. Its own plugin, not part of `decide`: claude.ai and Cowork refuse to install a plugin with a top-level `bin/`, and `decide` is pure markdown
+  - `agrev` — `agrev` skill plus `scripts/review.py` (reviewing a markdown document with the user in plannotator, shown in an agterm session)
   - `peer-planning` — `make`, `exec` skills (coarse-task plans executed with Codex reviewing from the adjacent agterm pane). Depends on things outside this repo: agterm's two-agent-chat recipe (`peer-chat`), Codex, and revmux for the closing branch review (`skills/exec/references/review.md`, which a project replaces with `.claude/peer-planning/review.md`)
   - `basedpyright-lsp` / `pyrefly-lsp` — one `.lsp.json` each, no skill or agent
   - `output-styles` — the `Direct` output style (the one exception to by-domain grouping: a style is a system-prompt change with no domain, so it is grouped by component type)

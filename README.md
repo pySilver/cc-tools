@@ -91,6 +91,7 @@ Enable `/plugin` → **Marketplaces** → **Enable auto-update** to refresh the 
 | [pyrefly-lsp](#pyrefly-lsp) | Same, backed by [pyrefly](https://pyrefly.org/) instead — pick whichever your type-check gate runs |
 | [tracking](#tracking) | Deferred-work backlog (`docs/backlog/`) — one slug-named file per item, `git rm`'d when fixed |
 | [huddle](#huddle) | Questions as a page in an agterm overlay — diagrams, trade-offs side by side, real code, sliders |
+| [agrev](#agrev) | Review a plan or other markdown document in plannotator, in an agterm session, round by round |
 | [peer-planning](#peer-planning) | Coarse-task plans, executed task by task with Codex reviewing each diff from the adjacent agterm pane |
 | [output-styles](#output-styles) | **Direct** — peer-to-peer tone, plain English, choice-first, diagrams-first |
 
@@ -227,6 +228,16 @@ What I changed from the upstream skill, mostly to make it hold up as a daily too
 > **Permissions.** `allowed-tools` only covers the turn that loads the skill; the grant clears at your next message. If you don't run in auto mode, add `"Bash(huddle *)"` to `permissions.allow` so a `huddle wait` in a later turn doesn't prompt. Plugin `bin/` directories come after your own `PATH` entries, so a `huddle` of your own would shadow this one.
 >
 > **Needs agterm 0.34+ and Python 3** (standard library only). Outside agterm it opens nothing and exits 3, so the agent asks in the terminal; `"browser": true` in `~/.config/huddle/defaults.json` serves the page on `127.0.0.1` in your browser instead. Personal defaults — style, panel size, the status glyph, a sound when a question arrives — live in `~/.config/huddle/defaults.json`. `tests/test-huddle.sh` renders every template and demo and loads each page in headless Chrome when one is installed. Four eval cases under [`plugins/huddle/evals/`](plugins/huddle/evals/) check that the agent reaches for a page on a visual or code question, with a spec worth showing, and stays in the terminal for a one-line one. Screenshots are in the [upstream README](https://github.com/skkap/claude-skills/tree/master/plugins/huddle). Adapted from [skkap/claude-skills](https://github.com/skkap/claude-skills) (MIT); see [`NOTICE`](NOTICE) for what was kept and what changed.
+
+### agrev
+
+| Component | Trigger | Description |
+|-----------|---------|-------------|
+| skill | `/agrev:agrev [file]`, or "review this plan" | Opens the document in [plannotator](https://github.com/backnotprop/plannotator) in an agterm session right after the agent's, waits for your decision, and answers your annotations in the next round |
+
+**agrev** — reading a plan as raw markdown in a terminal, or as a diff, is the wrong place to mark it up. agrev opens the document rendered in plannotator, in an agterm session of its own right after the agent's, so the chat stays one click away. You comment on phrases, mark text for deletion, attach images, and press Send Feedback or Approve. The agent gets every annotation at once, edits the document itself, and opens the next round with its replies pinned to the phrases they answer; plannotator shows what changed since the last round. `scripts/review.py` does everything that touches plannotator and agterm: it records plannotator's URL instead of opening a browser, shows the page in agterm, and puts a small proxy in front of plannotator that keeps its cookies between reviews, because an agterm overlay starts with empty storage and every review would otherwise open on the onboarding dialogs. It also strips the agent's own pinned comments from the feedback plannotator exports, so they are not read back as yours.
+
+> **Needs agterm, plannotator and Python 3** (standard library only). `review.py open` names the plannotator install command when it is missing. Each round's log, result and comments stay in `~/.cache/agrev/runs/`.
 
 ### peer-planning
 

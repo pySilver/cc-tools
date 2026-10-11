@@ -1,0 +1,7 @@
+{
+  "name": "agrev",
+  "description": "Review a markdown document, usually a plan, with the user in plannotator, shown in an agterm session next to the agent's. The user annotates the rendered page and sends feedback or approves; the agent edits the document, pins its replies to the phrases they answer, and opens the next round.",
+  "author": {
+    "name": "Silver"
+  }
+}

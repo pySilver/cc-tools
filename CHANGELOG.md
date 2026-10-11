@@ -4,6 +4,10 @@ This repo ships independent Claude Code plugins that are intentionally version-l
 
 ## Unreleased
 
+### agrev (new plugin)
+
+- **add `agrev`**, moved here from a standalone skill in `~/.claude/skills/`, where it had no history. It opens a markdown document in [plannotator](https://github.com/backnotprop/plannotator), shown in an agterm session right after the agent's, and runs the review in rounds: the user annotates and sends feedback or approves, the agent edits the document and opens the next round with its replies pinned to the phrases they answer. Moved unchanged; as a plugin skill it is invoked as `/agrev:agrev` instead of `/agrev`.
+
 ### peer-planning (new plugin)
 
 - **add `peer-planning`**, moved here from a local directory marketplace where it had been in daily use. `/peer-planning:make` writes a plan whose tasks are outcome-level slices for a capable executor; `/peer-planning:exec` runs it as a two-agent loop in an agterm split: a subagent implements each task, Codex in the other pane reviews the diff before the commit and is cleared before the next task, and every step lands in a jsonl event log with a live monitor page. It is moved as it was, with one change: the `peer_planning_pytest` module that feeds the monitor's test panel now lives outside the plugin, in `~/.local/lib/agterm-pytest/` next to agterm's `agterm_hud`, since every pytest on the machine loads it through `PYTHONPATH` and `PYTEST_ADDOPTS`, not only the runs of this plugin. Without that module the monitor shows no test progress.
