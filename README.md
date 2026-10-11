@@ -91,6 +91,7 @@ Enable `/plugin` → **Marketplaces** → **Enable auto-update** to refresh the 
 | [pyrefly-lsp](#pyrefly-lsp) | Same, backed by [pyrefly](https://pyrefly.org/) instead — pick whichever your type-check gate runs |
 | [tracking](#tracking) | Deferred-work backlog (`docs/backlog/`) — one slug-named file per item, `git rm`'d when fixed |
 | [huddle](#huddle) | Questions as a page in an agterm overlay — diagrams, trade-offs side by side, real code, sliders |
+| [peer-planning](#peer-planning) | Coarse-task plans, executed task by task with Codex reviewing each diff from the adjacent agterm pane |
 | [output-styles](#output-styles) | **Direct** — peer-to-peer tone, plain English, choice-first, diagrams-first |
 
 ### decide
@@ -226,6 +227,17 @@ What I changed from the upstream skill, mostly to make it hold up as a daily too
 > **Permissions.** `allowed-tools` only covers the turn that loads the skill; the grant clears at your next message. If you don't run in auto mode, add `"Bash(huddle *)"` to `permissions.allow` so a `huddle wait` in a later turn doesn't prompt. Plugin `bin/` directories come after your own `PATH` entries, so a `huddle` of your own would shadow this one.
 >
 > **Needs agterm 0.34+ and Python 3** (standard library only). Outside agterm it opens nothing and exits 3, so the agent asks in the terminal; `"browser": true` in `~/.config/huddle/defaults.json` serves the page on `127.0.0.1` in your browser instead. Personal defaults — style, panel size, the status glyph, a sound when a question arrives — live in `~/.config/huddle/defaults.json`. `tests/test-huddle.sh` renders every template and demo and loads each page in headless Chrome when one is installed. Four eval cases under [`plugins/huddle/evals/`](plugins/huddle/evals/) check that the agent reaches for a page on a visual or code question, with a spec worth showing, and stays in the terminal for a one-line one. Screenshots are in the [upstream README](https://github.com/skkap/claude-skills/tree/master/plugins/huddle). Adapted from [skkap/claude-skills](https://github.com/skkap/claude-skills) (MIT); see [`NOTICE`](NOTICE) for what was kept and what changed.
+
+### peer-planning
+
+| Component | Trigger | Description |
+|-----------|---------|-------------|
+| skill | `/peer-planning:make` | Writes a plan in `docs/plans/` whose tasks state the outcome, the constraints and the proof of done, not the steps, for an executor that finds the details itself |
+| skill | `/peer-planning:exec <plan>` | Runs the plan as a two-agent loop in an agterm split: a subagent implements each task, Codex reviews the diff before the commit, then Codex is cleared for the next task |
+
+**peer-planning** — one agent working alone accepts its own reasoning. Here a second one, Codex in the other pane of the split, reads every task's diff before it is committed, and for a task the plan marks for discussion it argues the approach before any code is written. This session orchestrates: it hands each task to an implementation subagent (Opus at medium by default), carries messages between Codex and the subagent, and clears Codex between tasks so each review starts fresh. Every step lands in an `events.jsonl` log, and a monitor page in an agterm overlay shows who holds the wait. After the last task it runs the project's revmux review rounds and its `/polish` step, and stops before finalize, which you run. The plans `make` writes are coarser than `/planning:make` plans, because the executor is capable and the planner's job is to settle the decisions, not to script the edits. Both read the project's `.claude/planning-rules.md` the same way.
+
+> **Needs the rest of the setup.** [agterm](https://github.com/umputun/agterm) with its [two-agent-chat recipe](https://github.com/umputun/agterm/blob/master/cookbook/two-agent-chat/README.md) installed (`peer-chat.py` on `PATH`, the `peer-chat` skill for Claude and for Codex), Codex running in the right pane of the split, and `planning@umputun-cc-thingz` installed: `exec` reuses its commit and progress scripts and `make` falls back to its user-level `planning-rules.md`. The closing review expects [revmux](https://github.com/umputun/revmux); a project without a `/polish` command skips that step. The monitor's test panel is fed by a separate `peer_planning_pytest` module loaded through `PYTHONPATH`, which this repo does not ship; without it the panel stays empty.
 
 ### output-styles
 

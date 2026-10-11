@@ -4,6 +4,11 @@ This repo ships independent Claude Code plugins that are intentionally version-l
 
 ## Unreleased
 
+### peer-planning (new plugin)
+
+- **add `peer-planning`**, moved here from a local directory marketplace where it had been in daily use. `/peer-planning:make` writes a plan whose tasks are outcome-level slices for a capable executor; `/peer-planning:exec` runs it as a two-agent loop in an agterm split: a subagent implements each task, Codex in the other pane reviews the diff before the commit and is cleared before the next task, and every step lands in a jsonl event log with a live monitor page. It is moved as it was, with one change: the `peer_planning_pytest` module that feeds the monitor's test panel now lives outside the plugin, in `~/.local/lib/agterm-pytest/` next to agterm's `agterm_hud`, since every pytest on the machine loads it through `PYTHONPATH` and `PYTEST_ADDOPTS`, not only the runs of this plugin. Without that module the monitor shows no test progress.
+- it depends on things this repo does not ship: [agterm](https://github.com/umputun/agterm) with its [two-agent-chat](https://github.com/umputun/agterm/blob/master/cookbook/two-agent-chat/README.md) recipe (`peer-chat.py` and the `peer-chat` skill), Codex, `planning@umputun-cc-thingz` (its exec scripts and `planning-rules.md`), and revmux for the closing review.
+
 ### huddle (new plugin)
 
 - **add `huddle`** (adapted from [skkap/claude-skills](https://github.com/skkap/claude-skills) at `29d6db7`, huddle 1.0.0, MIT — see [`NOTICE`](NOTICE)). Inside agterm the agent asks a question as a page in an HTML overlay over its own session — options that are diagrams, wireframes, design samples or charts, trade-offs side by side, sliders with a live preview, several questions with a review — and reads the answer back as JSON. Before adopting it I rendered all ten templates and five demos and loaded each in headless Chrome (no runtime error, every mermaid diagram drawn) and ran a live round trip on agterm 0.35.1; the runtime is kept as published. The changes are in the launcher and the skill text.

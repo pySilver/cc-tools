@@ -44,6 +44,11 @@
       "description": "Ask the user as a page in an agterm overlay: visual options, side-by-side trade-offs, real code from disk, sliders with a live preview, several questions with a review. Needs agterm 0.34+ and Python 3."
     },
     {
+      "name": "peer-planning",
+      "source": "./plugins/peer-planning",
+      "description": "Plan with coarse tasks for high-effort executors, then execute each task with Codex in the adjacent agterm pane: agree the approach, implement through a subagent, review, clear. Needs agterm, its two-agent-chat recipe, Codex, and planning@umputun-cc-thingz."
+    },
+    {
       "name": "output-styles",
       "source": "./plugins/output-styles",
       "description": "Claude Code output styles: Direct — peer-to-peer tone, plain English, choice-first, diagrams-first."

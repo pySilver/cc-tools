@@ -1,0 +1,7 @@
+{
+  "name": "peer-planning",
+  "description": "Plan with coarse tasks, then execute them with Codex in the adjacent pane: a subagent implements each task, Codex reviews the diff before the commit, and a task marked for discussion has its approach agreed first. The agents talk through peer-chat, with long content in files, and every step lands in a jsonl event log that a live agterm page shows.",
+  "author": {
+    "name": "Silver"
+  }
+}

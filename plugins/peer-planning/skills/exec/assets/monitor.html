@@ -1,0 +1,1361 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>peer-planning monitor</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--agterm-background, Canvas);
+    color: var(--agterm-foreground, CanvasText);
+    font: 13px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page {
+    --bg: var(--agterm-background, Canvas);
+    --fg: var(--agterm-foreground, CanvasText);
+    --ok: var(--agterm-color-2, #3fb950);
+    --warn: var(--agterm-color-3, #d29922);
+    --bad: var(--agterm-color-1, #f85149);
+    --codex: var(--agterm-color-5, #bc8cff);
+    --implementer: var(--agterm-color-6, #39c5cf);
+    --orchestrator: color-mix(in srgb, var(--fg) 58%, var(--bg));
+    --user: var(--agterm-color-3, #d29922);
+    --review: var(--agterm-color-4, #58a6ff);
+    --done: var(--agterm-color-2, #3fb950);
+    --actor: var(--orchestrator);
+    --card: color-mix(in srgb, var(--fg) 4.5%, var(--bg));
+    --card-hi: color-mix(in srgb, var(--fg) 8%, var(--bg));
+    --line: color-mix(in srgb, var(--fg) 11%, transparent);
+    --line-strong: color-mix(in srgb, var(--fg) 22%, transparent);
+    --dim: color-mix(in srgb, var(--fg) 64%, var(--bg));
+    --faint: color-mix(in srgb, var(--fg) 50%, var(--bg));
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+    max-width: 1480px;
+    margin: 0 auto;
+    padding: 22px 28px 26px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .dim { color: var(--dim); }
+  b { font-weight: 650; }
+  .ic { width: 14px; height: 14px; flex: none; }
+
+  /* Every animation's period divides 2s, and a node inserted mid-run gets a negative delay that
+     puts it on the same 2s clock (phase() below), so a block rebuilt on a later tick carries on
+     where the one it replaced left off. */
+  @keyframes ping { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 55%, transparent); } 70%, 100% { box-shadow: 0 0 0 7px transparent; } }
+  @keyframes halo { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--actor) 45%, transparent); } 70%, 100% { box-shadow: 0 0 0 12px transparent; } }
+  @keyframes breathe { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+  @keyframes stripes { to { background-position: 20px 0; } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+  /* header */
+  .top { display: flex; justify-content: space-between; align-items: flex-end; gap: 14px 24px; flex-wrap: wrap; }
+  .ident { min-width: 0; }
+  .eyebrow { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 650; letter-spacing: .09em; text-transform: uppercase; color: var(--dim); }
+  .beacon { width: 8px; height: 8px; border-radius: 50%; color: var(--ok); background: currentColor; animation: ping 2s ease-out infinite; }
+  .beacon.bad { color: var(--bad); }
+  h1 { margin: 3px 0 9px; font-size: 25px; line-height: 1.2; font-weight: 720; letter-spacing: -.012em; overflow-wrap: anywhere; }
+  button:focus-visible { outline: 2px solid var(--review); outline-offset: 2px; }
+  .meta, .panes { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; max-width: 100%;
+    border: 1px solid var(--line); background: var(--card); color: var(--dim); font-size: 12px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .chip .ic { width: 13px; height: 13px; }
+  .top-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+  .pill { display: inline-flex; align-items: center; gap: 7px; padding: 3px 10px 3px 8px; border-radius: 999px; font-size: 12px; font-weight: 550; border: 1px solid var(--line); background: var(--card); color: var(--dim); }
+  .pill i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .pill.ok { color: var(--ok); } .pill.user { color: var(--user); } .pill.bad { color: var(--bad); }
+  .pill.ok i, .pill.user i { animation: ping 2s ease-out infinite; }
+  .pill span { color: var(--fg); }
+  .jump {
+    appearance: none; font: inherit; font-size: 12px; font-weight: 600; color: var(--fg); cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 8px;
+    background: color-mix(in srgb, var(--fg) 7%, transparent); border: 1px solid var(--line-strong);
+  }
+  .jump[hidden] { display: none; }
+  .jump:hover { background: color-mix(in srgb, var(--fg) 13%, transparent); }
+  .jump .ic { width: 13px; height: 13px; }
+
+  .banner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; border: 1px solid; font-weight: 550; }
+  .banner .ic { width: 16px; height: 16px; }
+  .banner.attention { color: var(--user); border-color: color-mix(in srgb, var(--user) 55%, transparent); background: color-mix(in srgb, var(--user) 12%, transparent); }
+  .banner.problem { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 60%, transparent); background: color-mix(in srgb, var(--bad) 12%, transparent); }
+  .banner span { color: var(--fg); flex: 1; }
+  .banners { display: flex; flex-direction: column; gap: 8px; }
+  .banners:empty { display: none; }
+
+  .card { position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; min-width: 0; }
+  .card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px 14px; flex-wrap: wrap; margin-bottom: 12px; }
+  h2 { margin: 0; font-size: 11px; font-weight: 650; letter-spacing: .09em; text-transform: uppercase; color: var(--dim); }
+  .small { font-size: 12px; }
+
+  .hero { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; }
+  .cols { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 16px; align-items: stretch; }
+  @media (max-width: 1080px) { .hero, .cols { grid-template-columns: minmax(0, 1fr); } }
+
+  /* now */
+  .now { overflow: hidden; --accent: var(--actor); border-color: color-mix(in srgb, var(--accent) 38%, var(--line)); display: flex; flex-direction: column; }
+  .now > div { flex: 1; display: flex; flex-direction: column; }
+  .now-next { position: relative; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 6px 4px; flex-wrap: wrap; font-size: 12px; color: var(--dim); }
+  .now-next .lbl { font-size: 10.5px; font-weight: 650; letter-spacing: .09em; text-transform: uppercase; color: var(--faint); margin-right: 6px; }
+  .now-next .right { margin-left: auto; padding-left: 10px; font-family: var(--mono); font-size: 12px; color: var(--fg); }
+  .now-spacer { height: 16px; }
+  .now::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(120% 160% at 0% 0%, color-mix(in srgb, var(--accent) 15%, transparent), transparent 58%);
+  }
+  .now.lvl-warn { --accent: var(--warn); }
+  .now.lvl-bad { --accent: var(--bad); background: color-mix(in srgb, var(--bad) 7%, var(--card)); }
+  .now.lvl-attention { --accent: var(--user); background: color-mix(in srgb, var(--user) 7%, var(--card)); }
+  .now.lvl-done { --accent: var(--ok); }
+  .now.lvl-alert { --accent: var(--bad); background: color-mix(in srgb, var(--bad) 7%, var(--card)); }
+  .lvl-alert .timer, .lvl-alert .now-status { color: var(--bad); }
+  .now-in { position: relative; display: flex; gap: 18px; align-items: flex-start; }
+  .avatar {
+    width: 58px; height: 58px; border-radius: 17px; flex: none; display: grid; place-items: center;
+    color: var(--actor); background: color-mix(in srgb, var(--actor) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--actor) 42%, transparent);
+    animation: halo 2s ease-out infinite;
+  }
+  .avatar .ic { width: 27px; height: 27px; }
+  .lvl-done .avatar, .idle .avatar { animation: none; }
+  .now-body { min-width: 0; flex: 1; }
+  .now-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--actor); }
+  .now-head { font-size: 19px; line-height: 1.3; font-weight: 680; margin-top: 2px; overflow-wrap: anywhere; }
+  .now-status { margin-top: 4px; font-size: 14px; font-weight: 600; color: var(--actor); }
+  .lvl-warn .now-status { color: var(--warn); } .lvl-bad .now-status { color: var(--bad); } .lvl-attention .now-status { color: var(--user); }
+  .now-ctx { margin-top: 3px; color: var(--dim); }
+  .now-body .jump { margin-top: 2px; }
+  .timer-row { display: flex; align-items: center; gap: 18px; margin-top: 12px; }
+  .timer { font: 680 42px/1 -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .lvl-warn .timer { color: var(--warn); } .lvl-bad .timer { color: var(--bad); } .lvl-attention .timer { color: var(--user); }
+  .meter-box { flex: 1; min-width: 120px; }
+  .meter { position: relative; height: 8px; border-radius: 4px; background: color-mix(in srgb, var(--fg) 9%, transparent); margin: 2px 0 20px; }
+  .meter .zone { position: absolute; top: 0; bottom: 0; }
+  .meter .zone.warn { background: color-mix(in srgb, var(--warn) 26%, transparent); }
+  .meter .zone.bad { background: color-mix(in srgb, var(--bad) 26%, transparent); border-radius: 0 4px 4px 0; }
+  .meter .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: var(--actor); transition: width .95s linear; }
+  .lvl-warn .meter .fill { background: var(--warn); } .lvl-bad .meter .fill { background: var(--bad); }
+  .meter .tick { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--card); }
+  .meter .tick em { position: absolute; top: 15px; left: 1px; transform: translateX(-50%); font: normal 10.5px var(--mono); color: var(--dim); white-space: nowrap; }
+  .note { font-size: 12px; color: var(--dim); }
+  .now-foot { margin-top: 2px; font-size: 12px; color: var(--dim); }
+
+  /* pytest substatus */
+  .tests { margin-top: 12px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: color-mix(in srgb, var(--fg) 3%, transparent); font-size: 12px; }
+  .tests.bad { border-color: color-mix(in srgb, var(--bad) 45%, transparent); }
+  .tests.ok { border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
+  .tests.stale { border-color: color-mix(in srgb, var(--warn) 55%, transparent); }
+  .tests-head { display: flex; align-items: baseline; gap: 6px 10px; flex-wrap: wrap; }
+  .tests-head b { font-size: 12.5px; }
+  .tests-args { font-family: var(--mono); font-size: 11px; color: var(--dim); min-width: 0; overflow-wrap: anywhere; }
+  .tests-age { margin-left: auto; color: var(--dim); white-space: nowrap; }
+  .tests.stale .tests-age { color: var(--warn); font-weight: 600; }
+  .tbar { position: relative; display: flex; height: 6px; border-radius: 3px; overflow: hidden; margin: 8px 0 6px; background: color-mix(in srgb, var(--fg) 8%, transparent); }
+  .tbar span { height: 100%; transition: width .9s linear; }
+  .tests-line { color: var(--dim); }
+  .tests-line .out { font-weight: 650; }
+  .tests-fail { margin-top: 4px; font: 11px var(--mono); color: var(--bad); overflow-wrap: anywhere; }
+  .tests-cur { margin-top: 3px; font: 11px var(--mono); color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* progress */
+  .prog { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px 20px; align-items: center; }
+  .ring-wrap { position: relative; width: 116px; height: 116px; }
+  .ring { display: block; }
+  .ring circle { fill: none; stroke-width: 10; }
+  .ring .done { stroke: var(--ok); }
+  .ring .cur { stroke: var(--actor); animation: breathe 2s ease-in-out infinite; }
+  .ring .todo { stroke: color-mix(in srgb, var(--fg) 12%, transparent); }
+  .ring-center { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+  .ring-center b { font: 700 25px/1 var(--mono); letter-spacing: -.03em; }
+  .ring-center span { font-size: 10.5px; color: var(--dim); letter-spacing: .08em; text-transform: uppercase; margin-top: 4px; }
+  .phases { display: flex; align-items: flex-start; }
+  .phase { flex: 1; min-width: 0; position: relative; padding-top: 20px; font-size: 11.5px; color: var(--faint); }
+  .phase::before { content: ""; position: absolute; top: 6px; left: 14px; right: 0; height: 2px; background: var(--line); }
+  .phase:last-child { flex: 0 0 auto; }
+  .phase:last-child::before { display: none; }
+  .phase i { position: absolute; top: 0; left: 0; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line-strong); background: var(--card); }
+  .phase.past { color: var(--dim); } .phase.past::before { background: color-mix(in srgb, var(--ok) 60%, transparent); }
+  .phase.past i { background: var(--ok); border-color: var(--ok); }
+  .phase.cur { color: var(--fg); font-weight: 600; }
+  .phase.cur i { border-color: var(--actor); background: color-mix(in srgb, var(--actor) 35%, var(--card)); animation: halo 2s ease-out infinite; }
+  .phase small { display: block; font-weight: 400; color: var(--dim); font-size: 11px; }
+  .stats { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .stat { min-width: 0; }
+  .stat .sk { font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--dim); font-weight: 650; }
+  .stat .sv { font: 650 16px/1.3 var(--mono); letter-spacing: -.02em; font-variant-numeric: tabular-nums; white-space: nowrap; margin-top: 1px; }
+  .stat .ss { font-size: 11px; line-height: 1.35; color: var(--dim); }
+  .stat.ok .sv { color: var(--ok); }
+
+  /* timeline */
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--dim); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .legend i { width: 9px; height: 9px; border-radius: 3px; }
+  .legend em { font-style: normal; font-family: var(--mono); color: var(--fg); font-size: 11.5px; }
+  .tl-wrap { position: relative; cursor: crosshair; }
+  .tl-svg { display: block; overflow: visible; }
+  .tl-svg .band { fill: transparent; }
+  .tl-svg .band.odd { fill: color-mix(in srgb, var(--fg) 3.5%, transparent); }
+  .tl-svg .band.hot { fill: color-mix(in srgb, var(--actor) 13%, transparent); stroke: color-mix(in srgb, var(--actor) 45%, transparent); }
+  .tl-svg .band-label { font: 600 10.5px var(--mono); fill: var(--dim); }
+  .tl-svg .lane-label { font: 550 11.5px -apple-system, BlinkMacSystemFont, system-ui, sans-serif; fill: var(--dim); }
+  .tl-svg .track { fill: color-mix(in srgb, var(--fg) 4%, transparent); }
+  .tl-svg .grid { stroke: var(--line); stroke-dasharray: 2 4; }
+  .tl-svg .axis { font: 10.5px var(--mono); fill: var(--dim); }
+  .tl-svg .axis.day { font-weight: 700; fill: var(--fg); }
+  .tl-svg .seg.live { animation: breathe 2s ease-in-out infinite; }
+  .tl-svg .nowline { stroke: var(--actor); stroke-width: 1.5; }
+  .tl-svg .nowdot { fill: var(--actor); }
+  .tl-empty { padding: 26px 0; text-align: center; color: var(--faint); }
+  .tl-hair { position: absolute; top: 0; width: 1px; background: var(--line-strong); pointer-events: none; display: none; }
+  .tip {
+    position: absolute; z-index: 5; pointer-events: none; display: none; width: max-content; max-width: 340px;
+    padding: 8px 11px; border-radius: 10px; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere;
+    background: color-mix(in srgb, var(--fg) 10%, var(--bg)); border: 1px solid var(--line-strong);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, .3);
+  }
+  .tip .tt { display: flex; align-items: center; gap: 7px; font-weight: 650; }
+  .tip .tt i { width: 8px; height: 8px; border-radius: 2px; }
+  .tip .td { color: var(--dim); font-family: var(--mono); font-size: 11.5px; }
+
+  /* tasks */
+  .tasks { display: flex; flex-direction: column; }
+  .task { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 13px; padding: 4px 0 12px; }
+  .badge { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font: 650 12px var(--mono); border: 1.5px solid var(--line-strong); color: var(--dim); }
+  .badge .ic { width: 15px; height: 15px; stroke-width: 3; }
+  .task.done .badge { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 55%, transparent); background: color-mix(in srgb, var(--ok) 15%, transparent); }
+  .task.current .badge { color: var(--actor); border-color: var(--actor); background: color-mix(in srgb, var(--actor) 14%, transparent); animation: halo 2s ease-out infinite; }
+  .task.pending .badge { border-style: dashed; color: var(--faint); }
+  .faint { color: var(--faint); }
+  .fold { width: 12px; height: 12px; flex: none; color: var(--dim); transition: transform .15s; }
+  [aria-expanded="true"] > .fold { transform: rotate(90deg); }
+  .hist-toggle, .dline { appearance: none; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; width: 100%; }
+  .hist-toggle {
+    display: flex; align-items: center; gap: 8px; padding: 11px 0 7px; margin-top: 4px; border-top: 1px solid var(--line);
+    font-size: 11px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; color: var(--dim);
+  }
+  .hist-toggle:first-child { border-top: 0; margin-top: 0; }
+  .hist-sum { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 500; font-size: 12px; }
+  .drow { margin: 0 -8px; border-radius: 8px; }
+  .drow:hover, .drow.open { background: color-mix(in srgb, var(--fg) 3.5%, transparent); }
+  .dline { display: flex; align-items: center; gap: 10px; padding: 5px 8px; border-radius: 8px; }
+  .dbadge { width: 22px; height: 22px; flex: none; border-radius: 50%; display: grid; place-items: center; font: 650 10.5px var(--mono); color: var(--ok); border: 1.5px solid color-mix(in srgb, var(--ok) 55%, transparent); background: color-mix(in srgb, var(--ok) 15%, transparent); }
+  .dtitle { flex: 1 1 auto; min-width: 60px; font-size: 13px; font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dsum { flex: none; font-size: 12px; color: var(--dim); white-space: nowrap; }
+  .dbar { flex: none; width: 84px; margin-top: 0; }
+  .dtime { flex: none; width: 54px; text-align: right; font: 12px var(--mono); color: var(--dim); white-space: nowrap; }
+  .ddetail { padding: 0 8px 10px 40px; }
+  .ddetail .steps { margin-top: 2px; }
+  .drow.open .dtitle { white-space: normal; overflow-wrap: anywhere; }
+  .drow.open .dline { align-items: flex-start; }
+  @media (max-width: 760px) { .dsum { display: none; } }
+  @media (max-width: 520px) { .dbar { display: none; } }
+  .queue { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 11px 0 2px; margin-top: 4px; border-top: 1px solid var(--line); }
+  .queue:first-child { border-top: 0; }
+  .qlabel { font-size: 11px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+  .qnums { display: flex; flex-wrap: wrap; gap: 4px; }
+  .qn { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; border: 1.5px dashed var(--line-strong); font: 650 10.5px var(--mono); color: var(--dim); }
+  .task-head { display: flex; justify-content: space-between; align-items: baseline; gap: 14px; }
+  .task-title { flex: 1; min-width: 0; font-weight: 620; font-size: 13.5px; line-height: 1.35; overflow-wrap: anywhere; }
+  .task.pending .task-title { color: var(--faint); font-weight: 500; }
+  .task-time { flex: none; font: 12px var(--mono); color: var(--dim); white-space: nowrap; }
+  .task.current .task-time { color: var(--fg); }
+  .steps { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 3px; margin-top: 8px; }
+  .sep { color: var(--faint); width: 10px; height: 10px; }
+  .step {
+    --c: var(--orchestrator);
+    display: inline-flex; align-items: center; gap: 6px; height: 23px; padding: 0 8px; border-radius: 7px; white-space: nowrap; font-size: 11.5px;
+    background: color-mix(in srgb, var(--c) 11%, transparent); border: 1px solid color-mix(in srgb, var(--c) 30%, transparent);
+  }
+  .step .ic { width: 12px; height: 12px; color: var(--c); }
+  .step .dur { font: 11px var(--mono); color: var(--dim); }
+  .step .out { font-weight: 650; padding-left: 6px; border-left: 1px solid color-mix(in srgb, var(--c) 30%, transparent); }
+  .step .dim { padding-left: 6px; border-left: 1px solid color-mix(in srgb, var(--c) 30%, transparent); }
+  .out.ok { color: var(--ok); } .out.warn { color: var(--warn); } .out.bad { color: var(--bad); } .out.user { color: var(--user); } .out.codex { color: var(--codex); }
+  .step.k-discuss, .step.k-review { --c: var(--codex); }
+  .step.k-implement, .step.k-fix { --c: var(--implementer); }
+  .step.k-stalled { --c: var(--user); }
+  .step.k-commit { --c: var(--ok); }
+  .step.live {
+    border-color: var(--c);
+    background-image: linear-gradient(45deg,
+      color-mix(in srgb, var(--c) 24%, transparent) 25%, color-mix(in srgb, var(--c) 9%, transparent) 25%,
+      color-mix(in srgb, var(--c) 9%, transparent) 50%, color-mix(in srgb, var(--c) 24%, transparent) 50%,
+      color-mix(in srgb, var(--c) 24%, transparent) 75%, color-mix(in srgb, var(--c) 9%, transparent) 75%);
+    background-size: 20px 20px;
+    animation: stripes 1s linear infinite;
+  }
+  .step.live .dur { color: var(--fg); }
+  .step.todo { background: transparent; border: 1px dashed var(--line-strong); color: var(--faint); }
+  .step.todo .ic { color: var(--faint); }
+  .mini { position: relative; height: 5px; border-radius: 3px; margin-top: 10px; overflow: hidden; background: color-mix(in srgb, var(--fg) 6%, transparent); }
+  .mini.dbar { margin-top: 0; }
+  .mini span { position: absolute; top: 0; bottom: 0; }
+  .mini span.live { animation: breathe 2s ease-in-out infinite; }
+  .empty { color: var(--faint); padding: 18px 0; text-align: center; }
+
+  /* activity */
+  .feed-card { display: flex; flex-direction: column; }
+  .feed { flex: 1 1 0; min-height: 420px; overflow: auto; margin: 0 -10px; padding: 0 10px; }
+  .fgroup + .fgroup { margin-top: 8px; }
+  .fhead {
+    position: sticky; top: 0; z-index: 1; background: var(--card); padding: 5px 0 4px;
+    font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--dim);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .fhead span { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--faint); font-size: 12px; }
+  .fitem { position: relative; display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 5px 0; }
+  .fitem::after { content: ""; position: absolute; left: 11.5px; top: 29px; bottom: -5px; width: 1px; background: var(--line); }
+  .fitem:last-child::after { display: none; }
+  .fi { --c: var(--orchestrator); position: relative; width: 24px; height: 24px; border-radius: 8px; display: grid; place-items: center; color: var(--c); background: color-mix(in srgb, var(--c) 15%, var(--card)); border: 1px solid color-mix(in srgb, var(--c) 25%, transparent); }
+  .fi .ic { width: 12px; height: 12px; }
+  .ftext { font-size: 12.5px; line-height: 1.4; padding-top: 3px; min-width: 0; overflow-wrap: anywhere; }
+  .ftext .sub { color: var(--faint); }
+  .fitem.tone-ok b { color: var(--ok); } .fitem.tone-warn b { color: var(--warn); } .fitem.tone-bad b { color: var(--bad); } .fitem.tone-user b { color: var(--user); }
+  .ftime { font: 11px var(--mono); color: var(--dim); white-space: nowrap; padding-top: 5px; }
+
+  .foot { display: flex; justify-content: space-between; gap: 6px 16px; flex-wrap: wrap; font-size: 11.5px; color: var(--dim); }
+  .foot .error { color: var(--bad); font-weight: 600; }
+</style>
+</head>
+<body>
+<main class="page" id="page">
+  <div id="banners" class="banners"></div>
+  <header class="top">
+    <div class="ident">
+      <div class="eyebrow"><span id="beacon" class="beacon"></span><span>peer-planning run</span></div>
+      <h1 id="plan">Waiting for the run</h1>
+      <div id="meta" class="meta"></div>
+    </div>
+    <div class="top-right">
+      <div id="panes" class="panes"></div>
+      <button id="jump" class="jump" type="button" data-jump hidden>Go to the agents</button>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div id="now" class="card now"></div>
+    <div id="progress" class="card"></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Where the time went</h2><div id="legend" class="legend"></div></div>
+    <div id="tl-wrap" class="tl-wrap">
+      <div id="timeline"></div>
+      <div id="tl-hair" class="tl-hair"></div>
+      <div id="tip" class="tip"></div>
+    </div>
+  </section>
+
+  <div class="cols">
+    <section class="card">
+      <div class="card-head"><h2>Tasks</h2><div id="tasks-sum" class="dim small"></div></div>
+      <div id="tasks" class="tasks"></div>
+    </section>
+    <section class="card feed-card">
+      <div class="card-head"><h2>Activity</h2><div id="feed-sum" class="dim small"></div></div>
+      <div id="feed" class="feed"></div>
+    </section>
+  </div>
+
+  <footer id="foot" class="foot"></footer>
+</main>
+
+<script type="module">
+// Minutes a wait may last before it turns amber, then red. They come from the first measured
+// run (the colorway plan, 2026-09-29, both agents at xhigh): a Codex reply took 1.4 minutes at the
+// median and a review about 6, an implementer took 6 to 80 minutes, and the orchestrator's own
+// steps took seconds. Waiting on the user never turns red; it is attention, not a stall.
+const LIMITS = {codex: [10, 20], implementer: [60, 120], orchestrator: [5, 15], review: [60, 120]};
+const FEED_EVERY_MS = 2000;
+const TREE_EVERY_MS = 3000;
+
+const ACTORS = {
+  implementer: 'Implementer', codex: 'Codex', orchestrator: 'Orchestrator',
+  user: 'You', review: 'Branch review', done: 'Done',
+};
+const LANES = ['implementer', 'codex', 'orchestrator', 'user', 'review'];
+
+const ORCHESTRATOR_STEP = {
+  'run.start': 'setting up', 'codex.ready': 'setting up', 'task.start': 'starting the task',
+  'discuss.reply': 'answering Codex', 'discuss.agreed': 'writing the agreed approach',
+  'ruling': 'relaying your ruling', 'implement.done': "reading the implementer's report",
+  'review.reply': "checking Codex's items", 'fix.done': 'asking for the re-review',
+  'commit': 'clearing Codex', 'codex.clear': 'closing the task', 'task.done': 'picking the next task',
+  'stage.done': 'moving on',
+};
+
+// The owner of the wait is inferred from the last logged event: a request names who must answer
+// it. Nothing in the log shows that the answer is progressing, so the wording says "waiting for".
+function stateOf(e) {
+  const task = e.task ?? null;
+  switch (e.event) {
+    case 'discuss.request': return {actor: 'codex', task, headline: "Waiting for Codex's answer on the approach"};
+    case 'review.request': return {actor: 'codex', task, headline: `Waiting for Codex's review, round ${e.round}`};
+    case 'implement.start': return {actor: 'implementer', task, headline: 'Waiting for the implementer to build the task'};
+    case 'fix.start': return {actor: 'implementer', task, headline: `Waiting for the implementer's fixes: ${plural(e.items, 'item')}, round ${e.round}`};
+    case 'discuss.stalled': return {actor: 'user', task, headline: 'The agents need your ruling'};
+    case 'implement.done':
+      if (e.status === 'blocked') return {actor: 'orchestrator', task, alert: true, headline: 'The implementer reported BLOCKED; the orchestrator decides the next step'};
+      break;
+    case 'codex.clear':
+      if (e.exit) return {actor: 'orchestrator', task, alert: true, headline: `codex-clear exited ${e.exit}; the orchestrator decides the next step`};
+      break;
+    case 'stage.start':
+      return e.stage === 'review'
+        ? {actor: 'review', task, headline: `Branch review, iteration ${e.iteration}`}
+        : {actor: 'user', task, headline: 'Polish: the step is interactive'};
+    case 'run.end': return {actor: 'done', task, headline: 'The run is finished'};
+  }
+  return {actor: 'orchestrator', task, headline: `The orchestrator is ${ORCHESTRATOR_STEP[e.event] ?? 'between steps'}`};
+}
+
+const ICONS = {
+  code: '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>',
+  eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
+  loop: '<polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>',
+  user: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  search: '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+  check: '<polyline points="20 6 9 17 4 12"/>',
+  commit: '<circle cx="12" cy="12" r="4"/><line x1="1.05" y1="12" x2="7" y2="12"/><line x1="17.01" y1="12" x2="22.96" y2="12"/>',
+  chat: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  alert: '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+  play: '<polygon points="6 4 20 12 6 20 6 4"/>',
+  flag: '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>',
+  tool: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+  reset: '<polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>',
+  star: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+  branch: '<line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
+  folder: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
+  cpu: '<rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  arrow: '<line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>',
+  chevron: '<polyline points="9 18 15 12 9 6"/>',
+  dot: '<circle cx="12" cy="12" r="3"/>',
+};
+const ACTOR_ICON = {implementer: 'code', codex: 'eye', orchestrator: 'loop', user: 'user', review: 'search', done: 'check'};
+
+let events = [];
+let feedProblem = null;
+let paneInfo = null;
+let paneProblem = null;
+let lastGoodRead = 0;
+let multiDay = false;
+let historyOpen = null;
+let feedKey = '';
+let testSnapshot = null;
+let testProblem = null;
+// A snapshot pytest has not rewritten for this long, while not finished, is shown as stale: the
+// plugin writes at least once a second while tests finish, so silence means a long test, a hung one
+// or a killed process, and the page cannot tell which.
+const TESTS_STALE_MS = 60000;
+let hover = null;
+let timelineGeometry = null;
+
+// A syntax error in events.js still fires the tag's onload, with nothing collected, and a file://
+// page gets it muted to "Script error." with no file name. The two files are read one after the
+// other (pollFiles), so nothing else runs while a read is in flight and any error in that window is
+// the file's; the read is refused rather than taken as an empty log. The log only grows, so a read
+// with fewer events than the last good one is refused too.
+let feedLoading = false;
+let parseError = null;
+window.addEventListener('error', err => {
+  if (feedLoading) parseError = err.message || 'script error';
+});
+
+function readFeed() {
+  return new Promise(resolve => {
+    const got = [];
+    parseError = null;
+    feedLoading = true;
+    window.peerEvent = e => got.push(e);
+    const tag = document.createElement('script');
+    tag.src = 'events.js?t=' + Date.now();
+    tag.onload = () => {
+      feedLoading = false;
+      tag.remove();
+      if (parseError) resolve({problem: `events.js does not parse (${parseError})`});
+      else if (got.length < events.length) resolve({problem: `events.js shrank from ${events.length} to ${got.length} events`});
+      else resolve({events: got});
+    };
+    tag.onerror = () => {
+      feedLoading = false;
+      tag.remove();
+      resolve({problem: 'events.js is missing from the run directory'});
+    };
+    document.head.appendChild(tag);
+  });
+}
+
+// tests.js is optional: it exists once an agent's pytest has run under this run's session, so a
+// missing file is no test telemetry, not a problem. A file that does not parse is one.
+function readTests() {
+  return new Promise(resolve => {
+    let got = null;
+    parseError = null;
+    feedLoading = true;
+    window.peerTests = s => { got = s; };
+    const tag = document.createElement('script');
+    tag.src = 'tests.js?t=' + Date.now();
+    tag.onload = () => {
+      feedLoading = false;
+      tag.remove();
+      resolve(parseError || !got ? {problem: `tests.js does not parse (${parseError ?? 'no snapshot in it'})`} : {snapshot: got});
+    };
+    tag.onerror = () => {
+      feedLoading = false;
+      tag.remove();
+      resolve({snapshot: null});
+    };
+    document.head.appendChild(tag);
+  });
+}
+
+// ---- formatting ----
+
+const minutes = ms => ms / 60000;
+function span(ms) {
+  const s = Math.max(0, Math.round(ms / 1000));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 10) return `${m}m ${String(s % 60).padStart(2, '0')}s`;
+  return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
+}
+function clock(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  return (h ? `${h}:` : '') + `${String(m).padStart(h ? 2 : 1, '0')}:${String(sec).padStart(2, '0')}`;
+}
+function ago(ms) {
+  return ms < 5000 ? 'just now' : `${span(ms)} ago`;
+}
+const at = e => new Date(e.ts).getTime();
+const iso = text => new Date(text).getTime();
+const localTime = ms => new Date(ms).toLocaleTimeString([], {hour12: false});
+const hhmm = ms => new Date(ms).toLocaleTimeString([], {hour12: false, hour: '2-digit', minute: '2-digit'});
+const dayKey = ms => new Date(ms).toDateString();
+const dayLabel = ms => new Date(ms).toLocaleDateString([], {day: 'numeric', month: 'short'});
+// A run that crosses midnight needs the date on every time, or 00:10 and 23:50 read as one evening.
+const stamp = ms => (multiDay ? `${dayLabel(ms)} ` : '') + localTime(ms);
+const plural = (n, word) => `${n ?? '?'} ${word}${n === 1 ? '' : 's'}`;
+const short = sha => String(sha ?? '').slice(0, 9);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+
+// A duration rounded up to the next of these, so a scale that follows a growing task moves in
+// steps instead of on every tick.
+const NICE_MINUTES = [1, 2, 5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240, 360, 480, 720, 1080, 1440];
+const niceCeil = ms => (NICE_MINUTES.find(m => m * 60000 >= ms) ?? Math.ceil(ms / 86400000) * 1440) * 60000;
+
+// "2026-10-01-every-product-feed-is-normalized.md" -> date "2026-10-01", title "Every product feed is normalized".
+function planName(plan) {
+  const stem = String(plan ?? '').split('/').at(-1).replace(/\.md$/, '');
+  const dated = stem.match(/^(\d{4}-\d{2}-\d{2})-(.+)$/);
+  const words = (dated ? dated[2] : stem).replace(/[-_]+/g, ' ').trim();
+  return {stem, date: dated?.[1] ?? '', title: words ? words[0].toUpperCase() + words.slice(1) : 'peer-planning run'};
+}
+
+// ---- DOM ----
+
+function h(tag, attrs, ...kids) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs ?? {})) {
+    if (v == null || v === false) continue;
+    if (k === 'class') node.className = v; else if (k === 'style') node.style.cssText = v; else node.setAttribute(k, v);
+  }
+  for (const c of kids.flat()) {
+    if (c == null || c === false || c === '') continue;
+    node.append(c instanceof Node ? c : document.createTextNode(String(c)));
+  }
+  return node;
+}
+function fromMarkup(markup) {
+  const t = document.createElement('template');
+  t.innerHTML = markup.trim();
+  return t.content.firstElementChild;
+}
+function icon(name, cls = 'ic') {
+  return fromMarkup(`<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] ?? ICONS.dot}</svg>`);
+}
+// A text node tick() rewrites every second, so the block around it keeps the same markup.
+const live = (since, fmt = 'span') => h('span', {'data-since': since, 'data-fmt': fmt});
+const keyed = (key, node) => { node.dataset.key = key; return node; };
+
+// A block whose markup has not changed keeps its node, so a running animation, a text selection
+// and a hover survive the once-a-second render; only the blocks that did change are swapped.
+const SIGNATURE = new WeakMap();
+function patch(parent, nodes) {
+  const old = new Map([...parent.children].map(c => [c.dataset.key, c]));
+  const next = nodes.filter(Boolean).map(n => {
+    const signature = n.outerHTML;
+    const kept = old.get(n.dataset.key);
+    if (kept && SIGNATURE.get(kept) === signature) { old.delete(n.dataset.key); return kept; }
+    SIGNATURE.set(n, signature);
+    phase(n);
+    return n;
+  });
+  for (const gone of old.values()) gone.remove();
+  next.forEach((n, i) => { if (parent.children[i] !== n) parent.insertBefore(n, parent.children[i] ?? null); });
+}
+const ANIMATED = '.avatar, .pill i, .phase.cur i, .ring .cur, .task.current .badge, .step.live, .mini .live, .seg.live';
+function phase(node) {
+  const delay = `${-(performance.now() % 2000) / 1000}s`;
+  for (const n of [node, ...node.querySelectorAll(ANIMATED)]) if (n.matches(ANIMATED)) n.style.animationDelay = delay;
+}
+
+// ---- the model ----
+
+function derive(now) {
+  // A resumed run logs run.start again: the latest one says which session and checkout run it now,
+  // the first one when the run began.
+  const start = events.findLast(e => e.event === 'run.start') ?? null;
+  const firstStart = events.find(e => e.event === 'run.start') ?? null;
+  const last = events.at(-1) ?? null;
+  const ended = last?.event === 'run.end';
+  const t0 = events.length ? at(events[0]) : now;
+  const tEnd = ended ? at(last) : now;
+  // Bars and the timeline are drawn to this coarser clock, which keeps their markup still between
+  // steps; the second-by-second figures are live text.
+  const quantum = Math.max(5000, (tEnd - t0) / 400);
+  const tq = ended ? tEnd : Math.max(last ? at(last) : now, Math.floor(now / quantum) * quantum);
+
+  const intervals = [];
+  let inTask = null;
+  events.forEach((e, i) => {
+    if (e.event === 'task.start') inTask = e.task;
+    if (e.event === 'task.done') inTask = null;
+    const st = stateOf(e);
+    if (st.actor === 'done') return;
+    const isLast = i === events.length - 1;
+    intervals.push({
+      actor: st.actor, task: inTask, headline: st.headline, from: at(e),
+      to: isLast ? tEnd : at(events[i + 1]), live: isLast && !ended,
+    });
+  });
+  const split = {};
+  for (const iv of intervals) split[iv.actor] = (split[iv.actor] ?? 0) + Math.max(0, Math.min(iv.to, tq) - iv.from);
+
+  const tasks = new Map();
+  const task = n => {
+    if (!tasks.has(n)) tasks.set(n, {n, title: '', discuss: false, start: null, end: null, sha: '', steps: [], mustFix: 0, rounds: 0, firstVerdict: null});
+    return tasks.get(n);
+  };
+  const openStep = (t, kind) => t.steps.findLast(s => s.kind === kind && s.end == null);
+  const feed = [];
+  const opened = {};
+  let phaseNow = 'tasks';
+  const phaseSpans = {tasks: [t0, null]};
+  let reviewIterations = 0;
+  for (const e of events) {
+    const ts = at(e);
+    let after = null;
+    const key = `${e.task}`;
+    const opener = {
+      'discuss.reply': 'discuss.request', 'review.reply': 'review.request', 'implement.done': 'implement.start',
+      'fix.done': 'fix.start', 'ruling': 'discuss.stalled', 'stage.done': 'stage.start',
+    }[e.event];
+    const openKey = e.event.startsWith('stage') ? `stage:${e.stage}:${e.iteration ?? ''}` : key;
+    if (opener && opened[opener + openKey] != null) { after = ts - opened[opener + openKey]; delete opened[opener + openKey]; }
+    if (['discuss.request', 'review.request', 'implement.start', 'fix.start', 'discuss.stalled', 'stage.start'].includes(e.event)) opened[e.event + openKey] = ts;
+
+    if (e.event === 'stage.start') {
+      phaseNow = e.stage;
+      if (e.stage === 'review') reviewIterations += 1;
+      phaseSpans[e.stage] ??= [ts, null];
+      phaseSpans.tasks[1] ??= ts;
+    }
+    if (e.event === 'stage.done' && phaseSpans[e.stage]) phaseSpans[e.stage][1] = ts;
+    if (e.event === 'run.end') { phaseNow = 'done'; after = ts - t0; }
+
+    if (e.task != null) {
+      const t = task(e.task);
+      switch (e.event) {
+        case 'task.start': t.title = e.title ?? ''; t.discuss = !!e.discuss; t.start = ts; break;
+        case 'discuss.request': t.steps.push({kind: 'discuss', start: ts, end: null, n: t.steps.filter(s => s.kind === 'discuss').length + 1}); break;
+        case 'discuss.reply': { const s = openStep(t, 'discuss'); if (s) { s.end = ts; s.points = e.points ?? 0; } break; }
+        case 'discuss.stalled': t.steps.push({kind: 'stalled', start: ts, end: null}); break;
+        case 'ruling': { const s = openStep(t, 'stalled'); if (s) { s.end = ts; s.on = e.on; } break; }
+        case 'implement.start': t.steps.push({kind: 'implement', start: ts, end: null}); break;
+        case 'implement.done': { const s = openStep(t, 'implement'); if (s) { s.end = ts; s.status = e.status; } break; }
+        case 'review.request': t.rounds += 1; t.steps.push({kind: 'review', start: ts, end: null, round: e.round}); break;
+        case 'review.reply': {
+          const s = openStep(t, 'review');
+          if (s) { s.end = ts; s.mustFix = e.must_fix ?? 0; }
+          t.mustFix += e.must_fix ?? 0;
+          t.firstVerdict ??= e.must_fix ? 'must_fix' : 'lgtm';
+          break;
+        }
+        case 'fix.start': t.steps.push({kind: 'fix', start: ts, end: null, round: e.round, items: e.items}); break;
+        case 'fix.done': { const s = openStep(t, 'fix'); if (s) s.end = ts; break; }
+        case 'commit': t.sha = e.sha ?? t.sha; t.steps.push({kind: 'commit', start: ts, end: ts, sha: e.sha}); break;
+        case 'codex.clear': if (e.exit) t.clearExit = e.exit; break;
+        case 'task.done':
+          t.end = ts; t.sha = e.sha ?? t.sha; after = t.start != null ? ts - t.start : null;
+          if (t.sha && !t.steps.some(s => s.kind === 'commit')) t.steps.push({kind: 'commit', start: ts, end: ts, sha: t.sha});
+          break;
+      }
+    }
+    feed.push({e, after});
+  }
+
+  const total = start?.tasks ?? Math.max(0, ...tasks.keys());
+  for (let n = 1; n <= total; n++) task(n);
+  const rows = [...tasks.values()].sort((a, b) => a.n - b.n);
+  const done = rows.filter(t => t.end != null);
+  const current = rows.findLast(t => t.start != null && t.end == null) ?? null;
+  const reviewed = rows.filter(t => t.firstVerdict);
+  const avg = done.length ? done.reduce((a, t) => a + (t.end - t.start), 0) / done.length : null;
+  const queued = rows.filter(t => t.start == null).length;
+  // Queued tasks only: the current task, the branch review and polish are left out, and the
+  // arithmetic is shown beside the figure so it reads as the guess it is.
+  const estimate = avg == null || ended ? null
+    : queued ? {ms: avg * queued, note: `${queued} queued × ${span(avg)} average`}
+    : {ms: null, note: current ? 'no queued tasks; current task still running' : 'no queued tasks'};
+  const scale = niceCeil(Math.max(60000, ...rows.filter(t => t.start != null).map(t => (t.end ?? tq) - t.start)));
+
+  const state = last ? stateOf(last) : null;
+  const waited = last ? now - at(last) : 0;
+  const limits = state ? LIMITS[state.actor] : null;
+  let level = 'ok';
+  if (limits && minutes(waited) >= limits[1]) level = 'bad';
+  else if (limits && minutes(waited) >= limits[0]) level = 'warn';
+  if (state?.alert) level = 'alert';
+  if (state?.actor === 'user' || paneInfo?.status === 'blocked') level = 'attention';
+
+  return {
+    start, firstStart, last, ended, t0, tEnd, tq, intervals, split, rows, done, current, reviewed, avg, estimate, scale, queued,
+    total, state, waited, limits, level, feed, phase: phaseNow, reviewIterations, phaseSpans,
+    mustFix: rows.reduce((a, t) => a + t.mustFix, 0), rounds: rows.reduce((a, t) => a + t.rounds, 0),
+  };
+}
+
+// ---- blocks ----
+
+const jumpButton = () => h('button', {class: 'jump', type: 'button', 'data-jump': ''}, 'Go to the agents', ' ', icon('arrow'));
+
+function buildBanners(m) {
+  const out = [];
+  const action = m.start?.session ? jumpButton() : null;
+  const problems = [feedProblem, paneProblem].filter(Boolean);
+  if (problems.length) out.push(keyed('problem', h('div', {class: 'banner problem'}, icon('alert'), h('span', {}, problems.join(' · ')))));
+  if (paneInfo?.status === 'blocked') {
+    const pane = paneInfo.statusPane === 'right' ? "Codex's pane" : paneInfo.statusPane === 'left' ? "Claude's pane" : 'A pane';
+    out.push(keyed('blocked', h('div', {class: 'banner attention'}, icon('user'), h('span', {}, `${pane} is waiting for you in the agents' session.`), action)));
+  } else if (m.state?.actor === 'user') {
+    const ask = m.last.event === 'discuss.stalled'
+      ? `The agents could not agree on task ${m.last.task}: they need your ruling.`
+      : 'The polish step is interactive and waits on you.';
+    out.push(keyed('user', h('div', {class: 'banner attention'}, icon('user'), h('span', {}, ask), action)));
+  }
+  return out;
+}
+
+function buildMeta(m) {
+  const s = m.start;
+  if (!s) return [];
+  const first = m.firstStart;
+  const worktree = String(s.work_path ?? '').split('/').filter(Boolean).at(-1);
+  const chip = (key, name, text, title) => keyed(key, h('span', {class: 'chip', title: title ?? text}, icon(name), text));
+  // A worktree named after its branch says nothing the branch chip does not; its path stays in the tooltip.
+  const sameName = worktree && s.branch && worktree === String(s.branch).replaceAll('/', '-');
+  return [
+    s.branch && chip('branch', 'branch', s.branch, `${s.branch}\n${s.work_path ?? ''}`),
+    worktree && !sameName && chip('work', 'folder', worktree, s.work_path),
+    s.executor && chip('exec', 'cpu', `executor: ${s.executor}`),
+    chip('started', 'clock', `started ${dayLabel(at(first))} ${hhmm(at(first))}`, new Date(at(first)).toString()),
+    first !== s && chip('resumed', 'reset', `resumed ${dayLabel(at(s))} ${hhmm(at(s))}`, new Date(at(s)).toString()),
+  ];
+}
+
+function buildPanes() {
+  if (!paneInfo) return [];
+  const s = paneInfo;
+  const status = s.status ?? 'idle';
+  const tone = {active: 'ok', blocked: 'user', completed: 'ok'}[status] ?? '';
+  const label = {active: 'working', blocked: 'waiting for you', completed: 'finished its turn', idle: 'idle'}[status] ?? status;
+  const who = s.statusPane === 'right' ? 'Codex' : s.statusPane === 'left' ? 'Claude' : 'Agents';
+  const codexUp = !!s.hasSplit && (s.splitForeground ?? []).join(' ').includes('codex');
+  return [
+    keyed('status', h('span', {class: `pill ${tone}`, title: "the agents' session status in agterm, set by the agents' hooks"}, h('i'), h('span', {}, `${who}: ${label}`))),
+    keyed('codex', h('span', {class: `pill ${codexUp ? 'ok' : 'bad'}`, title: "what runs in the agents' right pane; a running process is not proof of progress"}, h('i'), h('span', {},
+      codexUp ? 'Codex process up' : s.hasSplit ? 'Codex is not running' : 'no Codex pane'))),
+  ];
+}
+
+function buildNow(m) {
+  if (!m.last) {
+    return keyed('idle', h('div', {}, h('div', {class: 'now-in idle'},
+      h('div', {class: 'avatar'}, icon('clock')),
+      h('div', {class: 'now-body'},
+        h('div', {class: 'now-eyebrow'}, 'Waiting'),
+        h('div', {class: 'now-head'}, 'No events yet'),
+        h('div', {class: 'now-ctx'}, 'The orchestrator logs run.start once setup is complete.')))));
+  }
+  const {actor, headline} = m.state;
+  const task = m.state.task != null ? m.rows.find(t => t.n === m.state.task) : m.current;
+  const since = at(m.last);
+  let gauge;
+  if (actor === 'done') {
+    gauge = h('div', {class: 'note'}, `${m.done.length} tasks · ${plural(m.mustFix, 'must-fix item')} · ${plural(m.rounds, 'review round')}`);
+  } else if (m.limits) {
+    const [amber, red] = m.limits;
+    const max = red * 1.25 * 60000;
+    const pct = v => `${(100 * v * 60000 / max).toFixed(2)}%`;
+    gauge = h('div', {class: 'meter-box'},
+      h('div', {class: 'meter'},
+        h('span', {class: 'zone warn', style: `left:${pct(amber)};width:${pct(red - amber)}`}),
+        h('span', {class: 'zone bad', style: `left:${pct(red)};right:0`}),
+        h('span', {class: 'fill', 'data-meter': `${since},${max}`}),
+        h('span', {class: 'tick', style: `left:${pct(amber)}`}, h('em', {}, `${amber}m`)),
+        h('span', {class: 'tick', style: `left:${pct(red)}`}, h('em', {}, `${red}m`))));
+  } else if (m.state.alert) {
+    gauge = h('div', {class: 'note'}, 'Reported in the log. The orchestrator handles it before anything reaches you.');
+  } else {
+    gauge = m.start?.session ? jumpButton() : null;
+  }
+  const running = task?.start != null && task.end == null;
+  const between = m.phase === 'tasks' && m.done.length < m.total ? `task ${m.done.length + 1} of ${m.total}` : m.phase === 'tasks' ? 'the branch review' : '';
+  const doneRow = actor !== 'done' ? null : h('div', {class: 'now-next'},
+    h('span', {class: 'lbl'}, 'Phases'),
+    [['tasks', 'Tasks', 'ok'], ['review', 'Branch review', 'review'], ['polish', 'Polish', 'user']]
+      .filter(([k]) => m.phaseSpans[k])
+      .map(([k, label, color]) => {
+        const [a, b] = m.phaseSpans[k];
+        return h('span', {class: 'step', style: `--c:var(--${color})`}, label, h('span', {class: 'dur'}, span((b ?? m.tEnd) - a)));
+      }));
+  const nextRow = actor === 'done' ? doneRow : h('div', {class: 'now-next'},
+    h('span', {class: 'lbl'}, running ? `Task ${task.n}` : 'Up next'),
+    running ? pipeline(task) : h('span', {}, between),
+    running && h('span', {class: 'right', title: `since ${localTime(task.start)}`}, live(task.start)));
+  let foot = actor === 'done' ? `finished ${stamp(since)}` : `last event ${stamp(since)}`;
+  if (m.limits && m.level === 'warn') foot += ` · no new event for over ${m.limits[0]} min`;
+  else if (m.limits && m.level === 'bad') foot += ` · no new event for over ${m.limits[1]} min: check the agents`;
+  else if (m.limits) foot += ` · amber after ${m.limits[0]} min and red after ${m.limits[1]} min without a new event`;
+  return keyed('now', h('div', {}, h('div', {class: 'now-in'},
+    h('div', {class: 'avatar'}, icon(ACTOR_ICON[actor])),
+    h('div', {class: 'now-body'},
+      h('div', {class: 'now-eyebrow'}, ACTORS[actor], task ? ` · task ${task.n} of ${m.total}` : ''),
+      h('div', {class: 'now-head'}, task?.title || headline),
+      task?.title && h('div', {class: 'now-status'}, headline),
+      h('div', {class: 'timer-row'},
+        h('div', {class: 'timer', title: actor === 'done' ? 'run length' : 'time since the last logged event'},
+          actor === 'done' ? span(m.tEnd - (m.firstStart ? at(m.firstStart) : m.t0)) : live(since, 'clock')),
+        gauge),
+      h('div', {class: 'now-foot'}, foot),
+      actor !== 'done' ? buildTests(m, task?.end == null ? task : null) : null)),
+    h('div', {class: 'now-spacer'}),
+    nextRow));
+}
+
+function buildTests(m, task) {
+  const t = testSnapshot;
+  const problem = testProblem ? h('div', {class: 'tests-fail'}, testProblem, t ? `; showing the snapshot updated ${stamp(iso(t.updated))}` : '') : null;
+  if (!task || !t || t.task !== task.n || iso(t.started) < task.start) {
+    return problem ? h('div', {class: 'tests bad'}, problem) : null;
+  }
+  const updated = iso(t.updated);
+  const finished = t.phase === 'finished' || (t.phase === 'parallel' && t.exit != null);
+  const stale = !finished && Date.now() - updated > TESTS_STALE_MS;
+  const bad = t.failed + t.errors + t.collect_errors > 0 || (finished && t.exit !== 0 && t.exit !== 5);
+  const complete = t.selected != null && t.completed === t.selected;
+  const tone = testProblem || bad ? 'bad' : stale ? 'stale' : finished && complete ? 'ok' : '';
+  const n = v => Number(v ?? 0).toLocaleString();
+  const parts = [];
+  if (t.phase === 'parallel') parts.push(finished ? `parallel run finished with exit ${t.exit}; counts are not reported for -n` : 'parallel run (-n): progress is not reported, only the exit status at the end');
+  else if (t.phase === 'starting' || t.phase === 'collecting') parts.push('collecting');
+  else parts.push(`${n(t.completed)} of ${n(t.selected)} ${finished ? 'run' : 'done'}`);
+  if (t.phase !== 'parallel') {
+    if (t.passed) parts.push(`${n(t.passed)} passed`);
+    if (t.failed) parts.push(h('span', {class: 'out bad'}, `${n(t.failed)} failed`));
+    if (t.errors) parts.push(h('span', {class: 'out bad'}, plural(t.errors, 'error')));
+    if (t.collect_errors) parts.push(h('span', {class: 'out bad'}, plural(t.collect_errors, 'collection error')));
+    if (t.skipped) parts.push(`${n(t.skipped)} skipped`);
+    if (t.xfailed || t.xpassed) parts.push(`${n(t.xfailed)} xfailed, ${n(t.xpassed)} xpassed`);
+    if (finished) parts.push(h('span', {class: `out ${t.exit === 0 && complete ? 'ok' : 'bad'}`}, `exit ${t.exit}`));
+  }
+  // The bar is items, completed of selected. The outcome counts beside it are reports, as pytest
+  // counts them, so one item can be both a pass and a teardown error and the two do not add up to it.
+  const bar = t.selected ? h('div', {class: 'tbar'},
+    h('span', {style: `width:${((100 * t.completed) / t.selected).toFixed(2)}%;background:var(--${bad ? 'bad' : 'ok'})`})) : null;
+  return h('div', {class: `tests ${tone}`},
+    problem,
+    h('div', {class: 'tests-head'},
+      h('b', {}, `pytest during task ${task.n}`),
+      h('span', {class: 'tests-args', title: t.args}, t.args.length > 90 ? `${t.args.slice(0, 89)}…` : t.args),
+      h('span', {class: 'tests-age', title: `started ${stamp(iso(t.started))}`},
+        finished ? `finished ${stamp(iso(t.finished ?? t.updated))}` : stale ? 'no update for ' : 'updated ',
+        finished ? '' : h('span', {'data-ago-raw': updated}))),
+    bar,
+    h('div', {class: 'tests-line'}, parts.flatMap((p, i) => (i ? [' · ', p] : [p]))),
+    t.failures?.length ? h('div', {class: 'tests-fail', title: t.failures.join('\n')},
+      t.failures.slice(0, 3).join(' · '), t.failures.length > 3 ? ` · +${t.failures.length - 3} more` : '') : null,
+    !finished && t.current ? h('div', {class: 'tests-cur', title: t.current}, `now: ${t.current}`) : null);
+}
+
+function buildProgress(m) {
+  const N = Math.max(1, m.total);
+  const r = 47, c = 2 * Math.PI * r, gap = N > 1 ? Math.min(5, (c / N) * 0.2) : 0, len = c / N - gap;
+  let ring = '<svg class="ring" viewBox="0 0 116 116" width="116" height="116">';
+  for (let i = 0; i < N; i++) {
+    const t = m.rows[i];
+    const cls = t?.end != null ? 'done' : t?.start != null ? 'cur' : 'todo';
+    ring += `<circle class="${cls}" cx="58" cy="58" r="${r}" stroke-dasharray="${len.toFixed(2)} ${(c - len).toFixed(2)}" stroke-dashoffset="${(-(i * c) / N - gap / 2).toFixed(2)}" transform="rotate(-90 58 58)"/>`;
+  }
+  ring += '</svg>';
+
+  const order = ['tasks', 'review', 'polish', 'done'];
+  const here = order.indexOf(m.phase);
+  const phases = [
+    ['Tasks', `${m.done.length} of ${m.total}`],
+    ['Branch review', m.reviewIterations ? plural(m.reviewIterations, 'iteration') : ''],
+    ['Polish', ''],
+    ['Done', ''],
+  ].map(([label, sub], i) => h('div', {class: `phase ${i < here || m.phase === 'done' ? 'past' : i === here ? 'cur' : ''}`},
+    h('i'), label, sub && h('small', {}, sub)));
+
+  const stat = (label, value, sub, cls = '') => h('div', {class: `stat ${cls}`, title: sub ?? ''},
+    h('div', {class: 'sk'}, label), h('div', {class: 'sv'}, value), sub && h('div', {class: 'ss'}, sub));
+  const firstPass = m.reviewed.filter(t => t.firstVerdict === 'lgtm').length;
+  const est = m.estimate;
+  const roundTo = ms => Math.round(ms / (ms >= 3600000 ? 600000 : 60000)) * (ms >= 3600000 ? 600000 : 60000);
+  return keyed('progress', h('div', {class: 'prog'},
+    h('div', {class: 'ring-wrap'}, fromMarkup(ring),
+      h('div', {class: 'ring-center'}, h('b', {}, `${m.done.length}/${m.total}`), h('span', {}, 'tasks'))),
+    h('div', {class: 'phases'}, phases),
+    h('div', {class: 'stats'},
+      stat('Elapsed', m.firstStart && !m.ended ? live(at(m.firstStart)) : m.firstStart ? span(m.tEnd - at(m.firstStart)) : '—', m.firstStart ? `since ${dayLabel(at(m.firstStart))} ${hhmm(at(m.firstStart))}` : ''),
+      stat('Queued tasks', est?.ms != null ? `~${span(roundTo(est.ms))}` : m.ended ? 'none' : '—',
+        est?.ms != null ? `${est.note}; current task, branch review and polish excluded` : est ? est.note : m.ended ? '' : 'after the first finished task'),
+      stat('Per task', m.avg != null ? span(m.avg) : '—', m.done.length ? `average of ${m.done.length} finished` : ''),
+      stat('Review rounds', m.rounds, m.reviewed.length ? `${(m.rounds / m.reviewed.length).toFixed(1)} per reviewed task` : ''),
+      stat('Must-fix raised', m.mustFix, 'summed over every round, not open items'),
+      stat('First-pass LGTM', m.reviewed.length ? `${firstPass}/${m.reviewed.length}` : '—', 'tasks Codex passed in round 1', firstPass && firstPass === m.reviewed.length ? 'ok' : ''))));
+}
+
+function buildLegend(m) {
+  const whole = Object.values(m.split).reduce((a, b) => a + b, 0) || 1;
+  return LANES.filter(a => m.split[a]).map(a => keyed(a, h('span', {},
+    h('i', {style: `background:var(--${a})`}), ACTORS[a], h('em', {}, `${span(m.split[a])} · ${Math.round((100 * m.split[a]) / whole)}%`))));
+}
+
+function buildTimeline(m, width) {
+  if (!m.last) { timelineGeometry = null; return keyed('empty', h('div', {class: 'tl-empty'}, 'The timeline starts with the first event.')); }
+  const lanes = LANES.filter(a => a !== 'review' || m.split.review);
+  const W = Math.max(200, Math.floor(width));
+  const padL = W < 560 ? 94 : 112, padR = 10, top = 24, laneH = 18, gap = 8, axisH = 20;
+  const H = top + lanes.length * (laneH + gap) - gap + axisH + 4;
+  const bottom = H - axisH;
+  const span0 = Math.max(1000, m.tq - m.t0);
+  const X = t => padL + ((W - padL - padR) * (t - m.t0)) / span0;
+  const f = v => v.toFixed(1);
+  let s = `<svg class="tl-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`;
+
+  m.rows.filter(t => t.start != null).forEach(t => {
+    const a = X(t.start), b = X(Math.min(t.end ?? m.tq, m.tq));
+    s += `<rect class="band${t.n % 2 ? ' odd' : ''}${t === m.current ? ' hot' : ''}" x="${f(a)}" y="2" width="${f(Math.max(1, b - a))}" height="${bottom - 2}" rx="5"/>`;
+    if (b - a > 26) s += `<text class="band-label" x="${f(a + 6)}" y="15">T${t.n}</text>`;
+  });
+
+  const STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 180, 360, 720, 1440].map(v => v * 60000);
+  const step = STEPS.find(v => ((W - padL - padR) * v) / span0 >= 84) ?? STEPS.at(-1);
+  const firstTick = Math.ceil(m.t0 / step) * step;
+  let day = dayKey(m.t0);
+  for (let t = firstTick; t <= m.tq; t += step) {
+    const x = X(t);
+    const newDay = dayKey(t) !== day;
+    day = dayKey(t);
+    s += `<line class="grid" x1="${f(x)}" x2="${f(x)}" y1="${top - 4}" y2="${bottom}"/>`;
+    if (x > padL + 18 && x < W - 24) s += `<text class="axis${newDay ? ' day' : ''}" x="${f(x)}" y="${H - 6}" text-anchor="middle">${newDay ? esc(dayLabel(t)) : hhmm(t)}</text>`;
+  }
+  if (X(firstTick) - padL > 64 || firstTick > m.tq) s += `<text class="axis" x="${padL}" y="${H - 6}">${hhmm(m.t0)}</text>`;
+
+  lanes.forEach((a, i) => {
+    const y = top + i * (laneH + gap);
+    s += `<rect x="0" y="${y + 5}" width="8" height="8" rx="2.5" style="fill:var(--${a})"/>`;
+    s += `<text class="lane-label" x="16" y="${y + 13}">${esc(ACTORS[a])}</text>`;
+    s += `<rect class="track" x="${padL}" y="${y}" width="${W - padL - padR}" height="${laneH}" rx="4"/>`;
+  });
+  for (const iv of m.intervals) {
+    const i = lanes.indexOf(iv.actor);
+    if (i < 0) continue;
+    const a = X(iv.from), b = X(Math.min(iv.to, m.tq));
+    s += `<rect class="seg${iv.live ? ' live' : ''}" x="${f(a)}" y="${top + i * (laneH + gap)}" width="${f(Math.max(1.5, b - a))}" height="${laneH}" rx="3" style="fill:var(--${iv.actor})"/>`;
+  }
+  if (!m.ended) {
+    const x = X(m.tq);
+    s += `<line class="nowline" x1="${f(x)}" x2="${f(x)}" y1="${top - 6}" y2="${bottom}"/><circle class="nowdot" cx="${f(x)}" cy="${top - 6}" r="3"/>`;
+  }
+  s += '</svg>';
+  timelineGeometry = {W, H, padL, padR, top, laneH, gap, bottom, lanes, t0: m.t0, span0, intervals: m.intervals, rows: m.rows, tq: m.tq};
+  return keyed('tl', fromMarkup(s));
+}
+
+const STEP_LOOK = {discuss: ['chat', 'Discuss'], implement: ['code', 'Implement'], review: ['eye', 'Review'], fix: ['tool', 'Fix'], stalled: ['user', 'Your ruling'], commit: ['commit', 'Commit']};
+
+function stepChip(s) {
+  const [name, label] = STEP_LOOK[s.kind];
+  if (s.kind === 'commit') return h('span', {class: 'step k-commit', title: `commit ${s.sha ?? ''}`}, icon(name), h('span', {class: 'mono'}, short(s.sha)));
+  let text = label;
+  let out = null;
+  if (s.kind === 'discuss' && s.n > 1) text = `Discuss ${s.n}`;
+  if (s.kind === 'review' || s.kind === 'fix') text = `${label} ${s.round ?? ''}`.trim();
+  if (s.end != null) {
+    if (s.kind === 'discuss') out = s.points ? h('span', {class: 'out codex'}, plural(s.points, 'point')) : h('span', {class: 'out ok'}, 'agreed');
+    if (s.kind === 'review') out = s.mustFix ? h('span', {class: 'out warn'}, `${s.mustFix} must-fix`) : h('span', {class: 'out ok'}, 'LGTM');
+    if (s.kind === 'implement' && s.status === 'blocked') out = h('span', {class: 'out bad'}, 'blocked');
+    if (s.kind === 'stalled') out = h('span', {class: 'out user'}, `ruled${s.on ? ` on ${s.on}` : ''}`);
+  }
+  if (s.kind === 'fix' && s.items != null) out = h('span', {class: 'dim'}, plural(s.items, 'item'));
+  return h('span', {class: `step k-${s.kind}${s.end == null ? ' live' : ''}`},
+    icon(name), text, out, h('span', {class: 'dur'}, s.end == null ? live(s.start) : span(s.end - s.start)));
+}
+
+function upcoming(t) {
+  if (t.start == null || t.end != null) return [];
+  const kinds = t.steps.map(s => s.kind);
+  const last = t.steps.at(-1);
+  const passed = t.steps.some(s => s.kind === 'review' && s.end != null && !s.mustFix);
+  const next = [];
+  if (t.discuss && !kinds.includes('discuss')) next.push('discuss');
+  if (!kinds.includes('implement')) next.push('implement');
+  if (!passed && !(last?.kind === 'review' && last.end == null)) {
+    if (last?.kind === 'review' && last.mustFix) next.push('fix');
+    next.push('review');
+  }
+  if (!t.sha) next.push('commit');
+  return next;
+}
+
+function pipeline(t) {
+  const chips = [
+    ...t.steps.map(stepChip),
+    ...upcoming(t).map(kind => h('span', {class: 'step todo'}, icon(STEP_LOOK[kind][0]), STEP_LOOK[kind][1])),
+  ];
+  return chips.flatMap((c, i) => (i ? [icon('chevron', 'sep'), c] : [c]));
+}
+
+function summary(t) {
+  const parts = [
+    t.steps.some(s => s.kind === 'stalled') ? h('span', {class: 'out user'}, 'ruled by you') : null,
+    t.rounds ? plural(t.rounds, 'round') : 'not reviewed',
+    t.mustFix ? h('span', {class: 'out warn'}, `${t.mustFix} must-fix`) : t.firstVerdict === 'lgtm' ? h('span', {class: 'out ok'}, 'first-pass LGTM') : null,
+    t.clearExit ? h('span', {class: 'out bad'}, `codex-clear exited ${t.clearExit}`) : null,
+    t.sha ? h('span', {class: 'mono'}, short(t.sha)) : null,
+  ].filter(Boolean);
+  return parts.flatMap((p, i) => (i ? [h('span', {class: 'faint'}, ' · '), p] : [p]));
+}
+
+function miniBar(t, m, cls) {
+  return h('div', {class: `mini ${cls}`}, m.intervals.filter(iv => iv.task === t.n).map(iv => {
+    const from = iv.from - t.start, to = Math.min(iv.to, m.tq) - t.start;
+    return h('span', {class: iv.live ? 'live' : null, style: `left:${((100 * from) / m.scale).toFixed(2)}%;width:${Math.max(0.3, (100 * (to - from)) / m.scale).toFixed(2)}%;background:var(--${iv.actor})`});
+  }));
+}
+
+function buildCurrent(t, m) {
+  return keyed(`c${t.n}`, h('div', {class: 'task current'},
+    h('div', {class: 'badge'}, t.n),
+    h('div', {},
+      h('div', {class: 'task-head'},
+        h('div', {class: 'task-title'}, t.title || `Task ${t.n}`),
+        h('div', {class: 'task-time', title: `since ${stamp(t.start)}`}, live(t.start))),
+      h('div', {class: 'steps'}, pipeline(t)),
+      miniBar(t, m, ''))));
+}
+
+const expanded = new Set();
+
+// A finished task is one line, numbered like the timeline and the activity feed; its button
+// unfolds the whole title and the steps.
+function buildFinished(t, m) {
+  const open = expanded.has(t.n);
+  return keyed(`d${t.n}`, h('div', {class: `drow${open ? ' open' : ''}`},
+    h('button', {class: 'dline', type: 'button', 'data-toggle': t.n, 'aria-expanded': String(open), title: t.title},
+      h('span', {class: 'dbadge'}, t.n),
+      h('span', {class: 'dtitle'}, t.title || `Task ${t.n}`),
+      h('span', {class: 'dsum'}, summary(t)),
+      miniBar(t, m, 'dbar'),
+      h('span', {class: 'dtime', title: `${stamp(t.start)} → ${stamp(t.end)}`}, span(t.end - t.start)),
+      icon('chevron', 'fold')),
+    open && h('div', {class: 'ddetail'}, h('div', {class: 'steps'}, pipeline(t)))));
+}
+
+function buildTasks(m) {
+  const blocks = [];
+  if (m.current) blocks.push(buildCurrent(m.current, m));
+  const finished = m.done.slice().sort((a, b) => b.end - a.end);
+  if (finished.length) {
+    // Open by default while the history is short; once the reader toggles it, their choice holds.
+    const open = historyOpen ?? finished.length <= 6;
+    const raised = finished.reduce((a, t) => a + t.mustFix, 0);
+    blocks.push(keyed('hist', h('button', {class: 'hist-toggle', type: 'button', 'data-history': '', 'aria-expanded': String(open)},
+      icon('chevron', 'fold'), `Finished · ${finished.length}`,
+      h('span', {class: 'hist-sum'}, `${span(finished.reduce((a, t) => a + (t.end - t.start), 0))} · ${raised} must-fix raised`))));
+    if (open) for (const t of finished) blocks.push(buildFinished(t, m));
+  }
+  const queued = m.rows.filter(t => t.start == null);
+  if (queued.length) {
+    blocks.push(keyed('queue', h('div', {class: 'queue'},
+      h('span', {class: 'qlabel'}, `Queued · ${queued.length}`),
+      h('span', {class: 'qnums'}, queued.map(t => h('span', {class: 'qn', title: `task ${t.n} has not started`}, t.n))))));
+  }
+  return blocks.length ? blocks : [keyed('none', h('div', {class: 'empty'}, 'No tasks yet.'))];
+}
+
+function describe(e) {
+  const b = text => h('b', {}, text);
+  const sub = text => h('span', {class: 'sub'}, text);
+  switch (e.event) {
+    case 'run.start': return {actor: 'orchestrator', icon: 'play', text: ['Run started with ', b(plural(e.tasks, 'task')), sub(` · ${e.executor ?? ''}`)]};
+    case 'codex.ready': return {actor: 'codex', icon: 'check', text: ['Codex is ready', sub(e.files ? ' · long replies go to files' : ' · replies in chat only')]};
+    case 'task.start': return {actor: 'orchestrator', icon: 'play', text: [b(`Task ${e.task}`), ' started', e.discuss ? sub(' · approach first') : '']};
+    case 'discuss.request': return {actor: 'orchestrator', icon: 'chat', text: ['Approach sent to Codex']};
+    case 'discuss.reply': return e.points
+      ? {actor: 'codex', icon: 'chat', tone: 'warn', text: ['Codex raised ', b(plural(e.points, 'point'))]}
+      : {actor: 'codex', icon: 'chat', tone: 'ok', text: ['Codex replied ', b('AGREED')]};
+    case 'discuss.agreed': return {actor: 'codex', icon: 'check', tone: 'ok', text: ['Approach agreed']};
+    case 'discuss.stalled': return {actor: 'user', icon: 'alert', tone: 'user', text: ['No agreement: ', b('your ruling is needed')]};
+    case 'ruling': return {actor: 'user', icon: 'user', text: ['You ruled on the ', e.on ?? 'disagreement']};
+    case 'implement.start': return {actor: 'implementer', icon: 'code', text: ['Implementer started', sub(e.agent_id ? ` · ${String(e.agent_id).slice(0, 8)}` : '')]};
+    case 'implement.done': return e.status === 'blocked'
+      ? {actor: 'implementer', icon: 'alert', tone: 'bad', text: ['Implementer is ', b('blocked')]}
+      : {actor: 'implementer', icon: 'check', text: ['Implementer reported ', b(e.status ?? 'done')]};
+    case 'review.request': return {actor: 'orchestrator', icon: 'eye', text: [`Review round ${e.round ?? '?'} sent to Codex`]};
+    case 'review.reply': return e.must_fix
+      ? {actor: 'codex', icon: 'eye', tone: 'warn', text: ['Codex: ', b(`${e.must_fix} must-fix`), sub(` · round ${e.round}`)]}
+      : {actor: 'codex', icon: 'eye', tone: 'ok', text: ['Codex: ', b('LGTM'), sub(` · round ${e.round}`)]};
+    case 'fix.start': return {actor: 'implementer', icon: 'tool', text: ['Fixing ', b(plural(e.items, 'item')), sub(` · round ${e.round}`)]};
+    case 'fix.done': return {actor: 'implementer', icon: 'tool', text: [`Fixes for round ${e.round} reported`]};
+    case 'commit': return {actor: 'done', icon: 'commit', tone: 'ok', text: ['Committed ', h('span', {class: 'mono'}, short(e.sha))]};
+    case 'codex.clear': return e.exit
+      ? {actor: 'orchestrator', icon: 'alert', tone: 'bad', text: ['codex-clear exited ', b(String(e.exit))]}
+      : {actor: 'orchestrator', icon: 'reset', text: ['Codex cleared']};
+    case 'task.done': return {actor: 'done', icon: 'check', tone: 'ok', text: [b(`Task ${e.task} done`)]};
+    case 'stage.start': return e.stage === 'review'
+      ? {actor: 'review', icon: 'search', text: ['Branch review, iteration ', b(String(e.iteration ?? '?'))]}
+      : {actor: 'user', icon: 'star', text: ['Polish started', sub(' · interactive')]};
+    case 'stage.done': return {actor: e.stage === 'review' ? 'review' : 'user', icon: 'check', text: [e.stage === 'review' ? `Branch review iteration ${e.iteration ?? '?'} done` : 'Polish done']};
+    case 'run.end': return {actor: 'done', icon: 'flag', tone: 'ok', text: [b('Run finished')]};
+    default: return {actor: 'orchestrator', icon: 'dot', text: [h('span', {class: 'mono'}, e.event)]};
+  }
+}
+
+function buildFeed(m) {
+  const groups = [];
+  m.feed.forEach(({e, after}, index) => {
+    const key = e.task != null ? `t${e.task}` : 'run';
+    if (groups.at(-1)?.key !== key) groups.push({key, task: e.task, first: index, items: []});
+    groups.at(-1).items.push({e, after, index});
+  });
+  return groups.reverse().map(g => {
+    const t = g.task != null ? m.rows.find(r => r.n === g.task) : null;
+    return keyed(`${g.key}@${g.first}`, h('div', {class: 'fgroup'},
+      h('div', {class: 'fhead', title: t?.title ?? ''}, t ? `Task ${t.n} ` : 'Run', t?.title ? h('span', {}, `· ${t.title}`) : ''),
+      g.items.slice().reverse().map(({e, after}) => {
+        const d = describe(e);
+        const {ts, ...rest} = e;
+        return h('div', {class: `fitem${d.tone ? ` tone-${d.tone}` : ''}`, title: JSON.stringify(rest)},
+          h('div', {class: 'fi', style: `--c:var(--${d.actor})`}, icon(d.icon)),
+          h('div', {class: 'ftext'}, d.text, after != null ? h('span', {class: 'sub'}, ` · ${e.event === 'run.end' || e.event === 'task.done' ? 'took' : 'after'} ${span(after)}`) : ''),
+          h('div', {class: 'ftime'}, stamp(at(e))));
+      })));
+  });
+}
+
+// ---- the timeline tooltip, worked out from the model rather than the DOM ----
+
+const wrap = document.getElementById('tl-wrap');
+const tip = document.getElementById('tip');
+const hair = document.getElementById('tl-hair');
+wrap.addEventListener('mousemove', ev => {
+  const r = wrap.getBoundingClientRect();
+  hover = {x: ev.clientX - r.left, y: ev.clientY - r.top};
+  showTip();
+});
+wrap.addEventListener('mouseleave', () => { hover = null; showTip(); });
+
+function showTip() {
+  const g = timelineGeometry;
+  if (!hover || !g || hover.x < g.padL || hover.x > g.W - g.padR || hover.y > g.bottom) {
+    tip.style.display = hair.style.display = 'none';
+    return;
+  }
+  const now = Date.now();
+  const t = g.t0 + ((hover.x - g.padL) / (g.W - g.padL - g.padR)) * g.span0;
+  const slack = (3 * g.span0) / (g.W - g.padL - g.padR);
+  const lane = Math.floor((hover.y - g.top) / (g.laneH + g.gap));
+  const inLane = hover.y >= g.top && (hover.y - g.top) % (g.laneH + g.gap) <= g.laneH && lane < g.lanes.length;
+  const task = g.rows.find(r => r.start != null && t >= r.start && t <= (r.end ?? g.tq));
+  let body;
+  if (inLane) {
+    const hits = g.intervals.filter(iv => iv.actor === g.lanes[lane] && t >= iv.from - slack && t <= iv.to + slack);
+    const iv = hits.find(x => t >= x.from && t <= x.to) ?? hits[0];
+    if (iv) {
+      const end = iv.live ? now : iv.to;
+      body = [
+        h('div', {class: 'tt'}, h('i', {style: `background:var(--${iv.actor})`}), ACTORS[iv.actor], iv.task != null ? h('span', {class: 'dim'}, ` · task ${iv.task}`) : ''),
+        h('div', {}, iv.headline),
+        h('div', {class: 'td'}, `${span(end - iv.from)} · ${stamp(iv.from)} → ${iv.live ? 'now' : stamp(iv.to)}`),
+      ];
+    }
+  }
+  if (!body && task) {
+    body = [
+      h('div', {class: 'tt'}, `Task ${task.n}`),
+      h('div', {}, task.title),
+      h('div', {class: 'td'}, `${span((task.end ?? now) - task.start)} · ${stamp(task.start)} → ${task.end ? stamp(task.end) : 'now'}`),
+    ];
+  }
+  if (!body) body = [h('div', {class: 'td'}, stamp(t))];
+  tip.replaceChildren(...body);
+  tip.style.display = 'block';
+  hair.style.display = 'block';
+  hair.style.left = `${hover.x}px`;
+  hair.style.height = `${g.bottom}px`;
+  const w = tip.offsetWidth, hgt = tip.offsetHeight;
+  tip.style.left = `${hover.x + 14 + w > g.W ? hover.x - 14 - w : hover.x + 14}px`;
+  tip.style.top = `${Math.max(0, Math.min(hover.y + 14, g.H - hgt))}px`;
+}
+
+// ---- render ----
+
+const $ = id => document.getElementById(id);
+let lastTitle = '';
+
+function render() {
+  const now = Date.now();
+  const m = derive(now);
+  multiDay = events.length > 0 && dayKey(m.t0) !== dayKey(m.tEnd);
+  const problems = [feedProblem, paneProblem].filter(Boolean);
+
+  const page = $('page');
+  page.style.setProperty('--actor', `var(--${m.state?.actor ?? 'orchestrator'})`);
+  $('beacon').className = `beacon${problems.length ? ' bad' : ''}`;
+
+  if (m.start) {
+    $('plan').textContent = planName(m.start.plan).title;
+    $('plan').title = String(m.start.plan ?? '');
+  }
+  patch($('banners'), buildBanners(m));
+  patch($('meta'), buildMeta(m));
+  patch($('panes'), buildPanes());
+  $('jump').hidden = !m.start?.session;
+
+  $('now').className = `card now lvl-${m.state?.actor === 'done' ? 'done' : m.level}`;
+  patch($('now'), [buildNow(m)]);
+  patch($('progress'), [buildProgress(m)]);
+  patch($('legend'), buildLegend(m));
+  patch($('timeline'), [buildTimeline(m, $('tl-wrap').clientWidth)]);
+
+  patch($('tasks'), buildTasks(m));
+  $('tasks-sum').textContent = m.rows.length ? `${m.done.length} done · ${m.current ? '1 running · ' : ''}${m.queued} queued` : '';
+  // The feed depends on the events alone, so it is rebuilt only when they change.
+  if (feedKey !== `${events.length}:${multiDay}`) {
+    feedKey = `${events.length}:${multiDay}`;
+    patch($('feed'), buildFeed(m));
+  }
+  $('feed-sum').textContent = `${plural(events.length, 'event')}`;
+
+  patch($('foot'), [
+    keyed(`f:${problems.join()}:${events.length}`, h('span', {}, problems.length ? h('span', {class: 'error'}, `${problems.join(' · ')} · `) : '',
+      'events.js last read cleanly ', h('span', {'data-ago': lastGoodRead}), ` · ${plural(events.length, 'event')}`,
+      m.last ? ` · last at ${stamp(at(m.last))}` : '')),
+    keyed('rates', h('span', {}, `log read every ${FEED_EVERY_MS / 1000}s · panes every ${TREE_EVERY_MS / 1000}s`)),
+  ]);
+
+  tick(now);
+  showTip();
+
+  const title = !m.last
+    ? (problems.length ? 'PROBLEM · ' : '') + 'peer-planning monitor · no events'
+    : (problems.length ? 'PROBLEM · ' : '') + `monitor · task ${m.done.length}/${m.start?.tasks ?? '?'} · ${ACTORS[m.state.actor]} ${span(m.waited)} · ${m.level}`;
+  if (title !== lastTitle) document.title = lastTitle = title;
+}
+
+function tick(now) {
+  for (const n of document.querySelectorAll('[data-since]')) {
+    const ms = now - Number(n.dataset.since);
+    n.textContent = n.dataset.fmt === 'clock' ? clock(ms) : span(ms);
+  }
+  for (const n of document.querySelectorAll('[data-ago]')) n.textContent = Number(n.dataset.ago) ? ago(now - Number(n.dataset.ago)) : 'never';
+  for (const n of document.querySelectorAll('[data-ago-raw]')) n.textContent = span(now - Number(n.dataset.agoRaw)) + (n.closest('.stale') ? '' : ' ago');
+  for (const n of document.querySelectorAll('[data-meter]')) {
+    const [since, max] = n.dataset.meter.split(',').map(Number);
+    n.style.width = `${Math.min(100, (100 * (now - since)) / max).toFixed(2)}%`;
+  }
+}
+
+async function pollFeed() {
+  const read = await readFeed();
+  if (read.events) {
+    events = read.events;
+    lastGoodRead = Date.now();
+    feedProblem = null;
+  } else {
+    feedProblem = read.problem + (lastGoodRead ? `; showing the read from ${localTime(lastGoodRead)}` : '; nothing has been read yet');
+  }
+  render();
+}
+
+async function pollTests() {
+  const read = await readTests();
+  if ('snapshot' in read) { testSnapshot = read.snapshot; testProblem = null; } else testProblem = `${read.problem} at ${localTime(Date.now())}`;
+}
+
+async function pollPane() {
+  const start = events.findLast(e => e.event === 'run.start');
+  if (!start?.session) return;
+  try {
+    const reply = await agterm.request('tree');
+    const sessions = (reply?.tree?.workspaces ?? []).flatMap(w => w.sessions ?? []);
+    const s = sessions.find(x => x.id === start.session);
+    if (!s) { paneProblem = 'the run session is not in this window'; paneInfo = null; return; }
+    paneProblem = null;
+    paneInfo = s;
+  } catch (err) {
+    // An old status beside a failed read would pass for a current one.
+    paneInfo = null;
+    paneProblem = `tree failed: ${err?.message ?? err}`;
+  }
+}
+
+$('jump').append(' ', icon('arrow'));
+document.addEventListener('click', async ev => {
+  if (ev.target.closest('[data-jump]')) {
+    const start = events.findLast(e => e.event === 'run.start');
+    try { await agterm.request('session.select', {target: start.session}); } catch (err) { paneProblem = `could not switch: ${err?.message ?? err}`; render(); }
+    return;
+  }
+  const history = ev.target.closest('[data-history]');
+  if (history) { historyOpen = history.getAttribute('aria-expanded') !== 'true'; render(); return; }
+  const row = ev.target.closest('[data-toggle]');
+  if (row) {
+    const n = Number(row.dataset.toggle);
+    if (!expanded.delete(n)) expanded.add(n);
+    render();
+  }
+});
+window.addEventListener('resize', render);
+
+async function pollFiles() {
+  await pollFeed();
+  await pollTests();
+  render();
+  setTimeout(pollFiles, FEED_EVERY_MS);
+}
+
+await pollFiles();
+await pollPane();
+render();
+setInterval(pollPane, TREE_EVERY_MS);
+setInterval(render, 1000);
+</script>
+</body>
+</html>
