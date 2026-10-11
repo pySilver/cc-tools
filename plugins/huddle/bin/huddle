@@ -23,6 +23,7 @@ Environment: AGTERMCTL (path to agtermctl), HUDDLE_CONFIG (personal defaults, de
 """
 import argparse
 import base64
+import difflib
 import glob
 import hashlib
 import http.client
@@ -30,6 +31,7 @@ import http.server
 import json
 import mimetypes
 import os
+import re
 import secrets
 import shutil
 import socketserver
@@ -91,17 +93,69 @@ def load_spec(arg):
         die(f"spec is not valid JSON: {e}")
 
 
+# The keys the page reads, so a misnamed one fails here instead of vanishing from the page. A key that
+# starts with "_" is the author's own (`_about` in the templates, or data for a `script`) and passes.
+TOP_KEYS = {"title", "subtitle", "source", "context", "width", "submitLabel", "chat", "script", "style",
+            "review", "size", "questions"}
+QUESTION_KEYS = {"id", "header", "prompt", "hint", "context", "body", "recommendation", "mode", "min", "max",
+                 "layout", "columns", "expanded", "optional", "text", "toggle", "options", "controls", "preview",
+                 "baseline"}
+OPTION_KEYS = {"id", "label", "subtitle", "recommended", "badge", "tags", "pros", "cons", "detail", "preview",
+               "default", "selected", "values"}
+CONTROL_KEYS = {"id", "label", "type", "min", "max", "step", "value", "unit", "options", "on", "off"}
+# A label that only counts ("Story 3", "Option B", "Step 2") points at text the user has to go and find.
+# A bare number or letter can be the answer itself (3 replicas, size M), so the counting word is required.
+POSITION_LABEL = re.compile(r"^\s*(?:story|option|item|task|step|choice|variant|approach|fork|finding|issue|point|"
+                            r"case|scenario|alternative|proposal|version|question)\s*[#№]?\s*(?:\d+|[a-z])\s*[.):]?\s*$",
+                            re.I)
+
+
+KEY_PLACES = {"at the top level": TOP_KEYS, "on a question": QUESTION_KEYS, "on an option": OPTION_KEYS,
+              "on a control": CONTROL_KEYS}
+
+
+def check_keys(node, allowed, where):
+    unknown = sorted(k for k in node if k not in allowed and not str(k).startswith("_"))
+    if not unknown:
+        return
+    def hint(k):
+        if m := difflib.get_close_matches(k, allowed, n=1):
+            return f"{k!r} (did you mean {m[0]!r}?)"
+        if m := difflib.get_close_matches(k, set().union(*KEY_PLACES.values()), n=1):
+            places = " or ".join(p for p, keys in KEY_PLACES.items() if m[0] in keys)
+            return f"{k!r} (did you mean {m[0]!r}? it belongs {places})"
+        return repr(k)
+    die(f"{where}: unknown key {', '.join(hint(k) for k in unknown)}; the page would drop it without a word")
+
+
+def says_nothing(o):
+    """An option that is only a counting label: nothing on the page says what it is."""
+    label = o if isinstance(o, str) else str(o.get("label") or o.get("id") or "")
+    if not POSITION_LABEL.match(label):
+        return False
+    if isinstance(o, str):
+        return True
+    return not (o.get("subtitle") or o.get("detail") or o.get("preview") is not None or o.get("pros")
+                or o.get("cons") or o.get("tags") or isinstance(o.get("recommended"), str) or o.get("values"))
+
+
 def check_spec(spec):
     if not isinstance(spec, dict):
         die("spec must be a JSON object")
     qs = spec.get("questions", [spec])
     if not isinstance(qs, list) or not qs:
         die("`questions` must be a non-empty list")
+    check_keys(spec, TOP_KEYS if "questions" in spec else TOP_KEYS | QUESTION_KEYS, "spec")
     ids = set()
     for i, q in enumerate(qs):
         if not isinstance(q, dict):
             die(f"question {i + 1} must be a JSON object, got {type(q).__name__}")
         qid = q.get("id") or (f"q{i + 1}" if spec.get("questions") else "answer")
+        if "questions" in spec:
+            check_keys(q, QUESTION_KEYS, f"question {qid!r}")
+        for c in q.get("controls") or []:
+            if isinstance(c, dict):
+                check_keys(c, CONTROL_KEYS, f"question {qid!r}, control {c.get('id')!r}")
         if qid in ids:
             die(f"duplicate question id {qid!r}")
         ids.add(qid)
@@ -113,6 +167,13 @@ def check_spec(spec):
         for j, o in enumerate(opts):
             if not isinstance(o, (str, dict)):
                 die(f"question {qid!r}: option {j + 1} must be a string or an object")
+            if isinstance(o, dict):
+                check_keys(o, OPTION_KEYS, f"question {qid!r}, option {o.get('id') or j + 1!r}")
+            if says_nothing(o):
+                shown = o if isinstance(o, str) else o.get("label") or o.get("id")
+                die(f"question {qid!r}: option {shown!r} only counts; put what the user is choosing on the option "
+                    f"itself: a label that says it, the gist in `subtitle`, the full text in `detail` (or "
+                    f"{{\"md\": {{\"file\": …, \"lines\": …}}}}), with `expanded: true` when the text is what they judge")
         oids = [o if isinstance(o, str) else o.get("id") or f"o{j + 1}" for j, o in enumerate(opts)]  # as the runtime assigns them
         if len(oids) != len(set(oids)):
             die(f"question {qid!r} has duplicate option ids (an option without an id is o1, o2, … by position)")

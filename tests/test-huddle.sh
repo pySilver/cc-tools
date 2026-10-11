@@ -57,7 +57,18 @@ bad "duplicate question ids" '{"questions": [{"id": "x", "prompt": "a"}, {"id": 
 bad "ten options" '{"prompt": "p", "options": ["1","2","3","4","5","6","7","8","9","10"]}'
 bad "a missing prompt" '{"options": ["a"]}'
 bad "a missing code file" '{"prompt": "p", "context": {"code": {"file": "no/such/file.py"}}}'
+bad "a misspelled question key" '{"questions": [{"prompt": "p", "subtitel": "x", "options": ["Yes", "No"]}]}'
+bad "a misspelled option key" '{"prompt": "p", "options": [{"label": "Yes", "detial": "x"}]}'
+bad "options that only count" '{"prompt": "Approve?", "mode": "multi", "options": ["Story 1", "Story 2"]}'
+bad "a counting label with nothing else" '{"prompt": "p", "options": [{"id": "a", "label": "Option A"}, {"id": "b", "label": "Cache it"}]}'
 bad "lines past the end" "{\"prompt\": \"p\", \"context\": {\"code\": {\"file\": \"$PWD/$B\", \"lines\": \"9000-9001\"}}}"
+
+# A counting label is fine once the option carries its text, and a key starting with "_" is the author's own.
+printf '{"prompt": "Approve?", "_data": 1, "options": [{"label": "Story 1", "detail": "The operator approves by hand."}, "Yes"]}' > "$WORK/carried.json"
+if "$PY" -I -B "$B" render "$WORK/carried.json" -o "$WORK/carried.html" >/dev/null; then pass "a counting label carrying its text passes"; else fail "a counting label carrying its text passes"; fi
+# A question's own context is shown on the page (checked in the browser below).
+printf '{"questions": [{"id": "a", "prompt": "First?", "context": "QCTX-MARKER-ONE", "options": ["Yes", "No"]}, {"id": "b", "prompt": "Second?", "body": "QCTX-MARKER-TWO", "options": ["Yes", "No"]}]}' > "$WORK/qctx.json"
+"$PY" -I -B "$B" render "$WORK/qctx.json" -o "$WORK/qctx.html" >/dev/null
 
 # An unattended run never opens anything.
 expect "refuses an unattended run" 3 unattended -- env CLAUDE_CODE_SESSION_ATTENDED=0 "$PY" -I -B "$B" q "Which?" A B
@@ -285,6 +296,24 @@ if [ -n "$chrome" ]; then
       fail "page loads: $n ($why)"
     fi
   done
+  if "$PY" -I -B - "$WORK/qctx.dom" <<'PY'
+import sys
+from html.parser import HTMLParser
+class P(HTMLParser):
+    def __init__(self):
+        super().__init__(); self.script = 0; self.text = []
+    def handle_starttag(self, tag, attrs):
+        self.script += tag == "script"
+    def handle_endtag(self, tag):
+        self.script -= tag == "script"
+    def handle_data(self, data):
+        if not self.script:
+            self.text.append(data)
+p = P(); p.feed(open(sys.argv[1], encoding="utf-8").read())
+shown = " ".join(p.text)
+sys.exit(not ("QCTX-MARKER-ONE" in shown and "QCTX-MARKER-TWO" in shown))
+PY
+  then pass "a question's own context and body are shown"; else fail "a question's own context and body are shown"; fi
 else
   printf 'SKIP page loads: no Chrome or Chromium found\n'
 fi

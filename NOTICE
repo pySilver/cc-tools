@@ -119,7 +119,8 @@ blocks can read their text from a file, with line numbers for code and a
 option takes a third `|why` field; `api.select` on a single-choice question
 replaces the selection instead of adding to it; a Stop hook re-posts the asking
 glyph when a turn ends with a huddle page still open, and a timed-out question
-posts its glyph with `--auto-reset`; the skill's description and
+posts its glyph with `--auto-reset`; a question's `context` renders like its `body`, keys the page does not read
+are rejected, and options labeled only by position are refused; the skill's description and
 "when to ask" rules were rewritten to defer to the user's own instructions and
 to keep subagents and unattended runs from asking; spelling is American.
 

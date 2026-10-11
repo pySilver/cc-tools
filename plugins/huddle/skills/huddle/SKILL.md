@@ -67,8 +67,24 @@ The prompt is the biggest thing on the page; everything else supports it.
   ("Tune the card style until it looks right"). The user should know what to do from it alone.
 - `title`: the topic in two to five words ("Session storage"). Shown small above the prompt.
 - `hint`: one line under the prompt saying what matters or how to answer. Not a second question.
-- `context` / `body`: the evidence — numbers, a diagram, a diff. Shown under the prompt.
+- `context` (top level, shared by every question) or `body` (one question's own; `context` on a question
+  means the same): the evidence — numbers, a diagram, a diff. Shown under the prompt.
 - `header`: one or two words per question, for the tabs and the review list.
+
+## Carry the context
+
+A page is worth opening only when it shows more than a numbered list would. The user answers from the page
+alone: the plan, the code and your last terminal message are not in front of them.
+
+- **What is being decided lives on the option.** Approving stories, tasks, findings or plan sections: one
+  option each, labeled by what it says rather than by its number ("4 · an unplaceable brand stays pending",
+  never "Story 4"), the gist in `subtitle`, the full text in `detail` (or
+  `{"md": {"file": "docs/plans/x.md", "lines": "40-52"}}`), and `expanded: true` so the text is open without
+  a click. huddle refuses an option whose label only counts and that carries nothing else.
+- **What several options share goes above them**: the example from the eval, the numbers, today's flow as a
+  diagram, in `context` or the question's `body`.
+- **Before you send**, read the page as the user will: could they answer without opening anything else? If
+  not, it is missing the thing they need to judge.
 
 ## Pick the component for the question
 
@@ -138,7 +154,8 @@ from the file. Point at the file instead and `huddle` reads it when it builds th
   was cut off: `huddle wait <pageID>` for its answer before asking anything new. Without one, it belongs to
   another tool (a diff review, a plan annotation): ask in the terminal, and never close an overlay you did
   not open.
-- Exit 1 `status: "error"`: the spec or agterm failed; the `error` says which. Fix the spec and ask again.
+- Exit 1 `status: "error"`: the spec or agterm failed; the `error` says which, including a key the page would
+  drop (with the one it probably meant) and an option that only counts. Fix the spec and ask again.
 
 ## Spec reference
 
@@ -147,12 +164,15 @@ Top level: `title`, `subtitle`, `source` (replaces "Claude is asking"), `context
 (JS, see [Extending](#extending)), `style`, `review`, `size` (see [Look, size and review](#look-size-and-review)),
 and **either** the fields of one question **or** `questions: [...]` (tabs, answered in order).
 
-Question: `id`, `header`, `prompt`, `hint`, `body` (blocks), `recommendation` (markdown banner naming the
+Question: `id`, `header`, `prompt`, `hint`, `body` (blocks; `context` works too), `recommendation` (markdown banner naming the
 overall pick), `mode` (`single` default · `multi` · `text`; `tune` is implied by `controls`), `min`/`max`
 (multi), `layout` (`list` · `grid` · `compare` · `inline`; default `grid` when any option has a
 `preview`, `inline` for presets, else `list`), `columns`, `expanded: true` (open every option's details),
 `optional: true` (may submit empty), `text` (`false` to drop the free-text box, or
 `{label, placeholder, required, multiline, value}`).
+
+Any other key, at any of these levels, is an error that names the nearest valid one, since the page would
+drop it without a word. A key starting with `_` is yours (data for a `script`) and passes.
 
 Option: `id`, `label`, `subtitle` (gray line), `recommended` (`true`, or a string = the reason, shown
 under it), `badge` (replaces the "Recommended" word), `tags` (small chips: effort, risk), `pros`, `cons`,
