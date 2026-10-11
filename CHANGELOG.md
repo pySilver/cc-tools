@@ -7,6 +7,7 @@ This repo ships independent Claude Code plugins that are intentionally version-l
 ### agrev (new plugin)
 
 - **add `agrev`**, moved here from a standalone skill in `~/.claude/skills/`, where it had no history. It opens a markdown document in [plannotator](https://github.com/backnotprop/plannotator), shown in an agterm session right after the agent's, and runs the review in rounds: the user annotates and sends feedback or approves, the agent edits the document and opens the next round with its replies pinned to the phrases they answer. Moved unchanged; as a plugin skill it is invoked as `/agrev:agrev` instead of `/agrev`.
+- picking which document to review no longer forbids the AskUserQuestion widget; the user's own instructions decide how a question is asked.
 
 ### huddle
 
@@ -17,6 +18,7 @@ This repo ships independent Claude Code plugins that are intentionally version-l
 - **add `peer-planning`**, moved here from a local directory marketplace where it had been in daily use. `/peer-planning:make` writes a plan whose tasks are outcome-level slices for a capable executor; `/peer-planning:exec` runs it as a two-agent loop in an agterm split: a subagent implements each task, Codex in the other pane reviews the diff before the commit and is cleared before the next task, and every step lands in a jsonl event log with a live monitor page. It is moved as it was, with one change: the `peer_planning_pytest` module that feeds the monitor's test panel now lives outside the plugin, in `~/.local/lib/agterm-pytest/` next to agterm's `agterm_hud`, since every pytest on the machine loads it through `PYTHONPATH` and `PYTEST_ADDOPTS`, not only the runs of this plugin. Without that module the monitor shows no test progress.
 - it depends on things this repo does not ship: [agterm](https://github.com/umputun/agterm) with its [two-agent-chat](https://github.com/umputun/agterm/blob/master/cookbook/two-agent-chat/README.md) recipe (`peer-chat.py` and the `peer-chat` skill), Codex, and [revmux](https://github.com/umputun/revmux) for the closing review.
 - **no longer needs `planning@umputun-cc-thingz`.** The branch review after the last task used to borrow that plugin's review and fixer playbooks, its default-branch script and its commit and progress scripts, found through `installed_plugins.json`. It now has its own: `references/review.md` runs revmux rounds (the `comprehensive` profile first, then `final` re-checks, up to five), adapted from the project playbook that had been doing this job in practice, and a "Fix review findings" prompt sends each round's findings to a fresh subagent that commits through the project hook and carries the project rules. A project replaces the review with `.claude/peer-planning/review.md`. The rules resolver reads only the project's `.claude/planning-rules.md`; the planning plugin's user-level fallback is gone. `exec` finds the default branch from `origin/HEAD` itself.
+- `make`'s intent questions and `exec`'s plan picker no longer forbid a question widget; the user's own instructions decide how a question is asked.
 
 ### huddle (new plugin)
 

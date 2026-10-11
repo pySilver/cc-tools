@@ -17,7 +17,7 @@ the install command it prints and stop.
 ## 1. Open a round
 
 Take the file the user named, or the markdown document the conversation is about; when two or more
-fit, ask as a plain numbered list, never the AskUserQuestion widget.
+fit, ask which.
 
 ```bash
 ${CLAUDE_SKILL_DIR}/scripts/review.py open <file>

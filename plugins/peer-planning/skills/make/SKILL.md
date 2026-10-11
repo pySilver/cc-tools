@@ -41,9 +41,8 @@ three to five bullets.
 
 When the ask is missing who it serves, why, what success looks like or the binding constraint,
 run the `decide:interview-me` skill if it is available. Its confirmed restate is this plan's
-Overview. Otherwise ask the few questions you need one at a time, each as a plain numbered
-markdown item with your recommended answer attached. Do not use a question widget: this user
-answers in plain text.
+Overview. Otherwise ask the few questions you need one at a time, each with your recommended answer
+attached, in the form the user's own instructions give for questions.
 
 ## Step 1.5: approaches
 

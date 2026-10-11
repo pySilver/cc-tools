@@ -64,7 +64,7 @@ branch has landed, "Run-record housekeeping" offers to remove it.
    composer. If Codex is not running in the right pane, stop and say so. This skill never starts an
    agent or opens a pane, and Codex runs with the model and effort the user started it with.
 3. **Resolve the plan.** Use the argument, or list `docs/plans/*.md` outside `completed/` and ask
-   the user to pick one, as a numbered list rather than a question widget.
+   the user to pick one.
 4. **Load the rules.** Run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-rules.sh`. Drop its
    `SOURCE:` line and keep the rest as `USER_RULES`, the project's `.claude/planning-rules.md`.
    It prints nothing when the project has none; `USER_RULES` is then "none".
