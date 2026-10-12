@@ -40,17 +40,15 @@ graders:
     pattern: 'file\\*":\s*\\*"[^"\\]*retry\.py'
     match: contains
 
-  - type: llm
-    name: code-comes-from-the-file
+  - type: regex
+    name: source-not-pasted
     weight: 3
-    focus: trace
-    criteria: |
-      Look at the huddle spec(s) the agent built, in the Bash command or in a
-      spec file it passed to huddle. PASS only if the code reaches the page
-      through a file block such as {"code": {"file": "retry.py", "lines": "4-13"}}
-      (any range covering the loop is fine). FAIL if the spec carries the
-      function's source as a pasted string (for example a "code" value
-      containing "for _ in range(attempts)"), even if it also names the file.
+    target: trace
+    # The function's source as a "code" string inside the huddle command. A {"file": …} block and the
+    # agent's own Read of the file do not match. Deterministic on purpose: an llm judge sees only the
+    # first and last 12 messages of a trace, and in a longer run the huddle call falls between them.
+    pattern: 'code\\*":\s*\\*"[^{}]{0,400}?for _ in range'
+    match: not_contains
 
   - type: llm
     name: options-match-the-ask

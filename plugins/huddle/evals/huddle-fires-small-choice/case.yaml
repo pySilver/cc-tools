@@ -1,0 +1,46 @@
+schema_version: "1.1"
+name: huddle-fires-small-choice
+description: >
+  A choice between just two options, asked inside agterm. Tests that the agent
+  opens a page for it, as it does for every choice, and that each option carries
+  what it costs and what it catches rather than two short labels.
+tags: [huddle, positive]
+runs: 3
+
+execution:
+  max_turns: 6
+  timeout_seconds: 300
+  allowed_tools: ["Bash", "Read", "Skill"]
+  prompt: |
+    I've finished the rename refactor. Ask me whether you should run the full
+    test suite now or only the unit tests.
+
+expected_outcome: >
+  The agent runs huddle with two options, each saying what it costs (time) and
+  what it catches (breakage a rename can cause outside the unit tests), and
+  does not run either before the answer.
+
+graders:
+  - type: tool_used
+    name: asks-with-huddle
+    weight: 3
+    tool: Bash
+    input_match: "huddle"
+    min: 1
+
+  - type: llm
+    name: options-carry-the-difference
+    weight: 3
+    focus: trace
+    criteria: |
+      Look at the huddle spec (the Bash tool input). PASS only if both options
+      (the full suite, the unit tests only) say what distinguishes them in a
+      subtitle, pros/cons or detail: what each costs and what each would catch
+      or miss after a rename. FAIL if the options are bare labels.
+
+  - type: llm
+    name: does-not-run-tests
+    weight: 2
+    criteria: |
+      The agent must not run either test suite before the user answers. FAIL if
+      it runs tests or says it will go ahead without waiting.

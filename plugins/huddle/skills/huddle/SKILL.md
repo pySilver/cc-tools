@@ -1,6 +1,6 @@
 ---
 name: huddle
-description: Ask the user a question as a page in an agterm HTML overlay and read the answer back as JSON. Use when a page answers better than text — options that are pictures (diagrams, wireframes, design samples, charts), alternatives whose trade-offs belong side by side, code or a diff the user has to read before choosing, a value that is a matter of taste (radius, color, timing — sliders with a live preview), or several related decisions at once. Also whenever the user says huddle, "ask me visually", "show me the options", or asks for a question with diagrams, charts, pictures or sliders. A question answerable in one line stays in the terminal. Needs agterm and checks for it itself, so run it without checking first. Up to 9 options with subtitles, a reasoned recommendation and pros/cons; a free-text box on every question; keyboard throughout. The agent writes a JSON spec or one `huddle q` line.
+description: Ask the user a question as a page in an agterm HTML overlay and read the answer back as JSON. Use for every question that asks the user to choose or approve — a design fork, a sequencing call, a plan or its parts, a choice between two options — because each option then carries what it changes and what it costs; for options that are pictures (diagrams, wireframes, design samples, charts); for code or a diff the user has to read; for a value tuned by eye (sliders with a live preview); and for several related decisions at once. Also whenever the user says huddle, "ask me visually" or "show me the options". Only an answer the user types (a name, a path, a number) or a bare "go ahead?" on a step just described stays in the terminal. Needs agterm and checks for it itself, so run it without checking first. Up to 9 options with subtitles, a reasoned recommendation and pros/cons; a free-text box on every question; keyboard throughout. The agent writes a JSON spec or one `huddle q` line.
 allowed-tools: Bash(huddle *)
 ---
 
@@ -15,11 +15,12 @@ Run it with the Bash tool's `timeout: 600000`. It waits up to 570 s, then exits 
 
 ## When to ask with a page
 
-- **Ask with a page** when seeing beats reading: the options are diagrams, layouts or samples; the trade-offs
-  should sit side by side; the user has to look at code or a diff to answer; the answer is a value tuned by
-  eye; or several related decisions belong on one page.
-- **Ask in the terminal** when the question is plain text with short answers. A page for "run the tests
-  now?" costs the user a context switch and buys nothing.
+- **Ask with a page** whenever the user has to choose or approve: a design fork, a sequencing call, a plan
+  or its parts, and a choice between just two options too. A short list of labels is where the user stops
+  understanding the difference; on a page each option carries what it changes and what it costs. Pictures,
+  code, tuned values and related decisions on one page come on top of that.
+- **Ask in the terminal** only when the user answers by typing (a name, a path, a number), or for a bare
+  "go ahead?" on a step you just described.
 - **The user's own instructions win.** When their `CLAUDE.md` or `AGENTS.md` says how to ask questions,
   follow it; this section is the default, not an override.
 - **Don't check for agterm first.** Run `huddle`: outside agterm it opens nothing and exits 3 with

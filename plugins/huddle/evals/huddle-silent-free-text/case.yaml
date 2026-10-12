@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: huddle-silent-free-text
+description: >
+  A question only the user can answer by typing: a ticket number. Tests that
+  the agent asks in the terminal, since there is nothing to choose between and
+  a page would only wrap a text box.
+tags: [huddle, negative]
+runs: 3
+
+execution:
+  max_turns: 4
+  timeout_seconds: 300
+  allowed_tools: ["Bash", "Read", "Skill"]
+  prompt: |
+    Before you start on the CSV export, ask me which Jira ticket this work
+    belongs to, so the branch can be named after it.
+
+expected_outcome: >
+  A one-line question in the terminal asking for the ticket key. No page.
+
+graders:
+  - type: tool_used
+    name: no-page
+    weight: 3
+    tool: Bash
+    input_match: "huddle"
+    min: 0
+    max: 0
+
+  - type: llm
+    name: asks-for-the-ticket
+    weight: 2
+    criteria: |
+      The reply asks the user for the Jira ticket key, briefly, and does not
+      invent one or create a branch. FAIL if it guesses a ticket or starts work.

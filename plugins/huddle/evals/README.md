@@ -13,8 +13,8 @@ claude plugin eval ./plugins/huddle --ablation with-without --scaffold --allow-t
 
 Measured on Claude Code 2.1.296:
 
-- **`huddle` never executes.** The plugin's `bin/` is not on the run's `PATH` (the Bash call ends `command not found: huddle`), and the run is never inside agterm: it inherits only an allowlist of the operator's environment plus `EVAL_*` variables, so no `AGTERM_*` value arrives, and a case's own `execution.env` accepts only `EVAL_*` keys. So nothing can open, anywhere.
-- **What it measures** is the half that is the skill's job: whether the description and the prompt lead the agent to try `huddle`, and how good the spec it writes is. The graders read that spec from the session trace (`focus: trace`), not from the final reply, which is the agent's text fallback after the failed call.
+- **Nothing can open.** The run is never inside agterm: it inherits only an allowlist of the operator's environment plus `EVAL_*` variables, so no `AGTERM_*` value arrives, and a case's own `execution.env` accepts only `EVAL_*` keys. Whether `huddle` itself runs has varied on the same Claude Code version (2.1.296): early rounds ended `command not found: huddle`, a later one ran it and got exit 3 `unattended`; the cause is unmeasured. Either way no page opens, and when `huddle` does run, the spec has passed its validation.
+- **What it measures** is the half that is the skill's job: whether the description and the prompt lead the agent to try `huddle`, and how good the spec it writes is. The graders read that spec from the session trace (`focus: trace`), not from the final reply, which is the agent's text fallback after the failed call. An llm judge sees only the first and last 12 messages of a trace, so where a check can be a regex over the whole trace it is one (`names-the-file-in-a-block`, `source-not-pasted`).
 - **Your own instructions are absent.** Each run gets a temporary home and Claude Code configuration with CLAUDE.md loading disabled, so `~/.claude/rules`, `~/.agents/AGENTS.md` and project `CLAUDE.md` files do not load. A pass says the skill fires on its own; it says nothing about whether a personal rule on how to ask lets it fire.
 
 ## Cases
@@ -22,11 +22,12 @@ Measured on Claude Code 2.1.296:
 | Case | Asserts |
 |------|---------|
 | `huddle-fires-visual` | An architecture choice between three shapes goes to `huddle` with a good spec: three options with what distinguishes each, a picture of each (mermaid previews, a diagram of today's flow, or a side-by-side layout), a reasoned recommendation; and the agent does not decide for the user |
-| `huddle-fires-code` | A judgement on a stretch of code shows that code through `{"code": {"file": "retry.py", "lines": …}}`, not as source pasted into the spec |
-| `huddle-silent-plain` | A question with one-line answers ("full suite or unit tests?") stays in the terminal |
-| `huddle-silent-confirm` | A yes/no confirmation of a file rename stays in the terminal |
+| `huddle-fires-code` | A judgement on a stretch of code shows that code through `{"code": {"file": "retry.py", "lines": …}}`, not as source pasted into the spec (a regex over the trace) |
+| `huddle-fires-small-choice` | A choice between just two options ("full suite or unit tests?") goes to a page too, with each option saying what it costs and what it catches |
+| `huddle-silent-confirm` | A bare go-ahead on a rename the user just described stays in the terminal |
+| `huddle-silent-free-text` | A question the user answers by typing (which Jira ticket?) stays in the terminal |
 
-Two of the four are negative on purpose: the cost of this skill is a context switch, so its failure mode is a page for a question that a line of text would have answered.
+Two of the five are negative on purpose. The skill asks every choice with a page, so the line it must not cross is the questions that hold no choice: a go-ahead on a step just described, and an answer only the user can type.
 
 ## Reading a result
 
