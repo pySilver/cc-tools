@@ -288,7 +288,7 @@ if [ -n "$chrome" ]; then
       diagrams=skip
       printf 'SKIP diagrams on %s: the mermaid bundle could not be downloaded\n' "$n"
     fi
-    "$chrome" --headless=new --disable-gpu --no-sandbox --no-first-run --user-data-dir="$WORK/chrome" \
+    "$chrome" --headless=new --disable-gpu --no-sandbox --no-first-run --use-mock-keychain --user-data-dir="$WORK/chrome" \
       --virtual-time-budget=4000 --dump-dom "file://$f" > "$WORK/$n.dom" 2>/dev/null || true
     if why=$("$PY" -I -B -c "$DOMCHECK" "$WORK/$n.dom" "$diagrams"); then
       pass "page loads: $n"
