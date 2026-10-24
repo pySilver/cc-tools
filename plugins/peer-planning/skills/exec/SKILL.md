@@ -110,13 +110,24 @@ branch has landed, "Run-record housekeeping" offers to remove it.
      file; it answers in chat only. Record which in `progress.md`.
    - If Codex's pane shows an approval prompt instead, stop and tell the user. The prompt is theirs
      to answer.
-10. **Open the monitor.** Log `run.start` with `session="$AGTERM_SESSION_ID"` and `tasks:=` the
-    plan's task count, then run `"${CLAUDE_SKILL_DIR}/scripts/open-monitor.py" "$RUN_DIR"`. It
-    copies the page into `RUN_DIR` and shows it in a session of its own named
-    `<plan-stem> monitor`, next to this one and without selecting it. A resumed run makes the
-    same call, which reuses that session if it is still open. The page reads the log through
-    `events.js` and this session's agent status from `tree`; its one action on agterm, "Go to
-    the agents", selects this session. Tell the user where it is, then go to task 1.
+10. **Open the monitor.** Log `run.start` with every field `references/event-log.md` gives it:
+
+    ```bash
+    "${CLAUDE_SKILL_DIR}/scripts/log-event.py" "$RUN_DIR" run.start plan=docs/plans/<plan>.md \
+      tasks:=<N> work_path="$WORK_PATH" branch=<branch> executor=<executor> session="$AGTERM_SESSION_ID"
+    ```
+
+    `plan` is the plan's path from the repository root, as step 3 listed it, and `tasks` the
+    plan's task count. Run-record housekeeping reads `plan` to tell whether the run has landed,
+    and the monitor shows the plan, branch and executor from this record, so `log-event.py`
+    refuses a `run.start` missing any of them. Then run
+    `"${CLAUDE_SKILL_DIR}/scripts/open-monitor.py" "$RUN_DIR"`. It copies the page into
+    `RUN_DIR` and shows it in a session of its own named `<plan-stem> monitor`, next to this one
+    and without selecting it. A resumed run logs `run.start` again, so the monitor knows which
+    session and checkout run it now, and makes the same call, which reuses that session if it is
+    still open. The page reads the log through `events.js` and this session's agent status from
+    `tree`; its one action on agterm, "Go to the agents", selects this session. Tell the user
+    where it is, then go to task 1.
 
     The same script opens any run's monitor later, from any session inside the repository:
     without an argument it finds the runs in the main checkout and every worktree, and offers
@@ -285,7 +296,9 @@ setup and once after the completion report, and deletes only what the user picks
    archived the plan, and the plan's file name. A run has landed when its log holds `run.end`
    and its plan sits under `completed/` on the remote's default branch, not at the path
    `run.start` logged. Branch ancestry cannot tell, because finalize squashes the branch. The
-   script reads origin as it stands and fetches nothing.
+   script reads origin as it stands and fetches nothing. A line on stderr names a finished run
+   whose `run.start` carries no plan path, so the script cannot tell whether it landed; tell the
+   user, who removes that directory by hand once its branch is in.
 2. If it prints nothing, say nothing about it and move on.
 3. Otherwise offer a numbered choice:
    - remove every run listed;

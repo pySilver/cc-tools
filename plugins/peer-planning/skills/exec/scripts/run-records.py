@@ -11,7 +11,9 @@ one new commit. A run without run.end is never offered, since it may be paused, 
 
 --landed prints one tab-separated line per landed run: the run directory, its size, the
 commit that archived the plan, and the plan's file name. It fetches nothing; the orchestrator
-reads origin as it stands.
+reads origin as it stands. A finished run whose run.start carries no repository-relative plan
+path cannot be told landed; it is named on stderr and left out, and the other runs are still
+listed.
 
 --remove deletes a run directory only when it is a landed run's, then closes the run's
 "<plan-stem> monitor" agterm session if one is open. It refuses any other path.
@@ -32,8 +34,12 @@ START_DIR = os.environ.get("AGT_SESSION_PWD") or os.getcwd()
 SOCKET = os.environ.get("AGT_SOCKET") or os.environ.get("AGTERM_SOCKET") or ""
 
 
-def fail(message: str) -> NoReturn:
+def warn(message: str) -> None:
     print(f"run-records: {message}", file=sys.stderr)
+
+
+def fail(message: str) -> NoReturn:
+    warn(message)
     sys.exit(1)
 
 
@@ -69,7 +75,11 @@ def landed(run: Run, ref: str) -> LandedRun | None:
     start = next((event for event in log if event.get("event") == "run.start"), None)
     if start is None or not any(event.get("event") == "run.end" for event in log):
         return None
-    plan = Path(start["plan"])
+    plan_path = start.get("plan")
+    if not isinstance(plan_path, str) or not plan_path or Path(plan_path).is_absolute():
+        warn(f"{run.run_dir}: its run.start names no repository-relative plan, so whether it landed cannot be told; skipped")
+        return None
+    plan = Path(plan_path)
     archived = (plan.parent / "completed" / plan.name).as_posix()
     if exists_at(run.checkout, ref, plan.as_posix()) or not exists_at(run.checkout, ref, archived):
         return None

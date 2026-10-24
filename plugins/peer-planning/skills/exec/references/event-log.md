@@ -14,9 +14,14 @@ monitor reads these names, so a change here is a change to the monitor as well.
 `key=value` stores a string. `key:=value` stores JSON, for counts and flags: `task:=3`,
 `must_fix:=2`, `discuss:=false`. A commit SHA is always `sha=…`, a string.
 
+`log-event.py` refuses a `run.start` missing any of its fields, or whose `plan` is an absolute
+path: `run-records.py` reads `plan` against the remote's default branch to tell whether the run
+landed, and the monitor shows the plan, branch and executor from the same record. Every other
+event is written as given.
+
 | Event | Logged when | Fields |
 |---|---|---|
-| `run.start` | setup is complete | `plan`, `tasks:=N` (the plan's task count), `work_path`, `branch`, `executor`, `session` (this session's agterm id) |
+| `run.start` | setup is complete, and again when a run resumes | `plan` (its path from the repository root), `tasks:=N` (the plan's task count), `work_path`, `branch`, `executor`, `session` (this session's agterm id); every one required |
 | `codex.ready` | Codex answered the setup check | `files:=true\|false` (whether it can write long replies) |
 | `task.start` | a task begins | `task:=N`, `title`, `discuss:=true\|false` |
 | `discuss.request` | a discussion message is sent | `task:=N` |

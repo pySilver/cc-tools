@@ -15,6 +15,11 @@ record; events.js exists only for the page.
 
 The timestamp is taken here, at the moment of the call, because the log exists to show
 where a run's time went.
+
+A run.start missing one of the fields references/event-log.md lists for it is refused:
+run-records.py tells whether a run has landed from the plan path it carries, and the monitor
+shows the plan, branch and executor from it. Refusing the record here, while the orchestrator
+can still fix its call, beats a traceback at housekeeping days later.
 """
 
 import json
@@ -23,6 +28,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 USAGE = "usage: log-event.py RUN_DIR EVENT [key=value ...] [key:=json ...]"
+
+# The fields a later reader cannot do without. The plan path is read against the remote's default
+# branch, so it is relative to the repository root.
+REQUIRED = {"run.start": ("plan", "tasks", "work_path", "branch", "executor", "session")}
 
 
 def parse_field(pair: str) -> tuple[str, object]:
@@ -52,6 +61,11 @@ def main(argv: list[str]) -> None:
         if key in record:
             sys.exit(f"log-event: field {key!r} is given twice or is reserved")
         record[key] = value
+    missing = [field for field in REQUIRED.get(argv[2], ()) if field not in record]
+    if missing:
+        sys.exit(f"log-event: {argv[2]} needs {', '.join(missing)}; see references/event-log.md")
+    if argv[2] == "run.start" and Path(str(record["plan"])).is_absolute():
+        sys.exit(f"log-event: plan is the path from the repository root, not {record['plan']!r}")
     line = json.dumps(record, ensure_ascii=False)
     with (run_dir / "events.jsonl").open("a", encoding="utf-8") as log:
         log.write(line + "\n")

@@ -69,7 +69,7 @@ The "no version specified" warning from `claude plugin validate ./plugins/<name>
 
 ## Testing
 
-CI's shell-test step globs `tests/test-*.sh`, so adding a test means dropping a file in `tests/` and nothing else. `tests/test-huddle.sh` is the only one: it renders every huddle template and demo, checks the spec errors and exit-3 guards, and loads each page in headless Chrome when one is installed (it prints `SKIP` otherwise). It overrides `HOME`, so it resolves the real `python3` first — a version-manager shim reads its config from `HOME`. The `.lsp.json` launcher wrappers have no test.
+CI's shell-test step globs `tests/test-*.sh`, so adding a test means dropping a file in `tests/` and nothing else. There are two. `tests/test-huddle.sh` renders every huddle template and demo, checks the spec errors and exit-3 guards, and loads each page in headless Chrome when one is installed (it prints `SKIP` otherwise). `tests/test-peer-planning.sh` covers the exec skill's run-record scripts in a throwaway git clone: `log-event.py` refusing a `run.start` a later reader cannot use, and `run-records.py --landed` listing landed runs while naming an unreadable record on stderr instead of dying on it. Both override `HOME`, so they resolve the real `python3` first — a version-manager shim reads its config from `HOME`. The `.lsp.json` launcher wrappers have no test.
 
 Skill *behavior* — what a model actually does when a skill loads — is covered by eval cases instead, in the native `claude plugin eval` format at `plugins/<name>/evals/<case>/case.yaml` (schema 1.1). `decide` and `huddle` have them so far. They are **not** in CI (they cost money and need a live agent):
 
