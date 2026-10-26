@@ -400,6 +400,7 @@ function stateOf(e) {
   switch (e.event) {
     case 'discuss.request': return {actor: 'codex', task, headline: "Waiting for Codex's answer on the approach"};
     case 'review.request': return {actor: 'codex', task, headline: `Waiting for Codex's review, round ${e.round}`};
+    case 'review.mismatch': return {actor: 'codex', task, headline: `Waiting for Codex's review again, round ${e.round}: it read the wrong tree`};
     case 'implement.start': return {actor: 'implementer', task, headline: 'Waiting for the implementer to build the task'};
     case 'fix.start': return {actor: 'implementer', task, headline: `Waiting for the implementer's fixes: ${plural(e.items, 'item')}, round ${e.round}`};
     case 'discuss.stalled': return {actor: 'user', task, headline: 'The agents need your ruling'};
@@ -1131,6 +1132,7 @@ function describe(e) {
     case 'review.reply': return e.must_fix
       ? {actor: 'codex', icon: 'eye', tone: 'warn', text: ['Codex: ', b(`${e.must_fix} must-fix`), sub(` · round ${e.round}`)]}
       : {actor: 'codex', icon: 'eye', tone: 'ok', text: ['Codex: ', b('LGTM'), sub(` · round ${e.round}`)]};
+    case 'review.mismatch': return {actor: 'codex', icon: 'alert', tone: 'warn', text: ['Codex read the wrong tree', sub(` · round ${e.round}, asked again`)]};
     case 'fix.start': return {actor: 'implementer', icon: 'tool', text: ['Fixing ', b(plural(e.items, 'item')), sub(` · round ${e.round}`)]};
     case 'fix.done': return {actor: 'implementer', icon: 'tool', text: [`Fixes for round ${e.round} reported`]};
     case 'commit': return {actor: 'done', icon: 'commit', tone: 'ok', text: ['Committed ', h('span', {class: 'mono'}, short(e.sha))]};

@@ -32,7 +32,8 @@ event is written as given.
 | `implement.start` | the implementer is spawned | `task:=N`, `agent_id`, `agent_type` |
 | `implement.done` | the implementer's report is read | `task:=N`, `status=done\|blocked` |
 | `review.request` | a review or re-review message is sent | `task:=N`, `round:=N` |
-| `review.reply` | Codex's review is read | `task:=N`, `round:=N`, `verdict=lgtm\|must_fix`, `must_fix:=N` |
+| `review.reply` | Codex's review is read and its `Changed:` line matches the tree | `task:=N`, `round:=N`, `verdict=lgtm\|must_fix`, `must_fix:=N` |
+| `review.mismatch` | a review reply's `Changed:` line differs from `git -C WORK_PATH status --short`, and the request is sent again | `task:=N`, `round:=N` |
 | `fix.start` | the implementer is resumed with accepted items | `task:=N`, `round:=N`, `items:=N` |
 | `fix.done` | the implementer's fix report is read | `task:=N`, `round:=N` |
 | `commit` | the task's commit is confirmed | `task:=N`, `sha` |

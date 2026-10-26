@@ -11,7 +11,9 @@ description: Execute a plan task by task as a two-agent run. An implementation s
 - **Codex**, in the right pane of the agterm split, is the reviewer. It reads each task's diff
   before the commit, and for a task marked for discussion it challenges the approach before any
   code exists. It is read-only in the repository; the only files it may write are long replies in
-  the run directory.
+  the run directory. Its own directory is wherever the user started it, and this skill never
+  changes it, so every message that opens an exchange names `WORK_PATH` and asks Codex to run its
+  commands there.
 - **The implementation subagent** does the code work, so the file reading and the diffs never enter
   this session's context.
 
@@ -204,14 +206,19 @@ the same plan file.
 
 1. **Ask for the review.** Put the implementer's report in a file, send the review request that
    names it, log `review.request`, and end your turn.
-2. **If the reply opens with `LGTM`,** log `review.reply` with `must_fix:=0` and go to E.
-3. **If it opens with `MUST-FIX: N`,** log `review.reply` with that count, then check each item
+2. **Check the tree before the verdict.** Every review reply ends with `Changed:` and the paths
+   Codex saw. Run `git -C WORK_PATH status --short` yourself and compare the two lists. When they
+   differ, Codex has most likely run git in its own directory: log `review.mismatch`, send the
+   "asking again" message from `references/codex-messages.md`, and end your turn. A second
+   mismatch on the same round goes to the user. A verdict is logged only over a matching list.
+3. **If the reply opens with `LGTM`,** log `review.reply` with `must_fix:=0` and go to E.
+4. **If it opens with `MUST-FIX: N`,** log `review.reply` with that count, then check each item
    yourself by opening the cited code.
    - Resume the implementer with the accepted items, using the "Apply Codex's review" prompt, in
      the background. Log `fix.start`, and `fix.done` when it returns.
    - Put each item you dispute, with your own cite, in the re-review request.
    - Then send the re-review request with the next round number.
-4. **When it stalls.** When Codex repeats an item you disputed with a cite and brings nothing
+5. **When it stalls.** When Codex repeats an item you disputed with a cite and brings nothing
    new, take that item to the user as a numbered choice and log `ruling` once they decide. The
    other items go on.
 
