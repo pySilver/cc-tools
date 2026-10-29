@@ -1,6 +1,6 @@
 {
   "name": "git",
-  "description": "Finalize a feature branch: rebase onto the default branch, squash to one commit, verify, and optionally force-push (finalize-feature-branch skill).",
+  "description": "Finalize a feature branch (rebase onto the default branch, squash to one commit, verify, land), then wrap up once it has landed (archive the plan, drop the worktree's test database, remove the worktree and the branch).",
   "author": {
     "name": "Silver"
   }

@@ -233,7 +233,7 @@ Never force-push DEFAULT_BRANCH. If the push is rejected, someone else pushed
 while you worked — report the rejection and stop, do not retry with force.
 
 Leave the checkout on DEFAULT_BRANCH and say so in the report. The feature branch
-is untouched; deleting it is not this skill's job.
+is untouched; deleting it is the wrap-up's job (step 12).
 
 ### Push to origin/DEFAULT_BRANCH directly
 
@@ -271,7 +271,19 @@ report.
 
 If push fails, report the error and stop.
 
-## 12. Report
+## 12. Offer the Wrap-up
+
+Only after a landing: the local merge or the direct push. A published feature
+branch has not landed, and "Do nothing" landed nothing.
+
+Ask whether to wrap up now. The wrap-up archives the plan under
+docs/plans/completed/, drops the worktree's test database, removes the worktree
+and the branch, and closes the peer-planning run record. If yes, invoke the
+git:wrap-up skill with CURRENT_BRANCH as its argument. From inside a worktree it
+does everything except remove the worktree, and prints that command for the
+main checkout; say so in the offer.
+
+## 13. Report
 
 Summarize:
 - CURRENT_BRANCH
@@ -285,6 +297,7 @@ Summarize:
 - What was pushed, if anything, and which branch the checkout is now on
 - For the direct-push path: whether the local default branch in the other
   worktree was fast-forwarded or left behind, and its path
+- Whether the wrap-up was offered, and what the user chose
 - Test/lint results
 - Any issues encountered
 

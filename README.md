@@ -43,9 +43,9 @@ cp -r plugins/decide/skills/interview-me ~/.claude/skills/
 cp -r plugins/decide/skills/brief ~/.claude/skills/
 ```
 
-**git** — `finalize-feature-branch` skill:
+**git** — `finalize-feature-branch` and `wrap-up` skills:
 ```bash
-cp -r plugins/git/skills/finalize-feature-branch ~/.claude/skills/
+cp -r plugins/git/skills/finalize-feature-branch plugins/git/skills/wrap-up ~/.claude/skills/
 ```
 
 **research** — `web-research` skill:
@@ -85,7 +85,7 @@ Enable `/plugin` → **Marketplaces** → **Enable auto-update** to refresh the 
 | Plugin | Description |
 |--------|-------------|
 | [decide](#decide) | Pre-code design gates — intent interviews, risk triage, decision briefs |
-| [git](#git) | Finalize a feature branch — rebase, squash to one commit, verify, push |
+| [git](#git) | Finalize a feature branch — rebase, squash to one commit, verify, push — then wrap up: archive the plan, drop the worktree's test database, remove the worktree and the branch |
 | [research](#research) | Grounded web research with source-quality discipline and inline citations |
 | [basedpyright-lsp](#basedpyright-lsp) | Python LSP (basedpyright) for Claude — navigation + diagnostics, from the project's pinned venv |
 | [pyrefly-lsp](#pyrefly-lsp) | Same, backed by [pyrefly](https://pyrefly.org/) instead — pick whichever your type-check gate runs |
@@ -121,6 +121,7 @@ It deliberately does *not* fire for a failure the agent can fix itself, a yes/no
 | Component | Trigger | Description |
 |-----------|---------|-------------|
 | skill | `/git:finalize-feature-branch [default-branch]` | Rebase onto the default branch, collapse to one commit, verify, merge into the default branch and push |
+| skill | `/git:wrap-up [branch]` | After the branch has landed: archive its plan, drop the worktree's test database, remove the worktree and the branch, close the peer-planning run record, report stranded containers |
 
 **finalize-feature-branch** — takes an approved feature branch to exactly one commit ahead of the default branch. It detects the default branch (or asks), previews what will change, fetches and rebases (resolving clean conflicts, aborting on unclear ones), collapses multiple commits via `git reset --soft` + commit (never interactive rebase), proposes a commit message derived from the branch name, verifies, then lands the branch. Each step confirms before acting. Repo-agnostic — plain git.
 
@@ -129,6 +130,8 @@ Two things it is opinionated about:
 - **Landing defaults to merge, not publish.** The first offer is fast-forward the branch into the default branch locally and `git push origin <default>`; publishing the feature branch with `--force-with-lease` is the second option, for when a PR is wanted. The default branch is never force-pushed, and a rejected push stops the run rather than escalating.
 - **From a worktree it lands on the remote instead.** If another worktree holds the default branch, the local merge is impossible — `git checkout` and `git fetch . HEAD:<default>` both refuse — so the first offer becomes `git push origin HEAD:<default>`, the same fast-forward one hop earlier. It never rewrites the ref behind the other checkout's back, and afterwards it reports that worktree as behind, offering to fast-forward it only when it is clean.
 - **The full test suite is skipped when the rebase pulled in nothing but documentation** — and only then. `reset --soft` rewrites history, not the tree, so the only thing that can break a verified branch is incoming upstream work; the skill diffs the pre-fetch merge-base against the new default-branch tip to see exactly what that was. A resolved conflict, no passing suite earlier in the session, or a single unclassifiable file all force a full run. `.md` is not automatically documentation: files under `tests/`, `requirements*.txt`, doctested `.rst`, and repos that ship markdown *as source* are named as never-docs. Anything left unclassified prompts a question instead of a guess, and a skip is always reported with its reason.
+
+**wrap-up** — what finalize leaves behind: the worktree, its branch, the test database `scripts/setup-worktree.py` created, the plan still under `docs/plans/`, a peer-planning run record and its monitor session. Finalize offers it once the branch is on the default branch, and `/git:wrap-up [branch]` runs it alone; from the main checkout with no argument it offers every worktree whose branch has landed. It refuses a branch that is not an ancestor of the remote default branch, shows what it found as a ticked checklist before removing anything, archives the plan with the project's `docs(plans): <title>, completed` rename commit, and never forces a worktree removal. From inside the worktree it does everything except the removal, which it prints for the main checkout. After the removal it runs the main repository's stranded-container scan and reports, since a container created inside a worktree is pinned to a path that no longer exists. The database and container steps assume the author's main repository (`postgres-test` compose service, `.envs/.override.yaml`), like the rest of the bundled tools.
 
 ### research
 

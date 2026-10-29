@@ -284,12 +284,13 @@ Tell the user:
 - every decision and deviation the implementers logged;
 - every disagreement with Codex and how it was settled, including the user's rulings;
 - the review rounds' outcome;
-- `WORK_PATH`, the branch and `RUN_DIR`, and what is left for the user: finalize, merge, archiving
-  the plan.
+- `WORK_PATH`, the branch and `RUN_DIR`, and what is left for the user: `/git:finalize-feature-branch`,
+  then `/git:wrap-up`, which archives the plan and removes the worktree, its test database and this
+  run's record.
 
-Then log `run.end`. Archive the plan the way the project does. Here, Stage 5 and finalize move it to
-`docs/plans/completed/`. Never move it while reviews still read it. `RUN_DIR` stays where it is
-until the branch lands. Then run "Run-record housekeeping" once more: it catches a run from an
+Then log `run.end`. The plan is archived the way the project does it; here `/git:wrap-up` moves it
+to `docs/plans/completed/` once the branch has landed. Never move it while reviews still read it.
+`RUN_DIR` stays where it is until the branch lands. Then run "Run-record housekeeping" once more: it catches a run from an
 earlier session that landed meanwhile. This run's own branch has not landed yet, so it is not
 offered.
 
