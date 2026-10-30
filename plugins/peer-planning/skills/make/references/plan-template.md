@@ -32,6 +32,8 @@ before the task closes; a task marked `**Discuss:** yes` has its approach agreed
 - **Validation:** <the project's commands, stated once here: format, lint, type
   check, framework checks, and pytest over only the test files a task writes or
   edits>.
+- **Whole suite:** <the project's whole-suite command, stated once here. exec's closing
+  suite stage runs it after the branch review and polish; no task runs it>.
 - **Commits:** one per task, `type(scope): subject`, after Codex's review.
 
 ## Tasks
@@ -54,7 +56,6 @@ honor>
 
 ### Task <n-1>: Verify acceptance criteria
 - [ ] every story and every Done-when above holds
-- [ ] <the project's whole-suite run and its record, if its rules require one>
 
 ### Task <n>: Update documentation
 - [ ] every guide, rule or doc the change made wrong describes the new state

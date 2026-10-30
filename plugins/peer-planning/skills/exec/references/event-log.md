@@ -39,8 +39,8 @@ event is written as given.
 | `commit` | the task's commit is confirmed | `task:=N`, `sha` |
 | `codex.clear` | `codex-clear.sh` returned | `task:=N`, `exit:=N` |
 | `task.done` | the task is closed | `task:=N`, `sha` |
-| `stage.start` | the branch review loop or the polish step begins | `stage=review\|polish`, `iteration:=N` for review |
-| `stage.done` | that stage ends | `stage=review\|polish`, `iteration:=N` for review |
+| `stage.start` | the branch review loop, the polish step or the closing suite run begins | `stage=review\|polish\|suite`, `iteration:=N` for review |
+| `stage.done` | that stage ends | `stage=review\|polish\|suite`, `iteration:=N` for review |
 | `run.end` | the completion report is given | |
 
 What a run spends waiting follows from the last line: after `implement.start` or `fix.start` the

@@ -94,11 +94,13 @@ cannot discover: why this, which alternatives were refused, and what must not br
 - **Decisions:** carries everything settled, each with its evidence: a code cite, a measurement or
   an owner ruling.
 - **Execution:** names the implementer, the `implementer` agent definition (Opus at medium) unless
-  the plan names another definition, and the validation commands, once. Tasks refer to them rather
-  than repeating them.
+  the plan names another definition, the validation commands and the whole-suite command, once.
+  Tasks refer to them rather than repeating them.
 - **The project's rules still apply in full:**
   - stories;
-  - the final verification task and its record;
+  - the final verification task, which no longer runs the whole suite;
+  - the suite record, which exec's closing suite stage writes; the plan names the whole-suite
+    command once in Execution;
   - OWNER-RUN titles for tasks that must not run unattended;
   - the SKIPPED convention;
   - one commit per task;

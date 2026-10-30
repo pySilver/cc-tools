@@ -164,8 +164,9 @@ is this worktree or the main checkout. Read both:
 A record line counts only when every one of these holds:
 - Its `sha` is exactly HEAD_BEFORE. The collapse does not change the tree, and a
   documentation-only INCOMING changes no code, so a pass on HEAD_BEFORE is a pass
-  on the code this commit carries. Any later commit on the branch, a review fix
-  among them, makes the record name an older commit, and then it does not count.
+  on the code this commit carries. exec writes the record after its last stage,
+  so it names the branch's head unless code landed after the run; any later
+  commit makes the record name an older commit, and then it does not count.
 - CLEAN_BEFORE was recorded in step 3, and `git status --porcelain` prints
   nothing now.
 - passed + skipped equals collected.

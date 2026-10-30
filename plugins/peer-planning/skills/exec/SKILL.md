@@ -1,6 +1,6 @@
 ---
 name: exec
-description: Execute a plan task by task as a two-agent run. An implementation subagent (Opus at medium by default) builds each task, Codex in the adjacent agterm pane reviews the diff before the commit, then Codex is cleared and the next task starts; a task the plan marks for discussion has its approach agreed with Codex first. The agents talk through peer-chat, with long content in files, and every step lands in a jsonl event log that a live agterm page shows. Finish with the project's revmux review rounds and its polish step. Use it whenever the user says peer-planning:exec, asks to execute a peer-planning:make plan, or wants plan execution reviewed by Codex task by task, even when they just say "run this plan with Codex".
+description: Execute a plan task by task as a two-agent run. An implementation subagent (Opus at medium by default) builds each task, Codex in the adjacent agterm pane reviews the diff before the commit, then Codex is cleared and the next task starts; a task the plan marks for discussion has its approach agreed with Codex first. The agents talk through peer-chat, with long content in files, and every step lands in a jsonl event log that a live agterm page shows. Finish with the project's revmux review rounds, its polish step and one run of the whole suite. Use it whenever the user says peer-planning:exec, asks to execute a peer-planning:make plan, or wants plan execution reviewed by Codex task by task, even when they just say "run this plan with Codex".
 ---
 
 # peer-planning:exec, two-agent plan execution
@@ -70,10 +70,11 @@ branch's head, so the record has one fixed form, a line of its own in `progress.
 FULL-SUITE PASS sha=<40-character SHA> passed=<P> skipped=<S> collected=<C> command=<command>
 ```
 
-Write it only when the implementer's reply to the "Commit" prompt carries a `FULL-SUITE:` line,
-and copy its numbers and command as given. `sha` is `git -C WORK_PATH rev-parse HEAD` taken right
-after that commit, which holds the code the suite ran on with only the plan's ticks added. Never
-write it from a report or from memory: finalize trusts it in place of a run it watched.
+Its one source is the closing suite stage ("After the last task", step 3). Write it only when that
+stage's final message carries a `FULL-SUITE:` line, and copy its numbers and command as given.
+`sha` is `git -C WORK_PATH rev-parse HEAD` taken right after the stage, which holds the code the
+suite ran on with at most the plan's suite record added. Never write it from a report or from
+memory: finalize trusts it in place of a run it watched.
 
 ## Setup
 
@@ -265,7 +266,6 @@ the same plan file.
 
 1. **Commit.** Resume the implementer with the "Commit" prompt. When it returns, confirm
    `git -C WORK_PATH log -1 --oneline` and the task's ticked boxes in the plan, then log `commit`.
-   When the reply carries a `FULL-SUITE:` line, write the full-suite record into `progress.md`.
 2. **Clear Codex.** Run `bash ${CLAUDE_SKILL_DIR}/scripts/codex-clear.sh` and log `codex.clear`
    with its exit code.
    - **Exit 0:** cleared.
@@ -300,7 +300,7 @@ output and the implementers' reports stay out of it: an implementer writes its r
 and Codex's review items go to the implementer unopened. Keeping them out is how this session
 remains coherent across a whole plan.
 
-## After the last task: review, then polish
+## After the last task: review, polish, then the whole suite
 
 1. **Review the whole branch.** Follow the project's `.claude/peer-planning/review.md` if it has
    one, otherwise `references/review.md`, which runs revmux rounds. Substitute `WORK_PATH`,
@@ -323,7 +323,26 @@ remains coherent across a whole plan.
      discussion with Codex before the fixer runs (`references/review.md`, Step 7).
 2. **Polish.** Run the project's polish step if it has one; here that is `/polish`
    (`.claude/commands/polish.md`), inside `WORK_PATH`. Log `stage.start` and `stage.done` with
-   `stage=polish`. It is interactive, and it stops before finalize, which the user runs.
+   `stage=polish`. It is interactive, and the project's polish ends by telling the user to
+   finalize. Under exec the suite stage comes first: it runs once polish returns, and the
+   completion report follows it.
+3. **Run the whole suite.** First resolve `SUITE_COMMAND`: the whole-suite command the plan's
+   Execution section names, or else the one the project's agent docs name. A plan written before
+   this stage existed names none. Then spawn a fresh subagent with the "Run the full suite"
+   prompt from `references/implementer-prompt.md`, `SUITE_COMMAND` substituted, the resolved
+   executor as its `subagent_type`, and the next numbered `RUN_DIR/msgs/NNN-suite-report.md` as
+   its `REPORT_PATH`. Log `stage.start` and `stage.done` with `stage=suite`.
+   - This is the run's one whole-suite run. It comes after every commit the review and polish
+     make, so the record it leaves names the branch's head, and finalize can skip on it.
+   - When it returns, read only its final message and confirm a commit it names with
+     `git -C WORK_PATH log -1 --oneline`. When the message carries a `FULL-SUITE:` line, write the
+     full-suite record. Then append one line to `progress.md`:
+     `Suite stage: <report path>, commit <sha or none>, <SUITE line>, record written | not written`.
+   - A suite left red goes to the user, and no record is written.
+   - Fixes made in this stage get no revmux review. Before this stage, the fixes finalize made
+     for a red suite got none either.
+   - When neither source names a whole-suite command, skip the stage and say so in the
+     completion report.
 
 ## Completion report
 
@@ -333,6 +352,8 @@ Tell the user:
   a review fixer made, from the `DECISIONS` section of the fixer reports `progress.md` names;
 - every disagreement with Codex and how it was settled, including the user's rulings;
 - the review rounds' outcome;
+- the suite stage's outcome: how many runs it took, each failure with the commit that caused it
+  (from the `FAILURES` section of the suite report), and whether the full-suite record was written;
 - `WORK_PATH`, the branch and `RUN_DIR`, and what is left for the user: `/git:finalize-feature-branch`,
   then `/git:wrap-up`, which archives the plan and removes the worktree, its test database and this
   run's record;

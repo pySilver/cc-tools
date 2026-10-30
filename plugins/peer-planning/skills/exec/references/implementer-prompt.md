@@ -2,14 +2,16 @@
 
 Three prompts go to the implementation subagent: one to start a task, one to apply Codex's
 review, and one to commit. A fourth goes to a fresh fixer subagent after each round of the branch
-review. Substitute every `UPPER_CASE` token before sending, because the subagent runs in a fresh
-context and knows none of these values.
+review, and a fifth to a fresh subagent that runs the whole suite once at the end. Substitute
+every `UPPER_CASE` token before sending, because the subagent runs in a fresh context and knows
+none of these values.
 
 The implementer writes each report to its own file, and that file is `REPORT_PATH` in the prompt
 that asks for it: `RUN_DIR/msgs/NNN-implementer-report.md`, numbered with the run's other message
 files, a new number for every report. Its final message only points at the file, so the report
 reaches Codex without passing through the orchestrator. A branch-review fixer does the same with
-`RUN_DIR/msgs/NNN-fixer-report.md`, which the next review round and the next fixer read.
+`RUN_DIR/msgs/NNN-fixer-report.md`, which the next review round and the next fixer read, and the
+suite run with `RUN_DIR/msgs/NNN-suite-report.md`.
 
 ## Start a task
 
@@ -106,15 +108,7 @@ The review passed. Commit TASK_HEADING now:
 3. The commit hook runs the project's gates. If it fails, fix the cause, re-run the task's tests
    and commit again. Never pass --no-verify.
 Reply with the commit SHA and the hook's result, or with the failure you could not fix.
-
-Add one more line only when all of these hold: your last validation ran the project's full test
-suite, it passed with passed + skipped == collected, and nothing but the plan file changed between
-that run and this commit. A fix after a failed hook is a change.
-FULL-SUITE: passed=<P> skipped=<S> collected=<C> command=<the command exactly as you ran it>
 ```
-
-A `FULL-SUITE:` line is what the orchestrator turns into the run's full-suite record, which
-`/git:finalize-feature-branch` trusts in place of a run of its own.
 
 ## Fix review findings (sent to a fresh subagent)
 
@@ -176,3 +170,56 @@ reviewer (Codex) agreed a change to its design. Build that design instead of pat
 and treat the findings in SYMBOL above as cases it must answer:
 AGREED_DESIGN
 ```
+
+## Run the full suite (sent to a fresh subagent)
+
+```
+The branch's tasks, its review and its polish are done. Run the project's whole test suite over
+the finished branch, make it green, and commit what that takes.
+
+Working directory: WORK_PATH
+Plan: PLAN_FILE_PATH
+Whole-suite command: SUITE_COMMAND
+Progress: PROGRESS_FILE_PATH. It says what each task and review round changed.
+
+Project rules (apply them throughout):
+USER_RULES
+
+How to work:
+1. Run SUITE_COMMAND exactly as written.
+2. If the suite is red, find the commit that broke each failure: git log over the files its
+   traceback names, or a bisect across the branch's commits (DEFAULT_BRANCH..HEAD). Say for each
+   whether it is a regression or an outdated expectation. Fix it, and rerun the whole suite until
+   it is green. When a failure resists, stop and report the suite red with what still fails.
+3. If the project's rules ask for a suite record in the plan, append it.
+4. Stage the files you changed by name (never `git add -A`) and commit once with a semantic
+   message. The commit hook runs the project's gates. If it fails, fix the cause and commit again.
+   Never pass --no-verify. If the suite was green on its first run and there is no record to
+   write, there is nothing to commit; say so.
+5. Leave nothing behind outside the diff: no stray files, processes or containers. The one file
+   you write outside it is your report.
+
+Nobody is available to answer questions. Decide judgment calls from the plan's intent, then the
+project's rules and agent docs, then the surrounding code. When a call is still 50/50, take the
+smaller, more reversible option, and record it.
+
+Write your report to REPORT_PATH:
+RUNS: each whole-suite run, with its command and its summary line
+FAILURES: one line per test that failed on the first run, as "<test> — <the commit that broke
+  it> — regression | outdated expectation — <what you changed>", or "none"
+COMMIT: the SHA and the hook's result, "no commit", or the failure you could not fix
+DECISIONS: judgment calls, one per line, or "none"
+
+Your final message is these three lines and nothing else:
+COMMIT: the SHA and the hook's result, "no commit", or the failure you could not fix
+SUITE: green after <R> runs, <F> failures on the first; or red: what still fails
+REPORT: REPORT_PATH
+
+Add one more line only when all of these hold: your last whole-suite run passed with passed +
+skipped == collected, and nothing but the plan file changed between that run and your commit, or
+there is no commit. A fix after a failed hook is a change.
+FULL-SUITE: passed=<P> skipped=<S> collected=<C> command=<the command exactly as you ran it>
+```
+
+A `FULL-SUITE:` line is what the orchestrator turns into the run's full-suite record, which
+`/git:finalize-feature-branch` trusts in place of a run of its own.

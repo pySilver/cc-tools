@@ -411,9 +411,9 @@ function stateOf(e) {
       if (e.exit) return {actor: 'orchestrator', task, alert: true, headline: `codex-clear exited ${e.exit}; the orchestrator decides the next step`};
       break;
     case 'stage.start':
-      return e.stage === 'review'
-        ? {actor: 'review', task, headline: `Branch review, iteration ${e.iteration}`}
-        : {actor: 'user', task, headline: 'Polish: the step is interactive'};
+      if (e.stage === 'review') return {actor: 'review', task, headline: `Branch review, iteration ${e.iteration}`};
+      if (e.stage === 'suite') return {actor: 'implementer', task, headline: 'Waiting for the whole suite: the closing run'};
+      return {actor: 'user', task, headline: 'Polish: the step is interactive'};
     case 'run.end': return {actor: 'done', task, headline: 'The run is finished'};
   }
   return {actor: 'orchestrator', task, headline: `The orchestrator is ${ORCHESTRATOR_STEP[e.event] ?? 'between steps'}`};
@@ -825,7 +825,7 @@ function buildNow(m) {
   const between = m.phase === 'tasks' && m.done.length < m.total ? `task ${m.done.length + 1} of ${m.total}` : m.phase === 'tasks' ? 'the branch review' : '';
   const doneRow = actor !== 'done' ? null : h('div', {class: 'now-next'},
     h('span', {class: 'lbl'}, 'Phases'),
-    [['tasks', 'Tasks', 'ok'], ['review', 'Branch review', 'review'], ['polish', 'Polish', 'user']]
+    [['tasks', 'Tasks', 'ok'], ['review', 'Branch review', 'review'], ['polish', 'Polish', 'user'], ['suite', 'Whole suite', 'implementer']]
       .filter(([k]) => m.phaseSpans[k])
       .map(([k, label, color]) => {
         const [a, b] = m.phaseSpans[k];
@@ -911,12 +911,13 @@ function buildProgress(m) {
   }
   ring += '</svg>';
 
-  const order = ['tasks', 'review', 'polish', 'done'];
+  const order = ['tasks', 'review', 'polish', 'suite', 'done'];
   const here = order.indexOf(m.phase);
   const phases = [
     ['Tasks', `${m.done.length} of ${m.total}`],
     ['Branch review', m.reviewIterations ? plural(m.reviewIterations, 'iteration') : ''],
     ['Polish', ''],
+    ['Whole suite', ''],
     ['Done', ''],
   ].map(([label, sub], i) => h('div', {class: `phase ${i < here || m.phase === 'done' ? 'past' : i === here ? 'cur' : ''}`},
     h('i'), label, sub && h('small', {}, sub)));
@@ -1140,10 +1141,14 @@ function describe(e) {
       ? {actor: 'orchestrator', icon: 'alert', tone: 'bad', text: ['codex-clear exited ', b(String(e.exit))]}
       : {actor: 'orchestrator', icon: 'reset', text: ['Codex cleared']};
     case 'task.done': return {actor: 'done', icon: 'check', tone: 'ok', text: [b(`Task ${e.task} done`)]};
-    case 'stage.start': return e.stage === 'review'
-      ? {actor: 'review', icon: 'search', text: ['Branch review, iteration ', b(String(e.iteration ?? '?'))]}
-      : {actor: 'user', icon: 'star', text: ['Polish started', sub(' · interactive')]};
-    case 'stage.done': return {actor: e.stage === 'review' ? 'review' : 'user', icon: 'check', text: [e.stage === 'review' ? `Branch review iteration ${e.iteration ?? '?'} done` : 'Polish done']};
+    case 'stage.start':
+      if (e.stage === 'review') return {actor: 'review', icon: 'search', text: ['Branch review, iteration ', b(String(e.iteration ?? '?'))]};
+      if (e.stage === 'suite') return {actor: 'implementer', icon: 'tool', text: ['Whole suite started', sub(' · the closing run')]};
+      return {actor: 'user', icon: 'star', text: ['Polish started', sub(' · interactive')]};
+    case 'stage.done':
+      if (e.stage === 'review') return {actor: 'review', icon: 'check', text: [`Branch review iteration ${e.iteration ?? '?'} done`]};
+      if (e.stage === 'suite') return {actor: 'implementer', icon: 'check', text: ['Whole suite done']};
+      return {actor: 'user', icon: 'check', text: ['Polish done']};
     case 'run.end': return {actor: 'done', icon: 'flag', tone: 'ok', text: [b('Run finished')]};
     default: return {actor: 'orchestrator', icon: 'dot', text: [h('span', {class: 'mono'}, e.event)]};
   }
