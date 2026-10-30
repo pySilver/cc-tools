@@ -1,6 +1,6 @@
 ---
 name: finalize-feature-branch
-description: After review approval, rebase onto the default branch, collapse the feature branch into a single commit, verify it, then merge it into the default branch and push that. Skips the full test suite when the rebase brought in nothing but documentation and a full run already passed on the branch's code, in this session or in a peer-planning run record.
+description: After review approval, rebase onto the default branch, collapse the feature branch into a single commit, verify it, then merge it into the default branch and push that. Skips the full test suite when the rebase brought in nothing but documentation and a full run already passed on the branch's code, in this session or in a peer-planning run record. Holds a landing lock in the repository's git directory while it runs, so two worktrees on one machine never finalize at once.
 disable-model-invocation: true
 allowed-tools: Bash, Read, Glob, Grep, AskUserQuestion
 ---
@@ -55,6 +55,38 @@ Ask the user to confirm via AskUserQuestion:
 - "Abort"
 
 If the user chooses "Abort", stop.
+
+### Take the landing lock
+
+After "Proceed", before the fetch in step 4, take the repository's landing lock.
+It lives in the git common directory, which every worktree of the repository
+shares, and `mkdir` either creates it or fails. Shell variables do not survive from
+one Bash call to the next, so set LOCK again in every call that uses it:
+- `LOCK="$(git rev-parse --path-format=absolute --git-common-dir)/finalize-feature-branch.lock"`
+- `mkdir "$LOCK"`
+- On success, write `$LOCK/owner` with one line each: `branch=<CURRENT_BRANCH>`,
+  `worktree=<git rev-parse --show-toplevel>`, `started=<date -u +%Y-%m-%dT%H:%M:%SZ>`
+
+If `mkdir` fails, another finalize holds the lock. Read `$LOCK/owner`:
+- When the owner's branch is already an ancestor of `origin/{DEFAULT_BRANCH}`, or
+  its worktree path no longer exists, the lock is stale. Offer via
+  AskUserQuestion to break it: remove it, then take it as above. If the user
+  declines, stop.
+- Otherwise, or when `owner` is missing or unreadable, ask via AskUserQuestion:
+  - "Stop; rerun finalize after <branch> lands" (default)
+  - "Break the lock"
+- Never wait for the lock by sleeping or polling.
+
+The lock keeps two worktrees on this machine from finalizing at once, so a lane
+never rebases onto a default branch another lane is about to move and then fails
+its push or reruns its suite. It does not cover pushes from other machines; the
+plain non-force push still refuses those.
+
+From here on, every stop releases the lock first: an aborted rebase, the
+0-ahead stop, a wrong commit count, a failing suite, a diverged or moved default
+branch, a rejected or failed push. Step 12 releases it after any landing, and
+"Do nothing" in step 11 releases it too:
+- `LOCK="$(git rev-parse --path-format=absolute --git-common-dir)/finalize-feature-branch.lock"; rm -f "$LOCK/owner" && rmdir "$LOCK"`
 
 ## 4. Fetch Latest Changes
 
@@ -308,6 +340,8 @@ If push fails, report the error and stop.
 
 ## 12. Offer the Wrap-up
 
+First release the landing lock (step 3), whatever step 11 did.
+
 Only after a landing: the local merge or the direct push. A published feature
 branch has not landed, and "Do nothing" landed nothing.
 
@@ -333,6 +367,8 @@ Summarize:
 - For the direct-push path: whether the local default branch in the other
   worktree was fast-forwarded or left behind, and its path
 - Whether the wrap-up was offered, and what the user chose
+- That the landing lock was taken and released, or that a stale or live lock was
+  broken, and whose it was
 - Test/lint results
 - Any issues encountered
 
