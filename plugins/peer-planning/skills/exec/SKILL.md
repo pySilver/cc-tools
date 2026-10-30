@@ -311,9 +311,13 @@ remains coherent across a whole plan.
      empty also ends it: nothing changed, so a re-check would review the same diff. Log
      `stage.start` and `stage.done` for each, with `stage=review`.
    - When an iteration's findings list is not empty, spawn a fresh fixer subagent with the "Fix
-     review findings" prompt from `references/implementer-prompt.md` and the resolved executor as
-     its `subagent_type`. When it returns, append its FIXES and DECISIONS to `progress.md` and
-     confirm the commit with `git -C WORK_PATH log -1 --oneline`.
+     review findings" prompt from `references/implementer-prompt.md`, the resolved executor as
+     its `subagent_type`, and the next numbered `RUN_DIR/msgs/NNN-fixer-report.md` as its
+     `REPORT_PATH`. When it returns, read only its final message and confirm the commit with
+     `git -C WORK_PATH log -1 --oneline`. Then append one line to `progress.md`:
+     `Review iteration N fixer: <report path>, commit <sha>, <n> fixed, <m> false positive`. The
+     fixes and decisions stay in the report, where the next round and the completion report read
+     them. A `COMMIT` line that names a failure ends the phase; tell the user.
    - Codex takes no part, since it has already reviewed every task, with one exception: when the
      default playbook's stop rule fires on a function or symbol, that finding goes to a design
      discussion with Codex before the fixer runs (`references/review.md`, Step 7).
@@ -325,7 +329,8 @@ remains coherent across a whole plan.
 
 Tell the user:
 - each task with its commit SHA and its must-fix count from the log;
-- every decision and deviation the implementers reported, from `progress.md`;
+- every decision and deviation the implementers reported, from `progress.md`, and every decision
+  a review fixer made, from the `DECISIONS` section of the fixer reports `progress.md` names;
 - every disagreement with Codex and how it was settled, including the user's rulings;
 - the review rounds' outcome;
 - `WORK_PATH`, the branch and `RUN_DIR`, and what is left for the user: `/git:finalize-feature-branch`,

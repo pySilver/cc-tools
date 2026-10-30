@@ -8,7 +8,8 @@ context and knows none of these values.
 The implementer writes each report to its own file, and that file is `REPORT_PATH` in the prompt
 that asks for it: `RUN_DIR/msgs/NNN-implementer-report.md`, numbered with the run's other message
 files, a new number for every report. Its final message only points at the file, so the report
-reaches Codex without passing through the orchestrator.
+reaches Codex without passing through the orchestrator. A branch-review fixer does the same with
+`RUN_DIR/msgs/NNN-fixer-report.md`, which the next review round and the next fixer read.
 
 ## Start a task
 
@@ -123,7 +124,8 @@ commit.
 
 Working directory: WORK_PATH
 Plan: PLAN_FILE_PATH. Its Execution section names the validation commands.
-Progress: PROGRESS_FILE_PATH. Read it for what earlier tasks and review rounds found and fixed.
+Progress: PROGRESS_FILE_PATH. Read it, and the earlier fixer reports it names, for what earlier
+tasks and review rounds found and fixed.
 
 FINDINGS:
 FINDINGS_LIST
@@ -144,18 +146,25 @@ How to work:
 5. Stage the files you changed by name (never `git add -A`) and commit once with a semantic
    message: fix(scope): address review findings. The commit hook runs the project's gates. If it
    fails, fix the cause and commit again. Never pass --no-verify.
-6. Leave nothing behind outside the diff: no stray files, processes or containers.
+6. Leave nothing behind outside the diff: no stray files, processes or containers. The one file
+   you write outside it is your report.
 
 Nobody is available to answer questions. Decide judgment calls from the plan's intent, then the
 project's rules and agent docs, then the surrounding code. When a call is still 50/50, take the
 smaller, more reversible option, and record it.
 
-Your final message is this report and nothing else:
+Write your report to REPORT_PATH. The next review round reads it as it is:
 FIXES: one line per finding, as "fixed: <file:line> — <what changed>" or
   "false positive: <finding> — <why>"
 COMMIT: the SHA and the hook's result, or the failure you could not fix
 VALIDATION: each command you ran and the summary line of its result
 DECISIONS: judgment calls the findings did not settle, one per line, or "none"
+
+Your final message is these four lines and nothing else:
+COMMIT: the SHA and the hook's result, or the failure you could not fix
+VALIDATION: passed, or failed: the command that failed
+COUNTS: <n> fixed, <m> false positive
+REPORT: REPORT_PATH
 ```
 
 `DESIGN_BLOCK` is left out unless the round went to a design discussion with Codex

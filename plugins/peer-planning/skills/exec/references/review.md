@@ -43,7 +43,8 @@ Tell the skill three things it cannot infer:
 - Write no `profile.md` into the round. `.revmux/profile.md` is the project's layer and reaches
   every round on its own; a round-local file would shadow it.
 - Copy `PLAN_FILE_PATH` into the round's `context/`. From the second round on, copy
-  `PROGRESS_FILE_PATH` too: it carries what earlier iterations found and fixed.
+  `PROGRESS_FILE_PATH` too, and every earlier fixer report it names: `progress.md` carries what
+  each iteration found, and the reports what each fixer changed or rejected as a false positive.
 - In `critical` mode, say in `goal` that the round exists to answer whether the fixes held, and
   that finding nothing is a valid answer. Without that sentence the panel reads the round as owing
   findings and produces some.
