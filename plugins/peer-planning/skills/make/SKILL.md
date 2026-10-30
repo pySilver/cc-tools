@@ -122,7 +122,10 @@ second planning round on the same profile.
 
 Tell the user the plan's path, then offer, as a numbered list:
 
-1. Execute it with `/peer-planning:exec <plan>`.
+1. Execute it from a fresh session: `/clear`, then `/peer-planning:exec <plan>`. Started here,
+   the run would carry this planning context and pay for it on every call. `/clear` keeps this
+   agterm session, so Codex stays in the pane next to it, and removes any `/goal`, which exec
+   refuses to run under.
 2. Execute it another way the project supports.
 3. Stop here.
 

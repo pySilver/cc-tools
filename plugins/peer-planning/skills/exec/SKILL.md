@@ -60,17 +60,30 @@ branch has landed, "Run-record housekeeping" offers to remove it.
 
 ## Setup
 
-1. **Load the peer-chat skill.** Its sending and manners rules apply to every message below.
-2. **Confirm Codex is there.** Run `bash ${CLAUDE_SKILL_DIR}/scripts/codex-clear.sh --check`.
+1. **Start from a fresh session, without a goal.**
+   - Every call of the run pays for everything this conversation holds, and the run only adds to
+     it. If the conversation already holds other work (the plan was written here, a review ran,
+     code was read, an earlier part of this run happened here), stop before any other setup. Tell
+     the user to run `/clear`, then this skill again with the same argument; `/clear` keeps this
+     agterm session, so Codex stays in the pane next to it. Go on only when the user says so, in
+     the invocation or in reply.
+   - Never start the run under an active `/goal`. A goal is checked after every turn that ends
+     with nothing running in the background, which here is every wait on Codex, and its check
+     re-prompts this session, which then reads Codex's pane against "Waiting". This skill needs no
+     goal: Codex's messages and the subagents' returns wake it. Stop before any other setup and
+     tell the user to run `/goal clear`, or `/clear`, which removes the goal too, and then this
+     skill again. A goal's re-prompt is not the user's go-ahead.
+2. **Load the peer-chat skill.** Its sending and manners rules apply to every message below.
+3. **Confirm Codex is there.** Run `bash ${CLAUDE_SKILL_DIR}/scripts/codex-clear.sh --check`.
    It reads the right pane without typing and exits 0 only when Codex is idle with an empty
    composer. If Codex is not running in the right pane, stop and say so. This skill never starts an
    agent or opens a pane, and Codex runs with the model and effort the user started it with.
-3. **Resolve the plan.** Use the argument, or list `docs/plans/*.md` outside `completed/` and ask
+4. **Resolve the plan.** Use the argument, or list `docs/plans/*.md` outside `completed/` and ask
    the user to pick one.
-4. **Load the rules.** Run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-rules.sh`. Drop its
+5. **Load the rules.** Run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-rules.sh`. Drop its
    `SOURCE:` line and keep the rest as `USER_RULES`, the project's `.claude/planning-rules.md`.
    It prints nothing when the project has none; `USER_RULES` is then "none".
-5. **Resolve the executor.** The first source that names one wins: the user's invocation text, the
+6. **Resolve the executor.** The first source that names one wins: the user's invocation text, the
    task's own **Executor:** line, the plan's Execution section, then the default, the `implementer`
    agent definition (Opus at medium).
    - The Agent tool takes a model but no effort. Effort comes from an agent definition's
@@ -79,10 +92,10 @@ branch has landed, "Run-record housekeeping" offers to remove it.
      (`.claude/agents/` or `~/.claude/agents/`; `worker`, for example, is Opus at high).
    - If none matches, or the default definition is missing, say so and ask before task 1, offering
      to create one. Never approximate silently.
-6. **Find the default branch.** Take `git symbolic-ref --short refs/remotes/origin/HEAD` without
+7. **Find the default branch.** Take `git symbolic-ref --short refs/remotes/origin/HEAD` without
    its `origin/` prefix; if that fails, the first of `main` and `master` that exists. Call it
    `DEFAULT_BRANCH`. A new worktree starts from it, and the branch review diffs against it.
-7. **Choose where the work happens.** Offer a numbered choice: a new worktree (the default) or the
+8. **Choose where the work happens.** Offer a numbered choice: a new worktree (the default) or the
    current feature branch.
    - Never create or switch a branch in the main checkout: other sessions share it.
    - For a worktree:
@@ -91,7 +104,7 @@ branch has landed, "Run-record housekeeping" offers to remove it.
    - Then run the project's worktree setup if its agent docs name one; in this user's main
      repository that is `uv run scripts/setup-worktree.py`.
    - Call the absolute path `WORK_PATH`.
-8. **Open the run directory.**
+9. **Open the run directory.**
    - `RUN_DIR` is `$(git rev-parse --show-toplevel)/.peer-planning/<plan-stem>`, taken in this
      session's own directory rather than in `WORK_PATH`. Create `RUN_DIR/msgs`.
    - If `git check-ignore -q "$RUN_DIR"` fails, append `/.peer-planning/` to
@@ -105,21 +118,21 @@ branch has landed, "Run-record housekeeping" offers to remove it.
      and the context may compact in the middle of a run.
    - Append to it after every step: the task, its phase, the implementer's agent id, the commit
      SHA, and every decision, deviation or user ruling.
-9. **Check whether Codex can write long replies.** Send the setup check from
-   `references/codex-messages.md` and end your turn.
-   - If `RUN_DIR/msgs/000-codex-setup.md` then holds `ready`, log `codex.ready` with
-     `files:=true`. If Codex replied "no files", log it with `files:=false` and never offer it a
-     file; it answers in chat only. Record which in `progress.md`.
-   - If Codex's pane shows an approval prompt instead, stop and tell the user. The prompt is theirs
-     to answer.
-10. **Open the monitor.** Log `run.start` with every field `references/event-log.md` gives it:
+10. **Check whether Codex can write long replies.** Send the setup check from
+    `references/codex-messages.md` and end your turn.
+    - If `RUN_DIR/msgs/000-codex-setup.md` then holds `ready`, log `codex.ready` with
+      `files:=true`. If Codex replied "no files", log it with `files:=false` and never offer it a
+      file; it answers in chat only. Record which in `progress.md`.
+    - If Codex's pane shows an approval prompt instead, stop and tell the user. The prompt is theirs
+      to answer.
+11. **Open the monitor.** Log `run.start` with every field `references/event-log.md` gives it:
 
     ```bash
     "${CLAUDE_SKILL_DIR}/scripts/log-event.py" "$RUN_DIR" run.start plan=docs/plans/<plan>.md \
       tasks:=<N> work_path="$WORK_PATH" branch=<branch> executor=<executor> session="$AGTERM_SESSION_ID"
     ```
 
-    `plan` is the plan's path from the repository root, as step 3 listed it, and `tasks` the
+    `plan` is the plan's path from the repository root, as step 4 listed it, and `tasks` the
     plan's task count. Run-record housekeeping reads `plan` to tell whether the run has landed,
     and the monitor shows the plan, branch and executor from this record, so `log-event.py`
     refuses a `run.start` missing any of them. Then run
@@ -286,7 +299,10 @@ Tell the user:
 - the review rounds' outcome;
 - `WORK_PATH`, the branch and `RUN_DIR`, and what is left for the user: `/git:finalize-feature-branch`,
   then `/git:wrap-up`, which archives the plan and removes the worktree, its test database and this
-  run's record.
+  run's record;
+- that follow-up questions, finalize and wrap-up belong in a fresh session (`/clear` first). This
+  one carries the whole run, and every call here pays for it. The run's record is in the plan and
+  in `RUN_DIR` (`progress.md`, `events.jsonl`), where a fresh session reads what it needs.
 
 Then log `run.end`. The plan is archived the way the project does it; here `/git:wrap-up` moves it
 to `docs/plans/completed/` once the branch has landed. Never move it while reviews still read it.
