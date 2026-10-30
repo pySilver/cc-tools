@@ -292,7 +292,9 @@ remains coherent across a whole plan.
      review findings" prompt from `references/implementer-prompt.md` and the resolved executor as
      its `subagent_type`. When it returns, append its FIXES and DECISIONS to `progress.md` and
      confirm the commit with `git -C WORK_PATH log -1 --oneline`.
-   - Codex takes no part: it has already reviewed every task.
+   - Codex takes no part, since it has already reviewed every task, with one exception: when the
+     default playbook's stop rule fires on a function or symbol, that finding goes to a design
+     discussion with Codex before the fixer runs (`references/review.md`, Step 7).
 2. **Polish.** Run the project's polish step if it has one; here that is `/polish`
    (`.claude/commands/polish.md`), inside `WORK_PATH`. Log `stage.start` and `stage.done` with
    `stage=polish`. It is interactive, and it stops before finalize, which the user runs.

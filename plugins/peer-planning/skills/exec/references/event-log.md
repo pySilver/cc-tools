@@ -24,11 +24,11 @@ event is written as given.
 | `run.start` | setup is complete, and again when a run resumes | `plan` (its path from the repository root), `tasks:=N` (the plan's task count), `work_path`, `branch`, `executor`, `session` (this session's agterm id); every one required |
 | `codex.ready` | Codex answered the setup check | `files:=true\|false` (whether it can write long replies) |
 | `task.start` | a task begins | `task:=N`, `title`, `discuss:=true\|false` |
-| `discuss.request` | a discussion message is sent | `task:=N` |
-| `discuss.reply` | Codex's discussion reply is read | `task:=N`, `points:=N` (0 for `AGREED`) |
-| `discuss.agreed` | Codex replied `AGREED` to the proposal | `task:=N` |
-| `discuss.stalled` | the exchange ended without agreement and went to the user | `task:=N` |
-| `ruling` | the user ruled on a disagreement | `task:=N`, `on=discussion\|review` |
+| `discuss.request` | a discussion message is sent | `task:=N`, or `stage=review` and `iteration:=N` for a design discussion in the branch review |
+| `discuss.reply` | Codex's discussion reply is read | the same, and `points:=N` (0 for `AGREED`) |
+| `discuss.agreed` | Codex replied `AGREED` to the proposal | the same as `discuss.request` |
+| `discuss.stalled` | the exchange ended without agreement and went to the user | the same as `discuss.request` |
+| `ruling` | the user ruled on a disagreement | the same as `discuss.request`, and `on=discussion\|review` |
 | `implement.start` | the implementer is spawned | `task:=N`, `agent_id`, `agent_type` |
 | `implement.done` | the implementer's report is read | `task:=N`, `status=done\|blocked` |
 | `review.request` | a review or re-review message is sent | `task:=N`, `round:=N` |

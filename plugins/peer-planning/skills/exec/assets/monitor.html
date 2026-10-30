@@ -751,7 +751,7 @@ function buildBanners(m) {
     out.push(keyed('blocked', h('div', {class: 'banner attention'}, icon('user'), h('span', {}, `${pane} is waiting for you in the agents' session.`), action)));
   } else if (m.state?.actor === 'user') {
     const ask = m.last.event === 'discuss.stalled'
-      ? `The agents could not agree on task ${m.last.task}: they need your ruling.`
+      ? `The agents could not agree on ${m.last.task != null ? `task ${m.last.task}` : "the branch review's design question"}: they need your ruling.`
       : 'The polish step is interactive and waits on you.';
     out.push(keyed('user', h('div', {class: 'banner attention'}, icon('user'), h('span', {}, ask), action)));
   }

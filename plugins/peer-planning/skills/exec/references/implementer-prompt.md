@@ -120,6 +120,8 @@ Progress: PROGRESS_FILE_PATH. Read it for what earlier tasks and review rounds f
 FINDINGS:
 FINDINGS_LIST
 
+DESIGN_BLOCK
+
 Project rules (apply them throughout):
 USER_RULES
 
@@ -146,4 +148,14 @@ FIXES: one line per finding, as "fixed: <file:line> — <what changed>" or
 COMMIT: the SHA and the hook's result, or the failure you could not fix
 VALIDATION: each command you ran and the summary line of its result
 DECISIONS: judgment calls the findings did not settle, one per line, or "none"
+```
+
+`DESIGN_BLOCK` is left out unless the round went to a design discussion with Codex
+(`references/review.md`, Step 7). Then it reads:
+
+```
+The findings in SYMBOL (FILE) kept coming back, one case per round, so the orchestrator and the
+reviewer (Codex) agreed a change to its design. Build that design instead of patching the finding,
+and treat the findings in SYMBOL above as cases it must answer:
+AGREED_DESIGN
 ```

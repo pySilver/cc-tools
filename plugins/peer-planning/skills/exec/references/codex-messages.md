@@ -87,6 +87,21 @@ The must-fix items for Task TASK_NUMBER are addressed in WORK_PATH, still uncomm
 `DISPUTES` names each item the implementer refuted, with the implementer's cite from its
 `REFUTED` line ("The implementer disputes item N: …"), or is left out.
 
+## Opening a design discussion in the branch review
+
+Sent when the branch review's stop rule fires (`references/review.md`, Step 7). Codex has been
+cleared since its last task and knows nothing of the branch review, so the message carries it all.
+`FINDINGS_OR_FILE` is each round's gating finding in that symbol, with its round and `file:line`,
+taken from `progress.md`, or the path of a file holding them. `FILE_OFFER` is the one a task
+discussion uses.
+
+```
+The branch review of PLAN_FILE_PATH keeps finding defects in SYMBOL (FILE): FINDINGS_OR_FILE. Each fix answered one case and exposed the next. The work happens in WORK_PATH, not necessarily in the directory you were started in: run every command there (cd WORK_PATH && ...) and open files by that path; git -C WORK_PATH diff DEFAULT_BRANCH...HEAD shows the branch. You are read-only there. Step back from the single findings: is the design of SYMBOL right for what the plan asks of it? Either propose the change that answers the whole class of these findings, or show with a cite that the design holds and the findings are separate defects. Any addition you propose, such as a guard, a column, a lock or a retry, must name the failure it prevents, the input that produces it, whether that input is realistic here, and what breaks without it. Open your reply with POINTS: N, one point per change, or POINTS: 0 when the design holds. FILE_OFFER Reply by peer-chat to Claude.
+```
+
+From there the exchange runs as a task discussion does, through "Continuing the discussion" and
+"Proposing agreement", with the design in place of the approach.
+
 ## Asking again after a mismatch
 
 When the `Changed:` line differs from `git -C WORK_PATH status --short`, Codex has most likely run

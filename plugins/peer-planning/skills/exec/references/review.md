@@ -97,7 +97,8 @@ as open findings.
 ## Step 7: what may drive another iteration
 
 Before the fixer runs, write this round's gating count (CRITICAL plus MAJOR) and, for each gating
-finding, its mechanism and its file into `progress.md`. The two rules below compare against them.
+finding, its file, the function or symbol it sits in, and its mechanism into `progress.md`. The two
+rules below compare against them.
 
 **Only executable code drives another iteration.** A gating finding in a document an agent
 executes as a contract (rule files, `AGENTS.md`, `CLAUDE.md`, skill and prompt files, `.revmux/*`,
@@ -107,7 +108,21 @@ a rewritten rubric tends to produce a new finding of its own. List such findings
 after the loop. A script is code: fixing a `.sh` or `.py` replaces logic and counts normally. Only
 the text a script prints batches with the prose.
 
-**Stop when the fixes are not landing.** If this round's gating count in executable code is not
-strictly lower than the previous round's, and one of its gating findings repeats (the same
-mechanism in the same place, however reworded), the next fix will not answer it either. Name that
-finding to the user and end the phase without another iteration.
+**When the fixes are not landing, step back with Codex.** The rule fires when this round's gating
+count in executable code is not strictly lower than the previous round's, and one of its gating
+findings sits in the same function or symbol as a gating finding of the previous round. The place
+decides, not the mechanism: a design gap patched one finding at a time shows up as a new mechanism
+in the same function every round. Another fix would answer one more case, so when the rule fires:
+
+1. Open a design discussion with Codex. It is the one exception to Codex taking no part in this
+   phase. Send "Opening a design discussion in the branch review" from
+   `references/codex-messages.md`, log `discuss.request` with `stage=review` and this iteration,
+   and end your turn. The exchange follows the exec skill's task discussion, section B steps 3 to
+   5: verify every claim Codex makes, answer each point, propose agreement once the thread
+   converges, and take a stall to the user.
+2. Once the design is agreed, write it into `progress.md` and run the fixer on this round's
+   `FINDINGS_LIST`, with `DESIGN_BLOCK` carrying the agreed design. When Codex shows that the
+   design holds and you accept its cite, run the fixer on the findings as they are. Either way the
+   next iteration follows as usual.
+3. A symbol gets one discussion. If the rule fires again on a symbol already discussed, name its
+   finding to the user and end the phase without another iteration.
