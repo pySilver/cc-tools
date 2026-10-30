@@ -67,13 +67,18 @@ Agreed approach for Task TASK_NUMBER: FINAL_APPROACH_OR_FILE. If this is what we
 `REPORT_PATH` is the implementer's own report file. Send:
 
 ```
-Task TASK_NUMBER of PLAN_FILE_PATH ("TASK_TITLE") is implemented in WORK_PATH and not yet committed. The work happens there, not necessarily in the directory you were started in: run every command there, git -C WORK_PATH status and git -C WORK_PATH diff show the change, and open files by that path. APPROACH_NOTE The implementer's report is in REPORT_PATH. Review against the approach, the task's "Done when" list and the plan's Decisions. Open your reply with LGTM, or with MUST-FIX: N followed by N numbered items, each with file, symbol and why. End with Changed: and every path that git -C WORK_PATH status --short lists, so I can check we read the same tree. Leave out style preferences unless they break a project rule. FILE_OFFER Read-only, as before. Reply by peer-chat to Claude.
+Task TASK_NUMBER of PLAN_FILE_PATH ("TASK_TITLE") is implemented in WORK_PATH and not yet committed. The work happens there, not necessarily in the directory you were started in: run every command there, git -C WORK_PATH status and git -C WORK_PATH diff show the change, and open files by that path. APPROACH_NOTE The implementer's report is in REPORT_PATH. Check the task's outcome. Does the change deliver the approach, every "Done when" item and the plan's Decisions? For a task whose approach was not discussed, judge the APPROACH the report states; it is not settled. Does the evidence exercise what it claims? Read the tests, fixtures and producers it relies on. Raise any correctness defect you see on the way. An existing caller or inverse operation that this change leaves inconsistent with the new behavior is a MUST-FIX. Do not sweep the diff for general rule, architecture or style issues: the branch review covers those. Open your reply with LGTM, or with MUST-FIX: N followed by N numbered items, each with file, symbol and why. End with Changed: and every path that git -C WORK_PATH status --short lists, so I can check we read the same tree. FILE_OFFER Read-only, as before. Reply by peer-chat to Claude.
 ```
 
-`APPROACH_NOTE` for a discussed task reads: "Review it against the agreed approach under the
-task's heading in the plan." For any other task it reads: "The approach was not discussed
-beforehand; the implementer states it in the APPROACH section of the report, so review it as well
-as the code."
+`APPROACH_NOTE` only says where the approach is; the request itself says how to judge it. For a
+discussed task it reads: "The approach was agreed beforehand and is written under the task's
+heading in the plan." For any other task it reads: "The approach was not discussed beforehand; the
+implementer states it in the APPROACH section of the report."
+
+The request asks for an outcome check, not a sweep of the diff, and leaves rule, architecture and
+style issues to the branch review. Claude and Codex settled that scope between them on
+2026-10-30. It is a pair-settled position, not a measurement: nothing yet shows that the
+narrower check and the branch review together catch what the full per-task review did.
 
 `FILE_OFFER`, when Codex can write files, reads: "If the items need quoted code, put them in
 RUN_DIR/msgs/NNN-codex-review.md and name it."

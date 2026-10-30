@@ -8,9 +8,11 @@ description: Execute a plan task by task as a two-agent run. An implementation s
 **Who does what:**
 - **This session** is the orchestrator. It hands each task to an implementation subagent, carries
   the messages between Codex and the subagent, and keeps the run's record.
-- **Codex**, in the right pane of the agterm split, is the reviewer. It reads each task's diff
-  before the commit, and for a task marked for discussion it challenges the approach before any
-  code exists. It is read-only in the repository; the only files it may write are long replies in
+- **Codex**, in the right pane of the agterm split, is the reviewer. It checks each task's outcome
+  before the commit: whether the diff delivers the approach, the "Done when" list and the plan's
+  Decisions, on evidence that exercises them. Rule, architecture and style issues wait for the
+  branch review. For a task marked for discussion it challenges the approach before any code
+  exists. It is read-only in the repository; the only files it may write are long replies in
   the run directory. Its own directory is wherever the user started it, and this skill never
   changes it, so every message that opens an exchange names `WORK_PATH` and asks Codex to run its
   commands there.
