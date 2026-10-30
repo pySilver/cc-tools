@@ -75,6 +75,10 @@ branch has landed, "Run-record housekeeping" offers to remove it.
      goal: Codex's messages and the subagents' returns wake it. Stop before any other setup and
      tell the user to run `/goal clear`, or `/clear`, which removes the goal too, and then this
      skill again. A goal's re-prompt is not the user's go-ahead.
+   - Answer each re-prompt in one line and make no tool call, not even a look at Codex's pane.
+     Claude Code ends a run of Stop-hook re-prompts after eight in a row with no tool call between
+     them (`CLAUDE_CODE_STOP_HOOK_BLOCK_CAP`), and any tool call starts that count again, which is
+     how a refusal becomes a spin.
 2. **Load the peer-chat skill.** Its sending and manners rules apply to every message below.
 3. **Confirm Codex is there.** Run `bash ${CLAUDE_SKILL_DIR}/scripts/codex-clear.sh --check`.
    It reads the right pane without typing and exits 0 only when Codex is idle with an empty
