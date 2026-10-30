@@ -46,7 +46,8 @@ checkout this session runs in:
   lists. `references/codex-messages.md` says when a message uses a file;
 - `events.jsonl` is the event log, one JSON object per line, as `references/event-log.md`
   describes;
-- `progress.md` is the run's memory in prose;
+- `progress.md` is the run's memory in prose, plus one line in a fixed form, the full-suite record
+  below;
 - `monitor.html` is the live page over the log;
 - `tests.js` is the latest pytest invocation seen during the open task, rewritten while it runs
   by the `peer_planning_pytest` pytest plugin. That module is not part of this plugin: it lives
@@ -59,6 +60,20 @@ checkout this session runs in:
 The conversation itself stays in chat, where the user reads both agents. The directory stays out
 of git and outlives the run: it is the record the monitor and later tuning read. Once the run's
 branch has landed, "Run-record housekeeping" offers to remove it.
+
+### The full-suite record
+
+`/git:finalize-feature-branch` skips the full test suite on a pass this record holds for the
+branch's head, so the record has one fixed form, a line of its own in `progress.md`:
+
+```
+FULL-SUITE PASS sha=<40-character SHA> passed=<P> skipped=<S> collected=<C> command=<command>
+```
+
+Write it only when the implementer's reply to the "Commit" prompt carries a `FULL-SUITE:` line,
+and copy its numbers and command as given. `sha` is `git -C WORK_PATH rev-parse HEAD` taken right
+after that commit, which holds the code the suite ran on with only the plan's ticks added. Never
+write it from a report or from memory: finalize trusts it in place of a run it watched.
 
 ## Setup
 
@@ -250,6 +265,7 @@ the same plan file.
 
 1. **Commit.** Resume the implementer with the "Commit" prompt. When it returns, confirm
    `git -C WORK_PATH log -1 --oneline` and the task's ticked boxes in the plan, then log `commit`.
+   When the reply carries a `FULL-SUITE:` line, write the full-suite record into `progress.md`.
 2. **Clear Codex.** Run `bash ${CLAUDE_SKILL_DIR}/scripts/codex-clear.sh` and log `codex.clear`
    with its exit code.
    - **Exit 0:** cleared.

@@ -1,6 +1,6 @@
 ---
 name: finalize-feature-branch
-description: After review approval, rebase onto the default branch, collapse the feature branch into a single commit, verify it, then merge it into the default branch and push that. Skips the full test suite when the rebase brought in nothing but documentation.
+description: After review approval, rebase onto the default branch, collapse the feature branch into a single commit, verify it, then merge it into the default branch and push that. Skips the full test suite when the rebase brought in nothing but documentation and a full run already passed on the branch's code, in this session or in a peer-planning run record.
 disable-model-invocation: true
 allowed-tools: Bash, Read, Glob, Grep, AskUserQuestion
 ---
@@ -42,6 +42,13 @@ Record, before any fetch, the commit the branch is currently based on:
 
 Store it as BASE_BEFORE. Step 9 needs it to tell what the rebase actually pulled in.
 Take it now — after the fetch, the old value is unrecoverable.
+
+Record the branch's head and whether the working tree is clean, before the rebase
+and the collapse rewrite them:
+- `git rev-parse HEAD`, stored as HEAD_BEFORE
+- `git status --porcelain`, stored as CLEAN_BEFORE when it prints nothing
+
+Step 9 compares a peer-planning run record against them.
 
 Ask the user to confirm via AskUserQuestion:
 - "Proceed"
@@ -129,15 +136,42 @@ is empty and the branch was already up to date.
 
 Run the full suite — do not skip — if any of these holds:
 - The rebase in step 5 required conflict resolution
-- No full suite ran earlier in this session, or it did not pass, or the feature
-  branch's own code changed after that run
+- No full-suite pass covers the feature branch's code: no full run passed earlier
+  in this session against the current feature-branch code, and no run record
+  holds a pass for HEAD_BEFORE (see below)
 - INCOMING contains any file that is not documentation
 - You cannot confidently classify a file in INCOMING
 
 Skip the suite only when INCOMING is empty or documentation-only **and** a full
-run already passed in this session against the current feature-branch code.
-A skip is a claim about test coverage — never make it silently. Report the skip,
-the INCOMING file list, and which earlier run it is relying on.
+run already passed against the current feature-branch code, in this session or
+in a run record for HEAD_BEFORE. A skip is a claim about test coverage — never
+make it silently. Report the skip, the INCOMING file list, and which earlier run
+it is relying on: the command this session ran, or the record's file and line.
+
+### A pass from a peer-planning run record
+
+A peer-planning `exec` run records a full-suite pass in its `progress.md`, as a
+line of its own in a fixed form:
+
+FULL-SUITE PASS sha=<40-character SHA> passed=<P> skipped=<S> collected=<C> command=<command>
+
+The run directory sits at the root of the checkout its orchestrator ran in, which
+is this worktree or the main checkout. Read both:
+- `git rev-parse --show-toplevel`, and the main checkout, the parent of
+  `git rev-parse --path-format=absolute --git-common-dir`
+- `grep -h '^FULL-SUITE PASS sha=' <root>/.peer-planning/*/progress.md` in each
+
+A record line counts only when every one of these holds:
+- Its `sha` is exactly HEAD_BEFORE. The collapse does not change the tree, and a
+  documentation-only INCOMING changes no code, so a pass on HEAD_BEFORE is a pass
+  on the code this commit carries. Any later commit on the branch, a review fix
+  among them, makes the record name an older commit, and then it does not count.
+- CLEAN_BEFORE was recorded in step 3, and `git status --porcelain` prints
+  nothing now.
+- passed + skipped equals collected.
+
+A line that does not parse in this form does not count. A record is a pass
+another session saw, not one this session watched; say so in the report.
 
 ### What counts as documentation
 

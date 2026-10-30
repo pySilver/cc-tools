@@ -105,7 +105,15 @@ The review passed. Commit TASK_HEADING now:
 3. The commit hook runs the project's gates. If it fails, fix the cause, re-run the task's tests
    and commit again. Never pass --no-verify.
 Reply with the commit SHA and the hook's result, or with the failure you could not fix.
+
+Add one more line only when all of these hold: your last validation ran the project's full test
+suite, it passed with passed + skipped == collected, and nothing but the plan file changed between
+that run and this commit. A fix after a failed hook is a change.
+FULL-SUITE: passed=<P> skipped=<S> collected=<C> command=<the command exactly as you ran it>
 ```
+
+A `FULL-SUITE:` line is what the orchestrator turns into the run's full-suite record, which
+`/git:finalize-feature-branch` trusts in place of a run of its own.
 
 ## Fix review findings (sent to a fresh subagent)
 
