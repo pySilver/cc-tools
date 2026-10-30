@@ -5,10 +5,12 @@ with a quoted heredoc. The script collapses whitespace to single spaces and adds
 Claude:" label itself, so write each message as one paragraph. The user reads both panes, so a
 message has to make sense on its own.
 
-**A file carries what a paragraph cannot.** When a message needs code, a diff, the implementer's
-report or more than a handful of items, write that part to `RUN_DIR/msgs/NNN-claude-<kind>.md` and
-name the path in the message. The message still says the gist, so the pane stays readable. Number
-the files in order across the run; the kinds are `setup`, `discuss`, `review` and `ruling`.
+**A file carries what a paragraph cannot.** When a message needs code, a diff or more than a
+handful of items, write that part to `RUN_DIR/msgs/NNN-claude-<kind>.md` and name the path in the
+message. The message still says the gist, so the pane stays readable. Number the files in order
+across the run; the kinds are `setup`, `discuss`, `review` and `ruling`. The implementer writes
+its own reports, as `NNN-implementer-report.md` in the same numbering, and a message names that
+file rather than copying it.
 
 Codex may do the same, but only if the setup check showed it can write there. When it can, a
 request that is likely to get a long answer names the file Codex may use, `NNN-codex-<kind>.md`
@@ -62,7 +64,7 @@ Agreed approach for Task TASK_NUMBER: FINAL_APPROACH_OR_FILE. If this is what we
 
 ## Asking for the review
 
-Put the implementer's report in `RUN_DIR/msgs/NNN-claude-review.md`, verbatim, and send:
+`REPORT_PATH` is the implementer's own report file. Send:
 
 ```
 Task TASK_NUMBER of PLAN_FILE_PATH ("TASK_TITLE") is implemented in WORK_PATH and not yet committed. The work happens there, not necessarily in the directory you were started in: run every command there, git -C WORK_PATH status and git -C WORK_PATH diff show the change, and open files by that path. APPROACH_NOTE The implementer's report is in REPORT_PATH. Review against the approach, the task's "Done when" list and the plan's Decisions. Open your reply with LGTM, or with MUST-FIX: N followed by N numbered items, each with file, symbol and why. End with Changed: and every path that git -C WORK_PATH status --short lists, so I can check we read the same tree. Leave out style preferences unless they break a project rule. FILE_OFFER Read-only, as before. Reply by peer-chat to Claude.
@@ -79,10 +81,11 @@ RUN_DIR/msgs/NNN-codex-review.md and name it."
 ## Re-review after fixes
 
 ```
-The must-fix items for Task TASK_NUMBER are addressed in WORK_PATH, still uncommitted: FIX_SUMMARY. DISPUTES Please re-check only those items and open your reply with LGTM or MUST-FIX: N for what is still open, and end with Changed: as before.
+The must-fix items for Task TASK_NUMBER are addressed in WORK_PATH, still uncommitted; the implementer's report, with what it did on each item, is in REPORT_PATH. DISPUTES Please re-check only those items and open your reply with LGTM or MUST-FIX: N for what is still open, and end with Changed: as before.
 ```
 
-`DISPUTES` names each item you dispute with your own cite, or is left out.
+`DISPUTES` names each item the implementer refuted, with the implementer's cite from its
+`REFUTED` line ("The implementer disputes item N: …"), or is left out.
 
 ## Asking again after a mismatch
 

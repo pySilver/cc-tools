@@ -206,34 +206,39 @@ the same plan file.
 
 1. **Spawn the implementer:** a fresh subagent with the "Start a task" prompt from
    `references/implementer-prompt.md`, the resolved executor as `subagent_type`,
-   `run_in_background: true`, and a description `Task N: <title>`. Log `implement.start` with its
-   agent id, then end your turn.
-2. **When it returns, read only its report,** and log `implement.done`.
+   `run_in_background: true`, and a description `Task N: <title>`. Its `REPORT_PATH` is the next
+   numbered file in `RUN_DIR/msgs/`. Log `implement.start` with its agent id, then end your turn.
+2. **When it returns, read only its final message:** the status, the report's path, the
+   validation result, and one line each of decisions and deviations. The report itself is for
+   Codex; leave it unopened. Log `implement.done` and put the decisions and deviations in
+   `progress.md`.
    - **STATUS: BLOCKED** means a premise of the plan or of the agreed approach is false. For a
-     discussed task, take the evidence back to Codex and re-agree. Otherwise, or when it changes a
-     plan decision, take it to the user.
-   - **Failed validation:** resume the same subagent with `SendMessage` and the failure, at most
-     twice. After that, stop and report to the user.
+     discussed task, name the report to Codex and re-agree. Otherwise, or when it changes a plan
+     decision, read the evidence in the report and take it to the user.
+   - **Failed validation:** resume the same subagent with `SendMessage` and the command that
+     failed, at most twice. After that, stop and report to the user.
 
 ### D. Review
 
-1. **Ask for the review.** Put the implementer's report in a file, send the review request that
-   names it, log `review.request`, and end your turn.
+1. **Ask for the review.** Send the review request that names the implementer's report file, log
+   `review.request`, and end your turn.
 2. **Check the tree before the verdict.** Every review reply ends with `Changed:` and the paths
    Codex saw. Run `git -C WORK_PATH status --short` yourself and compare the two lists. When they
    differ, Codex has most likely run git in its own directory: log `review.mismatch`, send the
    "asking again" message from `references/codex-messages.md`, and end your turn. A second
    mismatch on the same round goes to the user. A verdict is logged only over a matching list.
 3. **If the reply opens with `LGTM`,** log `review.reply` with `must_fix:=0` and go to E.
-4. **If it opens with `MUST-FIX: N`,** log `review.reply` with that count, then check each item
-   yourself by opening the cited code.
-   - Resume the implementer with the accepted items, using the "Apply Codex's review" prompt, in
-     the background. Log `fix.start`, and `fix.done` when it returns.
-   - Put each item you dispute, with your own cite, in the re-review request.
+4. **If it opens with `MUST-FIX: N`,** log `review.reply` with that count and pass the items on
+   without opening the cited code. The implementer has that code open, and its prompt has it apply
+   each item or refute it with a cite; checking them here would pull the code into this session.
+   - Resume the implementer with Codex's items verbatim, using the "Apply Codex's review" prompt
+     and a new `REPORT_PATH`, in the background. Log `fix.start`, and `fix.done` when it returns.
+   - Each item its `REFUTED` line names goes into the re-review request as a dispute, with the
+     implementer's cite.
    - Then send the re-review request with the next round number.
-5. **When it stalls.** When Codex repeats an item you disputed with a cite and brings nothing
-   new, take that item to the user as a numbered choice and log `ruling` once they decide. The
-   other items go on.
+5. **When it stalls.** When Codex repeats a disputed item and brings nothing new, take that item to
+   the user as a numbered choice, with Codex's cite and the implementer's, and log `ruling` once
+   they decide. The other items go on.
 
 ### E. Close
 
@@ -267,9 +272,11 @@ report what it shows.
 
 ## Context hygiene
 
-This session reads the plan, `progress.md`, the subagents' reports, Codex's messages and the files
-they name, and the few lines a disputed claim cites. Code work, diffs and test output stay in the implementer. Keeping
-them out is how this session remains coherent across a whole plan.
+This session reads the plan, `progress.md`, the subagents' final messages, Codex's messages and the
+discussion files they name, and the few lines a disputed claim cites. Code work, diffs, test
+output and the implementers' reports stay out of it: an implementer writes its report for Codex,
+and Codex's review items go to the implementer unopened. Keeping them out is how this session
+remains coherent across a whole plan.
 
 ## After the last task: review, then polish
 
@@ -294,7 +301,7 @@ them out is how this session remains coherent across a whole plan.
 
 Tell the user:
 - each task with its commit SHA and its must-fix count from the log;
-- every decision and deviation the implementers logged;
+- every decision and deviation the implementers reported, from `progress.md`;
 - every disagreement with Codex and how it was settled, including the user's rulings;
 - the review rounds' outcome;
 - `WORK_PATH`, the branch and `RUN_DIR`, and what is left for the user: `/git:finalize-feature-branch`,

@@ -5,6 +5,11 @@ review, and one to commit. A fourth goes to a fresh fixer subagent after each ro
 review. Substitute every `UPPER_CASE` token before sending, because the subagent runs in a fresh
 context and knows none of these values.
 
+The implementer writes each report to its own file, and that file is `REPORT_PATH` in the prompt
+that asks for it: `RUN_DIR/msgs/NNN-implementer-report.md`, numbered with the run's other message
+files, a new number for every report. Its final message only points at the file, so the report
+reaches Codex without passing through the orchestrator.
+
 ## Start a task
 
 ```
@@ -30,19 +35,27 @@ How to work:
    and report passed + skipped == collected.
 4. Do not commit, and do not tick the plan's checkboxes. A reviewer reads the uncommitted diff
    first, and you will be told when to commit.
-5. Leave nothing behind outside the diff: no stray files, processes or containers.
+5. Leave nothing behind outside the diff: no stray files, processes or containers. The one file
+   you write outside it is your report.
 
 Nobody is available to answer questions during this task. Decide judgment calls from the plan's
 intent, then the project's rules and agent docs, then the surrounding code. When a call is still
 50/50, take the smaller, more reversible option, and record it.
 
-Your final message is this report and nothing else:
+Write your report to REPORT_PATH. The reviewer reads it as it is:
 STATUS: DONE | BLOCKED
 APPROACH: the design you built, in two to five bullets
 CHANGED: one line per file, saying what changed
 VALIDATION: each command you ran and the summary line of its result
 DECISIONS: judgment calls the plan did not settle, one per line, or "none"
 DEVIATIONS: where the result differs from the agreed approach and why, one per line, or "none"
+
+Your final message is these five lines and nothing else:
+STATUS: DONE | BLOCKED
+REPORT: REPORT_PATH
+VALIDATION: passed, or failed: the command that failed
+DECISIONS: the judgment calls in one line, or "none"
+DEVIATIONS: the deviations in one line, or "none"
 ```
 
 `APPROACH_BLOCK` depends on whether the task was discussed.
@@ -69,9 +82,18 @@ The reviewer asks for these changes to your uncommitted work on TASK_HEADING:
 
 REVIEW_ITEMS
 
-Apply each one, or report why one is wrong, with the evidence (path and symbol). Re-run the
-validation from your last report, then report in the same format as before.
+Apply each one, or refute it with the evidence (path and symbol) when it is wrong. Re-run the
+validation from your last report. Write a new report to REPORT_PATH in the same format as before,
+with one more section:
+REVIEW: one line per item, as "N applied: <what changed>" or "N refuted: <why, with path and symbol>"
+
+Your final message is the same five lines as before, and one more:
+REFUTED: one line per refuted item, as "N: <why, with path and symbol>", or "none"
 ```
+
+`REVIEW_ITEMS` is Codex's numbered items exactly as it sent them, or the path of
+`RUN_DIR/msgs/NNN-codex-review.md` when it put them there. Never paraphrase, merge or drop one: the
+implementer has the code open and judges each item against it.
 
 ## Commit (sent to the same subagent)
 
