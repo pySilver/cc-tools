@@ -25,8 +25,8 @@ archived on the default branch, and the compose stack belongs to the main tree.
 - WORKTREE is the entry of `git worktree list --porcelain` that holds `branch refs/heads/BRANCH`,
   if any, and NAME is its directory name (`.claude/worktrees/<name>` in this user's repositories).
 - If `git rev-parse --show-toplevel` in this session is WORKTREE, the session sits inside the
-  worktree. Say so at once: every step runs except the removal, which a session cannot do to the
-  directory it stands in, and step 8 prints the commands for the main checkout instead.
+  worktree. Say so at once, and say that every step still runs: step 8 removes the worktree from
+  MAIN, after everything that reads it, and this session goes on from another directory.
 
 ## 2. Confirm it landed
 
@@ -104,8 +104,13 @@ ending a live run.
   rules out, so a refusal is news: report it, never `-D`.
 - `git push origin --delete BRANCH`, when `origin/BRANCH` exists and the user ticked it.
 
-Inside the worktree, print these commands with their values filled in, for the user to run from
-MAIN, and go on to step 9.
+Inside the worktree, run them all the same, in one Bash call that starts with `cd MAIN`. git
+removes a worktree a process stands in, and Claude Code recovers the shell: the next Bash call
+fails once with `Working directory "…" was deleted; shell cwd recovered to …` and runs when
+issued again (measured 2026-10-31 in a throwaway repository). Issue that call again, and from
+here on use absolute paths. Everything that reads the worktree comes before this step, as steps
+3 to 7 already do. Tell the user the session now stands outside any checkout; it can finish the
+remaining steps, and they close it when they are done.
 
 ## 9. Check for stranded containers
 
@@ -127,6 +132,6 @@ worktree"). Remove no container: the fix costs a volume, and that is the user's 
 ## 10. Report
 
 Plain text, no markdown. One line per item: archived, removed, dropped or deleted, or left and
-why; the archive commit's SHA; the commands left for the user when the session sat inside the
-worktree; whether the landing was confirmed by ancestry or taken on the user's word; and any
+why; the archive commit's SHA; whether the session sat inside the worktree it
+removed; whether the landing was confirmed by ancestry or taken on the user's word; and any
 stranded container.

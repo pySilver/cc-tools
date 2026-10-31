@@ -349,8 +349,8 @@ Ask whether to wrap up now. The wrap-up archives the plan under
 docs/plans/completed/, drops the worktree's test database, removes the worktree
 and the branch, and closes the peer-planning run record. If yes, invoke the
 git:wrap-up skill with CURRENT_BRANCH as its argument. From inside a worktree it
-does everything except remove the worktree, and prints that command for the
-main checkout; say so in the offer.
+removes that worktree too, last, and this session then goes on from another
+directory; say so in the offer.
 
 ## 13. Report
 
