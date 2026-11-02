@@ -140,8 +140,18 @@ memory: finalize trusts it in place of a run it watched.
      and the context may compact in the middle of a run.
    - Append to it after every step: the task, its phase, the implementer's agent id, the commit
      SHA, and every decision, deviation or user ruling.
-10. **Check whether Codex can write long replies.** Send the setup check from
-    `references/codex-messages.md` and end your turn.
+10. **Check whether Codex can write long replies.**
+    - Clear Codex first, unless the run is past it: run
+      `bash ${CLAUDE_SKILL_DIR}/scripts/codex-clear.sh` and log `codex.clear` with its exit code and
+      no `task`. `make` argues the plan with Codex in this same pane, and without the clear the first
+      review comes from a Codex holding that argument. Handle the exit codes as in "E. Close". A
+      resumed run decides from `events.jsonl`, not from `progress.md`, which step 9 has already
+      written: skip the clear once the log holds a `task.start` (an open discussion or review needs
+      the thread it stands on) or a taskless `codex.clear` with `exit` 0. If the last taskless
+      `codex.clear` has `exit` 1, the clear was typed but never confirmed: read the pane and tell
+      the user, as "E. Close" says, and never re-send blind. Otherwise the setup was interrupted
+      before the clear took, and it runs now.
+    - Send the setup check from `references/codex-messages.md` and end your turn.
     - If `RUN_DIR/msgs/000-codex-setup.md` then holds `ready`, log `codex.ready` with
       `files:=true`. If Codex replied "no files", log it with `files:=false` and never offer it a
       file; it answers in chat only. Record which in `progress.md`.
@@ -274,8 +284,8 @@ the same plan file.
      user.
    - **Exit 1:** it typed but could not confirm the reset. Read the pane and tell the user; never
      re-send blind.
-   - Only clear after a commit, never while a discussion or review is open: the argument needs the
-     thread it stands on.
+   - Apart from the clear at a new run's setup, only clear after a commit, never while a
+     discussion or review is open: the argument needs the thread it stands on.
 3. **Report and move on.** Log `task.done` and tell the user `Task N done: <sha> <subject>`. The
    next task starts with a fresh implementer and Codex's fresh context.
 

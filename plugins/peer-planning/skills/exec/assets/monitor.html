@@ -409,6 +409,7 @@ function stateOf(e) {
       break;
     case 'codex.clear':
       if (e.exit) return {actor: 'orchestrator', task, alert: true, headline: `codex-clear exited ${e.exit}; the orchestrator decides the next step`};
+      if (task == null) return {actor: 'orchestrator', task, headline: 'The orchestrator is setting up'};
       break;
     case 'stage.start':
       if (e.stage === 'review') return {actor: 'review', task, headline: `Branch review, iteration ${e.iteration}`};

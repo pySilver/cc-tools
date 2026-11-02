@@ -8,7 +8,9 @@ message has to make sense on its own.
 **A file carries what a paragraph cannot.** When a message needs code, a diff or more than a
 handful of items, write that part to `RUN_DIR/msgs/NNN-claude-<kind>.md` and name the path in the
 message. The message still says the gist, so the pane stays readable. Number the files in order
-across the run; the kinds are `setup`, `discuss`, `review` and `ruling`. The implementer writes
+across the run, continuing after the highest number already in `msgs/`: `make` leaves its planning
+exchange there as `NNN-claude-plan.md`, `NNN-codex-plan.md` and `NNN-fable-plan.md`. The kinds are `setup`, `discuss`,
+`review` and `ruling`. The implementer writes
 its own reports, as `NNN-implementer-report.md` in the same numbering, and a message names that
 file rather than copying it.
 

@@ -37,7 +37,7 @@ event is written as given.
 | `fix.start` | the implementer is resumed with accepted items | `task:=N`, `round:=N`, `items:=N` |
 | `fix.done` | the implementer's fix report is read | `task:=N`, `round:=N` |
 | `commit` | the task's commit is confirmed | `task:=N`, `sha` |
-| `codex.clear` | `codex-clear.sh` returned | `task:=N`, `exit:=N` |
+| `codex.clear` | `codex-clear.sh` returned | `task:=N` (none for the clear at a new run's setup), `exit:=N` |
 | `task.done` | the task is closed | `task:=N`, `sha` |
 | `stage.start` | the branch review loop, the polish step or the closing suite run begins | `stage=review\|polish\|suite`, `iteration:=N` for review |
 | `stage.done` | that stage ends | `stage=review\|polish\|suite`, `iteration:=N` for review |

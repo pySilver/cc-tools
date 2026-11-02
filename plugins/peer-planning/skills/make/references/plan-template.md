@@ -8,6 +8,7 @@ Fill every section. Where the project's planning rules add a section (for exampl
 
 **Executor:** `/peer-planning:exec`. A subagent implements each task and Codex reviews the diff
 before the task closes; a task marked `**Discuss:** yes` has its approach agreed with Codex first.
+**Planning:** Claude and Codex, <date>.  <!-- or: Claude alone on the user's waiver, <date> (no Codex in the pane, when that was why) -->
 
 ## Stories
 <As the project's rules require, or the single line "No actor observes a change".>
@@ -17,10 +18,15 @@ before the task closes; a task marked `**Discuss:** yes` has its approach agreed
 - The problem it solves and how it fits the existing system.
 
 ## Decisions
-- Every decision an executor must not re-open, each with its reason and its
-  evidence: a code cite by path and symbol, a measurement, or an owner ruling.
-- Mark a position two agents settled as pair-settled, so a later review reads it
-  as a claim rather than a fact.
+- Every decision an executor must not re-open, each with its reason, its
+  evidence (a code cite by path and symbol, or a measurement) and where it
+  actually came from: `(checked fact)`, `(pair-settled, Claude and Codex)`,
+  `(pair-settled after Fable's second opinion)`, `(owner ruling, <date>)` or
+  `(planner's call)`.
+- Pair-settled marks a position Claude and Codex settled in planning, so a later
+  review reads it as a claim rather than a fact.
+- A refused alternative stays, with why it was refused. An addition refused for
+  want of a price is recorded as unpriced.
 
 ## Context
 - The files and components involved, the patterns to follow, the dependencies.
