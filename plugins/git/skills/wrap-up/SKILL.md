@@ -54,6 +54,19 @@ Collect each item before asking, so the question shows what exists and not a gen
   name with `test_` in front, on the `postgres-test` compose service. Read the name from the
   file. If the worktree is already gone, list that service's databases whose name starts with
   `test_mybaze_<slug>` and offer them.
+- **The second machine's mirror.** Only when `MYBAZE_SUITE_REMOTE` is set and not empty; when it
+  is unset, skip this item without a word. A pytest the suite lock held back may have run on the
+  machine it names, which leaves a mirror of the worktree there and test databases in that
+  machine's `postgres-test`. With the database name read above, and while the worktree still
+  exists, run `"${CLAUDE_SKILL_DIR}/scripts/offload-mirror.py" inspect DBNAME`. It prints JSON:
+  - `present`: offer it, naming `host`, `directory` and `databases`;
+  - `absent` or `skipped`: nothing to offer;
+  - `busy`: a run is alive in the mirror; leave it and say so in the report;
+  - `unreachable`: report "second machine unreachable, mirror left";
+  - `error`: report its `detail`, and leave the mirror.
+
+  The script bounds every ssh call and never opens the browser login URL a Tailscale check
+  prints; never open one yourself, and never edit `~/.ssh/config` to get past it.
 - **The worktree and the branch.** WORKTREE, whether it is clean (`git -C WORKTREE status
   --porcelain`), BRANCH, and `origin/BRANCH` if the remote has it.
 
@@ -61,7 +74,7 @@ Collect each item before asking, so the question shows what exists and not a gen
 
 Offer the items found as a multi-select choice with every one ticked, each saying what it is and
 what removing it costs: the plan's path and the commit it gets; the run record's size, and that
-the monitor and later tuning of the exec skill lose it; the database name; the worktree path and
+the monitor and later tuning of the exec skill lose it; the database name; the second machine's host, mirror directory and database names; the worktree path and
 whether it is clean; the branch, and its remote copy if there is one. Nothing is removed until the
 user answers.
 
@@ -94,6 +107,13 @@ From MAIN, which owns the compose stack:
 
 `--force` ends a connection a finished pytest left open; the check above is what keeps it from
 ending a live run.
+
+When the user ticked the second machine's mirror, remove it with
+`"${CLAUDE_SKILL_DIR}/scripts/offload-mirror.py" remove DBNAME`. It checks again for a live run
+there and touches nothing if it finds one, removes the mirror directory by its derived path, and
+drops the mirror's databases by exact name in the `mybaze.postgres-test` container. It never
+runs `docker compose` on that machine, where `postgres-test` is a standing service. Its JSON
+says `removed` with `dropped` and `failed`, or `busy`, `unreachable` or `error` as above.
 
 ## 8. Remove the worktree and the branch
 
@@ -133,5 +153,7 @@ worktree"). Remove no container: the fix costs a volume, and that is the user's 
 
 Plain text, no markdown. One line per item: archived, removed, dropped or deleted, or left and
 why; the archive commit's SHA; whether the session sat inside the worktree it
-removed; whether the landing was confirmed by ancestry or taken on the user's word; and any
-stranded container.
+removed; whether the landing was confirmed by ancestry or taken on the user's word; the second
+machine's mirror, when `MYBAZE_SUITE_REMOTE` is set: removed with the databases dropped, left
+because a run was alive, or left because the machine was unreachable; and any stranded
+container.
