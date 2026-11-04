@@ -10,7 +10,7 @@ PYTHON=$(command -v python3)
 WORK=$(cd "$(mktemp -d)" && pwd -P)
 SLEEPER=""
 cleanup() {
-  [ -n "$SLEEPER" ] && kill "$SLEEPER" 2>/dev/null || true
+  if [ -n "$SLEEPER" ]; then kill "$SLEEPER" 2>/dev/null || true; fi
   rm -rf "$WORK"
 }
 trap cleanup EXIT
