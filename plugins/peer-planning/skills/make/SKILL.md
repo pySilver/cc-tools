@@ -43,7 +43,7 @@ writer; Codex is read-only in the repository.
   fact or a changed position), and a turn that only restates the one before it ends it. An addition
   names the failure it prevents, the input that produces it, whether that input is realistic, and
   what breaks without it, or it is refused.
-- **Messages.** Load the `peer-chat` skill; its sending, waiting and manners rules apply to every
+- **Messages.** Load the `mailbox-chat` skill; its sending, waiting and manners rules apply to every
   message. `references/codex-messages.md` has the messages. After each one, end the turn: Codex's
   reply wakes this session. Verify every claim Codex makes about the code with your own tool call
   before accepting or disputing it.
@@ -58,9 +58,9 @@ writer; Codex is read-only in the repository.
   whole without these files.
 - **Check that Codex is there** before the first message:
   `bash ${CLAUDE_PLUGIN_ROOT}/skills/exec/scripts/codex-clear.sh --check`. It reads the right pane
-  without typing and exits 0 only when Codex is idle with an empty composer. If it fails, say what
-  it reported and offer a numbered choice: start Codex in the right pane and say go, or plan without
-  a peer. This skill never starts an agent or opens a pane.
+  without typing and exits 0 only when Codex is idle with an empty composer and registered for
+  mail. If it fails, say what it reported and offer a numbered choice: start Codex in the right
+  pane and say go, or plan without a peer. This skill never starts an agent or opens a pane.
 - **Skipping Codex takes an explicit waiver** from the user: "skip Codex", "plan it alone", or "just
   plan it" given as the answer to that choice. "Plan this" or "just plan it" on its own names the
   work, not who does it. Ask for the waiver once and record it in the plan's header.

@@ -1,8 +1,9 @@
 # Messages to Codex
 
-The conversation happens in chat. Send every message through `peer-chat.py --to codex --stdin`
-with a quoted heredoc. The script collapses whitespace to single spaces and adds the "Chat from
-Claude:" label itself, so write each message as one paragraph. The user reads both panes, so a
+The conversation happens in chat. Send every message through `mailbox-chat.py say --stdin` with
+a quoted heredoc. The script adds the `[peer chat]` label and a closing line telling Codex how to
+reply, so write neither, and leave "reply by" instructions out of the message. Keep each message
+one paragraph. The user reads both panes, so a
 message has to make sense on its own.
 
 **A file carries what a paragraph cannot.** When a message needs code, a diff or more than a
@@ -26,9 +27,9 @@ usually the main checkout, and it cannot change it for the session: a bare `git 
 reviews the wrong tree. It can run any command in a directory it is given, by `cd WORK_PATH && …`
 or the command's own working directory, and it can read anywhere, so naming the path is enough.
 
-**The first word is the verdict.** A reply to a discussion opens with `AGREED` or `POINTS: N`, a
-review reply with `LGTM` or `MUST-FIX: N`, and a reply to a ruling with `ACK`. The orchestrator
-logs that word without reading further.
+**The first word is the verdict.** A reply to a discussion opens with `AGREED` or `POINTS: N`, and
+a review reply with `LGTM` or `MUST-FIX: N`. The orchestrator logs that word without reading
+further.
 
 **The last line of a review is the tree.** A review reply, first round or re-review, ends with
 `Changed:` and the paths `git -C WORK_PATH status --short` lists. The orchestrator runs that
@@ -38,13 +39,13 @@ directory, over an empty diff, reads like any other, and this line is what tells
 ## Setup check
 
 ```
-A peer-planning run over PLAN_FILE_PATH is starting in WORK_PATH. The work happens there, not necessarily in the directory you were started in: run every command there (cd WORK_PATH && ...) and open files by that path. You are read-only there. The only place you may write is RUN_DIR/msgs/, for a long reply. Check that now: write the single word ready to RUN_DIR/msgs/000-codex-setup.md. If you cannot write it without an approval prompt, do not try; reply "no files" instead. Reply by peer-chat to Claude.
+A peer-planning run over PLAN_FILE_PATH is starting in WORK_PATH. The work happens there, not necessarily in the directory you were started in: run every command there (cd WORK_PATH && ...) and open files by that path. You are read-only there. The only place you may write is RUN_DIR/msgs/, for a long reply. Check that now: write the single word ready to RUN_DIR/msgs/000-codex-setup.md. If you cannot write it without an approval prompt, do not try; reply "no files" instead.
 ```
 
 ## Opening a task discussion
 
 ```
-Task TASK_NUMBER of PLAN_FILE_PATH ("TASK_TITLE"), before any code is written. The work happens in WORK_PATH, not necessarily in the directory you were started in: run every command there (cd WORK_PATH && ...) and open files by that path. You are read-only there: read and run non-mutating checks, and leave nothing behind. The task text is the "### Task TASK_NUMBER:" section of the plan; its Decisions section is settled. My proposed approach: SKETCH_OR_FILE. Open what it cites and either agree, or refute it with a cite (path and symbol) or a concrete input that breaks it. Any addition you propose, such as a guard, a column, a lock or a retry, must name the failure it prevents, the input that produces it, whether that input is realistic here, and what breaks without it. Open your reply with AGREED or POINTS: N. FILE_OFFER Reply by peer-chat to Claude.
+Task TASK_NUMBER of PLAN_FILE_PATH ("TASK_TITLE"), before any code is written. The work happens in WORK_PATH, not necessarily in the directory you were started in: run every command there (cd WORK_PATH && ...) and open files by that path. You are read-only there: read and run non-mutating checks, and leave nothing behind. The task text is the "### Task TASK_NUMBER:" section of the plan; its Decisions section is settled. My proposed approach: SKETCH_OR_FILE. Open what it cites and either agree, or refute it with a cite (path and symbol) or a concrete input that breaks it. Any addition you propose, such as a guard, a column, a lock or a retry, must name the failure it prevents, the input that produces it, whether that input is realistic here, and what breaks without it. Open your reply with AGREED or POINTS: N. FILE_OFFER
 ```
 
 `SKETCH_OR_FILE` is the sketch itself when it fits a paragraph, or its gist and the path of the
@@ -69,7 +70,7 @@ Agreed approach for Task TASK_NUMBER: FINAL_APPROACH_OR_FILE. If this is what we
 `REPORT_PATH` is the implementer's own report file. Send:
 
 ```
-Task TASK_NUMBER of PLAN_FILE_PATH ("TASK_TITLE") is implemented in WORK_PATH and not yet committed. The work happens there, not necessarily in the directory you were started in: run every command there, git -C WORK_PATH status and git -C WORK_PATH diff show the change, and open files by that path. APPROACH_NOTE The implementer's report is in REPORT_PATH. Check the task's outcome. Does the change deliver the approach, every "Done when" item and the plan's Decisions? For a task whose approach was not discussed, judge the APPROACH the report states; it is not settled. Does the evidence exercise what it claims? Read the tests, fixtures and producers it relies on. Raise any correctness defect you see on the way. An existing caller or inverse operation that this change leaves inconsistent with the new behavior is a MUST-FIX. Do not sweep the diff for general rule, architecture or style issues: the branch review covers those. Open your reply with LGTM, or with MUST-FIX: N followed by N numbered items, each with file, symbol and why. End with Changed: and every path that git -C WORK_PATH status --short lists, so I can check we read the same tree. FILE_OFFER Read-only, as before. Reply by peer-chat to Claude.
+Task TASK_NUMBER of PLAN_FILE_PATH ("TASK_TITLE") is implemented in WORK_PATH and not yet committed. The work happens there, not necessarily in the directory you were started in: run every command there, git -C WORK_PATH status and git -C WORK_PATH diff show the change, and open files by that path. APPROACH_NOTE The implementer's report is in REPORT_PATH. Check the task's outcome. Does the change deliver the approach, every "Done when" item and the plan's Decisions? For a task whose approach was not discussed, judge the APPROACH the report states; it is not settled. Does the evidence exercise what it claims? Read the tests, fixtures and producers it relies on. Raise any correctness defect you see on the way. An existing caller or inverse operation that this change leaves inconsistent with the new behavior is a MUST-FIX. Do not sweep the diff for general rule, architecture or style issues: the branch review covers those. Open your reply with LGTM, or with MUST-FIX: N followed by N numbered items, each with file, symbol and why. End with Changed: and every path that git -C WORK_PATH status --short lists, so I can check we read the same tree. FILE_OFFER Read-only, as before.
 ```
 
 `APPROACH_NOTE` only says where the approach is; the request itself says how to judge it. For a
@@ -103,7 +104,7 @@ taken from `progress.md`, or the path of a file holding them. `FILE_OFFER` is th
 discussion uses.
 
 ```
-The branch review of PLAN_FILE_PATH keeps finding defects in SYMBOL (FILE): FINDINGS_OR_FILE. Each fix answered one case and exposed the next. The work happens in WORK_PATH, not necessarily in the directory you were started in: run every command there (cd WORK_PATH && ...) and open files by that path; git -C WORK_PATH diff DEFAULT_BRANCH...HEAD shows the branch. You are read-only there. Step back from the single findings: is the design of SYMBOL right for what the plan asks of it? Either propose the change that answers the whole class of these findings, or show with a cite that the design holds and the findings are separate defects. Any addition you propose, such as a guard, a column, a lock or a retry, must name the failure it prevents, the input that produces it, whether that input is realistic here, and what breaks without it. Open your reply with POINTS: N, one point per change, or POINTS: 0 when the design holds. FILE_OFFER Reply by peer-chat to Claude.
+The branch review of PLAN_FILE_PATH keeps finding defects in SYMBOL (FILE): FINDINGS_OR_FILE. Each fix answered one case and exposed the next. The work happens in WORK_PATH, not necessarily in the directory you were started in: run every command there (cd WORK_PATH && ...) and open files by that path; git -C WORK_PATH diff DEFAULT_BRANCH...HEAD shows the branch. You are read-only there. Step back from the single findings: is the design of SYMBOL right for what the plan asks of it? Either propose the change that answers the whole class of these findings, or show with a cite that the design holds and the findings are separate defects. Any addition you propose, such as a guard, a column, a lock or a retry, must name the failure it prevents, the input that produces it, whether that input is realistic here, and what breaks without it. Open your reply with POINTS: N, one point per change, or POINTS: 0 when the design holds. FILE_OFFER
 ```
 
 From there the exchange runs as a task discussion does, through "Continuing the discussion" and
@@ -124,5 +125,5 @@ did not read.
 ## Relaying the user's ruling
 
 ```
-The user ruled on our disagreement over Task TASK_NUMBER: RULING. That settles it; FINAL_APPROACH_IF_DISCUSSION. Reply ACK.
+The user ruled on our disagreement over Task TASK_NUMBER: RULING. That settles it; FINAL_APPROACH_IF_DISCUSSION. No reply is needed.
 ```

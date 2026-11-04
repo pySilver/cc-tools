@@ -1,8 +1,8 @@
 # Messages to Codex while planning
 
-Send every message through `peer-chat.py --to codex --stdin` with a quoted heredoc. The script
-collapses whitespace to single spaces and adds the "Chat from Claude:" label itself, so write each
-message as one paragraph. The user reads both panes, so a message has to make sense on its own.
+Send every message through `mailbox-chat.py say --stdin` with a quoted heredoc. The script adds
+the `[peer chat]` label and a closing line telling Codex how to reply, so write neither, and leave
+"reply by" instructions out of the message. Keep each message one paragraph. The user reads both panes, so a message has to make sense on its own.
 
 **A file carries what a paragraph cannot.** When a message needs code, a list of more than a
 handful of items, or a position that has outgrown a paragraph, write that part to
@@ -26,7 +26,7 @@ reply in chat instead." Once Codex has said it cannot write there, drop the offe
 ## Opening the discussion
 
 ```
-A planning discussion, before any plan is written. The work is in REPO_PATH, not necessarily in the directory you were started in: run every command there (cd REPO_PATH && ...) and open files by that path. You are read-only there: read and run non-mutating checks, and leave nothing behind. The problem: PROBLEM_OR_FILE. Success means SUCCESS. Binding constraints: CONSTRAINTS. Starting points: STARTING_POINTS. We take one question at a time. The first: QUESTION. My position: POSITION_OR_FILE, priced against MINIMAL_OPTION. Open what it cites and either agree, or refute it with a cite (path and symbol) or a concrete input that breaks it. If you see an approach I have not named, name it. Any addition you propose, such as a guard, a column, a lock or a retry, must name the failure it prevents, the input that produces it, whether that input is realistic here, and what breaks without it. FILE_OFFER Reply by peer-chat to Claude.
+A planning discussion, before any plan is written. The work is in REPO_PATH, not necessarily in the directory you were started in: run every command there (cd REPO_PATH && ...) and open files by that path. You are read-only there: read and run non-mutating checks, and leave nothing behind. The problem: PROBLEM_OR_FILE. Success means SUCCESS. Binding constraints: CONSTRAINTS. Starting points: STARTING_POINTS. We take one question at a time. The first: QUESTION. My position: POSITION_OR_FILE, priced against MINIMAL_OPTION. Open what it cites and either agree, or refute it with a cite (path and symbol) or a concrete input that breaks it. If you see an approach I have not named, name it. Any addition you propose, such as a guard, a column, a lock or a retry, must name the failure it prevents, the input that produces it, whether that input is realistic here, and what breaks without it. FILE_OFFER
 ```
 
 `PROBLEM_OR_FILE` is the problem as Step 1 settled it, or a backlog item's path. A user-set
@@ -41,23 +41,23 @@ with the revised position in full, so the thread always holds the current versio
 ## The next question
 
 ```
-Next planning question, same rules and same place, REPO_PATH: QUESTION. My position: POSITION_OR_FILE, priced against MINIMAL_OPTION. Say whether you agree, and refute anything you do not with a cite. FILE_OFFER Reply by peer-chat to Claude.
+Next planning question, same rules and same place, REPO_PATH: QUESTION. My position: POSITION_OR_FILE, priced against MINIMAL_OPTION. Say whether you agree, and refute anything you do not with a cite. FILE_OFFER
 ```
 
 ## Relaying a ruling
 
 ```
-The user ruled on QUESTION: RULING. It goes into the plan's Decisions as an owner ruling; it is not reopened. Reply ACK by peer-chat to Claude.
+The user ruled on QUESTION: RULING. It goes into the plan's Decisions as an owner ruling; it is not reopened. No reply is needed.
 ```
 
 ## Relaying Fable's second opinion
 
 ```
-We stalled on QUESTION and both of us put it down to the design, so I asked Fable once for a second opinion, with both our positions. Its answer is in FABLE_FILE; I checked its cites: CHECK_RESULT. Read it and argue the question once more: agree with a position (yours, mine or Fable's), or refute with a cite. Same rules as before. Say whether you agree, and refute anything you do not with a cite. FILE_OFFER Reply by peer-chat to Claude.
+We stalled on QUESTION and both of us put it down to the design, so I asked Fable once for a second opinion, with both our positions. Its answer is in FABLE_FILE; I checked its cites: CHECK_RESULT. Read it and argue the question once more: agree with a position (yours, mine or Fable's), or refute with a cite. Same rules as before. Say whether you agree, and refute anything you do not with a cite. FILE_OFFER
 ```
 
 ## Asking for the draft read
 
 ```
-The plan is drafted at PLAN_PATH, in REPO_PATH. Its Decisions section records what we settled. Check that the plan says it, not the decisions over again: does every Decision reach the Constraints or Done when of each task it binds, do the tasks fit together, can each be reviewed on its own, and is each Done when evidence an executor can produce? A point that reopens a decision names that decision. Read-only, as before. Say whether you agree, and refute anything you do not with a cite. FILE_OFFER Reply by peer-chat to Claude.
+The plan is drafted at PLAN_PATH, in REPO_PATH. Its Decisions section records what we settled. Check that the plan says it, not the decisions over again: does every Decision reach the Constraints or Done when of each task it binds, do the tasks fit together, can each be reviewed on its own, and is each Done when evidence an executor can produce? A point that reopens a decision names that decision. Read-only, as before. Say whether you agree, and refute anything you do not with a cite. FILE_OFFER
 ```

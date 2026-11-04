@@ -1,6 +1,6 @@
 ---
 name: exec
-description: Execute a plan task by task as a two-agent run. An implementation subagent (Opus at medium by default) builds each task, Codex in the adjacent agterm pane reviews the diff before the commit, then Codex is cleared and the next task starts; a task the plan marks for discussion has its approach agreed with Codex first. The agents talk through peer-chat, with long content in files, and every step lands in a jsonl event log that a live agterm page shows. Finish with the project's revmux review rounds, its polish step and one run of the whole suite. Use it whenever the user says peer-planning:exec, asks to execute a peer-planning:make plan, or wants plan execution reviewed by Codex task by task, even when they just say "run this plan with Codex".
+description: Execute a plan task by task as a two-agent run. An implementation subagent (Opus at medium by default) builds each task, Codex in the adjacent agterm pane reviews the diff before the commit, then Codex is cleared and the next task starts; a task the plan marks for discussion has its approach agreed with Codex first. The agents talk through agterm's pane mailboxes (the mailbox-chat skill), with long content in files, and every step lands in a jsonl event log that a live agterm page shows. Finish with the project's revmux review rounds, its polish step and one run of the whole suite. Use it whenever the user says peer-planning:exec, asks to execute a peer-planning:make plan, or wants plan execution reviewed by Codex task by task, even when they just say "run this plan with Codex".
 ---
 
 # peer-planning:exec, two-agent plan execution
@@ -32,10 +32,11 @@ restates the one before it ends the exchange. An addition is priced on four ques
 it prevents, the input, whether that input is realistic, and what breaks without it. A refutation
 cites code.
 
-The one exception, approved by the owner, is to the peer-chat skill's "only `peer-chat.py` touches
-the pane". Every message still goes through `peer-chat.py`, but `scripts/codex-clear.sh` types
-`/clear` between tasks. `peer-chat.py` prefixes every send with a label, so it cannot deliver a
-slash command.
+Every message goes through `mailbox-chat.py say`, which puts it in the other pane's mailbox and
+never types into a terminal. The one raw send, approved by the owner, is `scripts/codex-clear.sh`:
+between tasks it types `/clear` into Codex's pane, then a one-line READY prompt. A mailbox message
+cannot deliver a slash command, and after a `/clear` Codex takes mail only once its new
+conversation has run a prompt; until then the mail goes to the cleared thread.
 
 ## The run directory
 
@@ -95,11 +96,13 @@ memory: finalize trusts it in place of a run it watched.
      Claude Code ends a run of Stop-hook re-prompts after eight in a row with no tool call between
      them (`CLAUDE_CODE_STOP_HOOK_BLOCK_CAP`), and any tool call starts that count again, which is
      how a refusal becomes a spin.
-2. **Load the peer-chat skill.** Its sending and manners rules apply to every message below.
+2. **Load the mailbox-chat skill.** Its sending and manners rules apply to every message below.
 3. **Confirm Codex is there.** Run `bash ${CLAUDE_SKILL_DIR}/scripts/codex-clear.sh --check`.
    It reads the right pane without typing and exits 0 only when Codex is idle with an empty
-   composer. If Codex is not running in the right pane, stop and say so. This skill never starts an
-   agent or opens a pane, and Codex runs with the model and effort the user started it with.
+   composer and registered for mail. If Codex is not running in the right pane, or is not
+   registered (its first prompt has not run, or its mailbox-chat hook is missing), stop and say
+   what the script reported. This skill never starts an agent or opens a pane, and Codex runs with
+   the model and effort the user started it with.
 4. **Resolve the plan.** Use the argument, or list `docs/plans/*.md` outside `completed/` and ask
    the user to pick one.
 5. **Load the rules.** Run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-rules.sh`. Drop its
@@ -136,8 +139,9 @@ memory: finalize trusts it in place of a run it watched.
      continue from the last entry.
    - Run "Run-record housekeeping" once, before task 1, for the repository's other runs.
    - Otherwise start `progress.md` with the plan, `WORK_PATH`, the branch and the executor.
-   - Re-read `progress.md` on every wake-up before acting. A Codex message arrives as a new turn,
-     and the context may compact in the middle of a run.
+   - Re-read `progress.md` on every wake-up before acting. A Codex message arrives as a new turn
+     (hook feedback opening with `[peer chat]`), and the context may compact in the middle of a
+     run.
    - Append to it after every step: the task, its phase, the implementer's agent id, the commit
      SHA, and every decision, deviation or user ruling.
 10. **Check whether Codex can write long replies.**
@@ -282,8 +286,8 @@ the same plan file.
    - **Exit 2:** it refused and typed nothing, usually because Codex is still finishing. Let
      Codex's next message arrive, then run the script again once. If it refuses again, ask the
      user.
-   - **Exit 1:** it typed but could not confirm the reset. Read the pane and tell the user; never
-     re-send blind.
+   - **Exit 1:** it typed but could not confirm the reset, or the new conversation never
+     registered for mail. Read the pane and tell the user; never re-send blind.
    - Apart from the clear at a new run's setup, only clear after a commit, never while a
      discussion or review is open: the argument needs the thread it stands on.
 3. **Report and move on.** Log `task.done` and tell the user `Task N done: <sha> <subject>`. The
@@ -292,8 +296,13 @@ the same plan file.
 ## Waiting
 
 After every message to Codex and every background launch, end your turn. Never poll Codex's pane
-and never sleep-wait. While this session is busy, Codex's message cannot be typed into its
-composer, so ending the turn is what lets the answer in.
+and never sleep-wait. Codex's reply waits in this pane's mailbox while a turn runs and is handed
+over only when the turn ends, so ending the turn is what lets the answer in. A turn interrupted
+with Esc reports no end, and its mail then waits until the next turn completes.
+
+`say` reports who serves Codex's pane. Anything but `"receiver": "codex"` means nothing will read
+the message: stop and tell the user what it returned. An `error` means the mailbox refused it;
+report it and never re-send blind.
 
 If Codex's message says more is coming, answer it at once: acknowledge what arrived and ask for the
 rest. Never end a turn waiting on a promised follow-up. Codex may already have ended its own turn,
@@ -407,7 +416,7 @@ setup and once after the completion report, and deletes only what the user picks
 ## Never
 
 - Answer a prompt, approval or chooser in Codex's pane. Those answers carry the user's authority.
-- Type anything into Codex's pane other than a `peer-chat.py` message or `codex-clear.sh`.
+- Type anything into Codex's pane other than through `codex-clear.sh`.
 - Treat "Codex agreed" as the user's approval of anything that needs it.
 - Write or fix code in this session. Implementers and fixers do the code work.
 - Run two tasks at once, or push.

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # peer-planning exec: the run-record scripts. log-event.py refuses a run.start that a later reader
 # cannot use, and run-records.py lists a repository's landed runs, skipping a run whose record it
-# cannot read instead of aborting the listing. Everything happens in a throwaway clone; no agterm
-# session is touched.
+# cannot read instead of aborting the listing, and codex-clear.sh, against a fake agtermctl, refuses
+# a Codex not registered for mail and confirms the new conversation's registration after a clear.
+# Everything happens in a throwaway clone; no agterm session is touched.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -122,6 +123,96 @@ if out=$(cd "$CLONE" && py "$SCRIPTS/run-records.py" --remove "$CLONE/.peer-plan
   pass "--remove deletes the landed run"
 else
   fail "--remove deletes the landed run: $out"
+fi
+
+# ---- codex-clear.sh ----
+# A fake agtermctl stands in for agterm: it serves a tree with a right pane, a Codex pane whose
+# composer holds what was typed since the last newline, and it records every write. A submitted
+# READY prompt re-registers the pane under a new thread, as mailbox-chat.py's codex-hook would.
+FAKE=$WORK/fake-bin
+mkdir -p "$FAKE"
+ln -s "$PY" "$FAKE/python3"
+CC=$WORK/codex-clear
+mkdir -p "$CC"
+cat >"$FAKE/agtermctl" <<'FAKECTL'
+#!/usr/bin/env bash
+set -euo pipefail
+state=$FAKE_STATE
+case "$1 ${2:-}" in
+  "tree --json")
+    printf '{"windows":[{"sessions":[{"id":"%s","surfaces":[{"kind":"left","paneID":"PANE-L"},{"kind":"right","paneID":"PANE-R"}]}]}]}\n' "$AGTERM_SESSION_ID"
+    ;;
+  "session text")
+    printf 'OpenAI Codex\n'
+    if [ -f "$state/cleared" ]; then printf 'Context 0%% used\n'; fi
+    printf '› %s\n' "$(cat "$state/composer" 2>/dev/null || true)"
+    ;;
+  "session type")
+    input=$(cat; printf x)
+    input=${input%x}
+    printf '%s\0' "$input" >>"$state/typed"
+    if [ "$input" = $'\n' ]; then
+      submitted=$(cat "$state/composer" 2>/dev/null || true)
+      : >"$state/composer"
+      if [ "$submitted" = /clear ]; then touch "$state/cleared"; fi
+      if [ "$submitted" = "Answer with the single word READY." ] && [ -n "${FAKE_REREGISTER:-}" ]; then
+        printf '{"session":"%s","thread":"thread-new","pid":%s}' "$AGTERM_SESSION_ID" "$FAKE_PID" >"$FAKE_REG"
+      fi
+    else
+      printf '%s' "$input" >>"$state/composer"
+    fi
+    ;;
+  *) echo "fake agtermctl: unexpected $*" >&2; exit 64 ;;
+esac
+FAKECTL
+chmod +x "$FAKE/agtermctl"
+
+REGDIR=$TMPDIR/agterm-mailbox-chat-$(id -u)
+REG=$REGDIR/codex-PANE-R.json
+mkdir -p "$REGDIR"
+register() { printf '{"session":"S-1","thread":"%s","pid":%s}' "$1" "$2" >"$REG"; }
+codex_clear() {
+  rm -rf "$CC/state" && mkdir -p "$CC/state"
+  set +e
+  out=$(PATH="$FAKE:$PATH" AGTERM_SESSION_ID=S-1 FAKE_STATE="$CC/state" FAKE_REG="$REG" FAKE_PID=$$ \
+    bash "$SCRIPTS/codex-clear.sh" "$@" 2>&1)
+  code=$?
+  set -e
+}
+typed() { tr '\0' '|' <"$CC/state/typed" 2>/dev/null | sed 's/\n/\\n/g'; }
+
+rm -f "$REG"
+codex_clear --check
+if [ "$code" = 2 ] && [[ $out == *"no running Codex has registered"* ]] && [ ! -f "$CC/state/typed" ]; then
+  pass "codex-clear --check refuses a Codex not registered for mail, typing nothing"
+else
+  fail "codex-clear --check refuses a Codex not registered for mail: exit $code: $out"
+fi
+
+dead=$("$PY" -c 'import subprocess; p = subprocess.Popen(["true"]); p.wait(); print(p.pid)')
+register thread-old "$dead"
+codex_clear --check
+if [ "$code" = 2 ] && [[ $out == *"no running Codex has registered"* ]]; then
+  pass "codex-clear --check ignores a registration whose Codex has exited"
+else
+  fail "codex-clear --check ignores a registration whose Codex has exited: exit $code: $out"
+fi
+
+register thread-old $$
+codex_clear --check
+if [ "$code" = 0 ] && [ ! -f "$CC/state/typed" ]; then
+  pass "codex-clear --check passes an idle, registered Codex without typing"
+else
+  fail "codex-clear --check passes an idle, registered Codex: exit $code: $out"
+fi
+
+register thread-old $$
+FAKE_REREGISTER=1 codex_clear
+expected=$'/clear|\n|Answer with the single word READY.|\n|'
+if [ "$code" = 0 ] && [ "$(tr '\0' '|' <"$CC/state/typed")" = "$expected" ] && grep -q thread-new "$REG"; then
+  pass "codex-clear types /clear and a READY prompt, and returns once a new thread registers"
+else
+  fail "codex-clear clears and re-registers: exit $code: $out; typed: $(typed)"
 fi
 
 if [ -d "$SCRIPTS/__pycache__" ]; then
