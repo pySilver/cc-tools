@@ -71,6 +71,16 @@ writer; Codex is read-only in the repository.
   plan it" given as the answer to that choice. "Plan this" or "just plan it" on its own names the
   work, not who does it. Ask for the waiver once and record it in the plan's header.
 
+## Questions to the user go through the gate
+
+Before any question that asks the user to rule (an approach, a size, a disagreement with Codex
+that stalled, a scope call), run the `decide:gate` skill on it. It checks whether a recorded
+ruling, a probe or a rule already answers it, sends a question about users through the persona
+panel, checks the card's framing, and records the user's answer as a ruling when it is one. While
+the gate is in shadow mode the question still reaches the user; only the judge's verdict is
+logged. Inside a run its files go in `RUN_DIR/gate/`. A typed value or a bare go-ahead on a step
+just described is not a ruling and skips the gate.
+
 ## Step 0: a quick scan
 
 Build enough context to ask good questions, and no more:

@@ -188,6 +188,16 @@ memory: finalize trusts it in place of a run it watched.
     without an argument it finds the runs in the main checkout and every worktree, and offers
     them in agterm's picker. `--list` prints them instead.
 
+## Questions to the user go through the gate
+
+Before any question that asks the user to rule (an approach, a size, a disagreement with Codex
+that stalled, a scope call), run the `decide:gate` skill on it. It checks whether a recorded
+ruling, a probe or a rule already answers it, sends a question about users through the persona
+panel, checks the card's framing, and records the user's answer as a ruling when it is one. While
+the gate is in shadow mode the question still reaches the user; only the judge's verdict is
+logged. Inside a run its files go in `RUN_DIR/gate/`. A typed value or a bare go-ahead on a step
+just described is not a ruling and skips the gate.
+
 ## Logging
 
 Log each step as it happens:
