@@ -34,9 +34,14 @@ each from what they would actually see, and the user gets a card instead of a li
 
 ## The people
 
-The project's persona files (in mybaze, `docs/personas/`) define them: a shopper, a merchant, an
-ops admin, the engineer on call and the CEO. Use every one that has a stake; a persona with none
-says so in a line, which is an answer too. Add a question-specific persona in the brief when the
+The project's persona files (in mybaze, `docs/personas/`) define the cast: a shopper, a merchant,
+an ops admin, the engineer on call and the CEO. A panel brings only the people the question
+affects, never the whole cast by default. Pick them before writing the brief: a persona is in when
+some option changes what that person sees, does or answers for, and the brief says in one line why
+each one is there. A question about the storefront order brings the shopper and the merchant; one
+about an alert brings the engineer on call; the CEO comes in when the options differ in cost to
+the company or in how they would be defended to shoppers and merchants. Two is the floor: with one
+persona there is no second view to disagree. Add a question-specific persona in the brief when the
 question turns on someone the files do not cover, such as a shopper in a market whose language or
 currency matters to the answer. Write it as a short paragraph in the same shape as the files: who
 they are, what they want, what they notice, what they never see.
@@ -58,7 +63,8 @@ Write `PANEL_DIR/brief.md` before anyone answers. It holds:
   alert the engineer would get. Where no stack can show it, a worked example written as the page:
   shops, products, prices and positions, never scores. In mybaze, a shared test stack is used by
   one session at a time; ask the session holding it over SendMessage before you use it.
-- **The personas taking part**, as file paths, plus any question-specific persona in full.
+- **The personas taking part**, as file paths, each with one line on why the question affects
+  them, plus any question-specific persona in full.
 
 The brief is neutral: no recommendation, no option marked as the expected one, no internal names
 a persona would not know. Both model families read the same brief, so any lean in it reaches both

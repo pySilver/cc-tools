@@ -20,8 +20,8 @@ file.
 
 For each option, say what you would see, whether you would notice the difference at all, and what
 you would do next. Then say which option you would want and why, in one or two sentences, and how
-sure you are: sure, leaning, or no preference. If you have no stake in the question, say so in one
-line. Reply with the whole answer and nothing else.
+sure you are: sure, leaning, or no preference. If the question turns out not to affect you, say so
+in one line, so the panel learns it chose you wrongly. Reply with the whole answer and nothing else.
 ```
 
 ## Sol panel
