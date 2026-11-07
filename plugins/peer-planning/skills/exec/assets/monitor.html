@@ -413,6 +413,7 @@ function stateOf(e) {
       break;
     case 'stage.start':
       if (e.stage === 'review') return {actor: 'review', task, headline: `Branch review, iteration ${e.iteration}`};
+      if (e.stage === 'stories') return {actor: 'orchestrator', task, headline: 'Checking for behavior no story covers'};
       if (e.stage === 'suite') return {actor: 'implementer', task, headline: 'Waiting for the whole suite: the closing run'};
       return {actor: 'user', task, headline: 'Polish: the step is interactive'};
     case 'run.end': return {actor: 'done', task, headline: 'The run is finished'};
@@ -1146,10 +1147,12 @@ function describe(e) {
     case 'stage.start':
       if (e.stage === 'review') return {actor: 'review', icon: 'search', text: ['Branch review, iteration ', b(String(e.iteration ?? '?'))]};
       if (e.stage === 'suite') return {actor: 'implementer', icon: 'tool', text: ['Whole suite started', sub(' · the closing run')]};
+      if (e.stage === 'stories') return {actor: 'orchestrator', icon: 'search', text: ['Story gaps check started']};
       return {actor: 'user', icon: 'star', text: ['Polish started', sub(' · interactive')]};
     case 'stage.done':
       if (e.stage === 'review') return {actor: 'review', icon: 'check', text: [`Branch review iteration ${e.iteration ?? '?'} done`]};
       if (e.stage === 'suite') return {actor: 'implementer', icon: 'check', text: ['Whole suite done']};
+      if (e.stage === 'stories') return {actor: 'orchestrator', icon: 'check', text: ['Story gaps check done']};
       return {actor: 'user', icon: 'check', text: ['Polish done']};
     case 'run.end': return {actor: 'done', icon: 'flag', tone: 'ok', text: [b('Run finished')]};
     default: return {actor: 'orchestrator', icon: 'dot', text: [h('span', {class: 'mono'}, e.event)]};

@@ -71,7 +71,7 @@ branch's head, so the record has one fixed form, a line of its own in `progress.
 FULL-SUITE PASS sha=<40-character SHA> passed=<P> skipped=<S> collected=<C> command=<command>
 ```
 
-Its one source is the closing suite stage ("After the last task", step 3). Write it only when that
+Its one source is the closing suite stage ("After the last task", step 4). Write it only when that
 stage's final message carries a `FULL-SUITE:` line, and copy its numbers and command as given.
 `sha` is `git -C WORK_PATH rev-parse HEAD` taken right after the stage, which holds the code the
 suite ran on with at most the plan's suite record added. Never write it from a report or from
@@ -355,12 +355,30 @@ remains coherent across a whole plan.
    - Codex takes no part, since it has already reviewed every task, with one exception: when the
      default playbook's stop rule fires on a function or symbol, that finding goes to a design
      discussion with Codex before the fixer runs (`references/review.md`, Step 7).
-2. **Polish.** Run the project's polish step if it has one; here that is `/polish`
+2. **Cover the gaps in the stories.** Behavior the branch changed that no story describes, such
+   as a fix added mid-run, gets a story now. Skip this step when the plan says "No actor observes
+   a change" and the branch changed nothing a shopper, merchant or operator would see.
+   - List the branch's user-visible changes from `git -C WORK_PATH diff DEFAULT_BRANCH...HEAD`
+     and the plan's task list, each in a sentence of what a person would see. Map each to the
+     plan's numbered stories. A change a story already covers needs nothing.
+   - For each change no story covers, draft a story in the plan's own form (the actor, what they
+     do, what they see before and after, and a `Test:` block naming the test it will have).
+   - Ask Codex to check each draft against the code: does the branch do what the story says, for
+     the actor it names? Settle what it raises under the pair rules.
+   - Run the persona panel's story read (`decide:panel`) on the drafts, with `RUN_DIR/panels/` as
+     its directory.
+   - Add the drafts to the plan's Stories section. Each new story needs its test, so spawn a fixer
+     with the "Fix review findings" prompt and each story's `Test:` block as a finding, and confirm
+     `python scripts/check_stories.py --form PLAN_FILE_PATH` passes when the project has it.
+   - Tell the user about the flagged drafts only, each with the answers that flagged it, and log
+     `stage.start` and `stage.done` with `stage=stories`. Unflagged drafts are listed in the
+     completion report.
+3. **Polish.** Run the project's polish step if it has one; here that is `/polish`
    (`.claude/commands/polish.md`), inside `WORK_PATH`. Log `stage.start` and `stage.done` with
    `stage=polish`. It is interactive, and the project's polish ends by telling the user to
    finalize. Under exec the suite stage comes first: it runs once polish returns, and the
    completion report follows it.
-3. **Run the whole suite.** First resolve `SUITE_COMMAND`: the whole-suite command the plan's
+4. **Run the whole suite.** First resolve `SUITE_COMMAND`: the whole-suite command the plan's
    Execution section names, or else the one the project's agent docs name. A plan written before
    this stage existed names none. Then spawn a fresh subagent with the "Run the full suite"
    prompt from `references/implementer-prompt.md`, `SUITE_COMMAND` substituted, the resolved

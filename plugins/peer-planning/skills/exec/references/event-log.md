@@ -40,8 +40,8 @@ event is written as given.
 | `codex.clear` | `codex-clear.sh` returned | `task:=N` (none for the clear at a new run's setup), `exit:=N` |
 | `reviewer.switch` | the reviewer seat changed hands (`references/reviewer-seat.md`) | `from` (the old pane model, or `opus`), `to` (`astra`, `sol` or `opus`), `reason`, `used_percent:=N` when measured; `task:=N` except at setup |
 | `task.done` | the task is closed | `task:=N`, `sha` |
-| `stage.start` | the branch review loop, the polish step or the closing suite run begins | `stage=review\|polish\|suite`, `iteration:=N` for review |
-| `stage.done` | that stage ends | `stage=review\|polish\|suite`, `iteration:=N` for review |
+| `stage.start` | the branch review loop, the story gap step, the polish step or the closing suite run begins | `stage=review\|stories\|polish\|suite`, `iteration:=N` for review |
+| `stage.done` | that stage ends | `stage=review\|stories\|polish\|suite`, `iteration:=N` for review |
 | `run.end` | the completion report is given | |
 
 What a run spends waiting follows from the last line: after `implement.start` or `fix.start` the

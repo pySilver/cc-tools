@@ -122,6 +122,27 @@ would see" text and the recommendation marked; elsewhere as plain text, which al
 phone. Record the answer in `PANEL_DIR/answer.md`. Whether the answer is a durable ruling is the
 question gate's call, not the panel's.
 
+## Reading stories
+
+The panel's second job is reading a plan's stories, where it writes no card. Each story is a short
+run through a change as one person sees it, and the people it names judge whether it reads right
+to them before the user approves it.
+
+1. Write `PANEL_DIR/stories.md`: each story, numbered as in the plan, without its `Test:` block,
+   and for each the personas it concerns: the actor it names, plus anyone else an option of it
+   changes something for. Two personas per story is the floor, as for a question.
+2. Run each persona once as Opus and once as Sol, as in step 2 above, with the "Story read"
+   prompts from `references/messages.md`, saving the answers as
+   `PANEL_DIR/answers/<persona>.stories.opus.md` and `.stories.sol.md`. Each one answers every story
+   it concerns: is the outcome
+   what they would expect, and is anything confusing, missing or wrong for them?
+3. A story is **flagged** when any answer says it is unexpected, confusing or wrong. Write
+   `PANEL_DIR/story-read.md`: the flagged stories first, each with the answers that flagged it,
+   quoted, then one line naming the stories nobody flagged.
+
+The caller puts the flagged stories in front of the user first, with those answers beside them.
+The panel never rewrites a story; the user and the agent who drafted it do.
+
 ## The card
 
 A card carries, in this order:
