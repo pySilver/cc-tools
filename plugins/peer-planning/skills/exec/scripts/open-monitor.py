@@ -9,10 +9,17 @@ stands in, in the main checkout and in every worktree, since an orchestrator kee
 directory at the root of whichever checkout it runs in. One run opens directly; several are
 offered in agterm's picker, most recent first. --list prints them instead.
 
-The page opens in a session of its own named "<plan-stem> monitor", placed after the
-caller's session, because an overlay over the agents' split would hide one of them. A session
-already carrying that name is reused. --follow switches to it: a keyboard shortcut wants that,
-the exec skill opening it in the background at setup does not.
+The page opens as a page companion of the run's own session, the one the last run.start
+names, so it sits indented under the agents it watches and closes with them. An overlay over
+the agents' split would hide one of them. It is named "<plan-stem> monitor" and tinted green so
+it stands out from terminal companions. When the run's session is gone, the caller's session is
+the parent. A monitor already under the right parent is reloaded; one anywhere else, a
+top-level monitor session from before companions included, is closed and opened again in its
+place. --follow switches to it: a keyboard shortcut wants that, the exec skill opening it in the
+background at setup does not.
+
+agterm never saves a page companion, so after a relaunch the monitor is gone until this script
+runs again.
 
 It runs from a Claude session, which has the AGTERM_* variables, and from an agterm keymap
 command, which has AGT_* instead.
@@ -29,6 +36,7 @@ from typing import NoReturn
 from run_index import Run, RunIndexError, find_runs, local_time
 
 ASSET = Path(__file__).resolve().parent.parent / "assets" / "monitor.html"
+TINT = "green"
 
 
 def env(*names: str) -> str:
@@ -76,8 +84,20 @@ def choose(runs: list[Run]) -> Path:
     return Path(json.loads(picked.stdout)["id"])
 
 
-def open_page(run_dir: Path, target: str) -> None:
-    ctl("session", "overlay", "open", "--html", str(run_dir / "monitor.html"), "--cwd", str(run_dir), "--js", "--target", target)
+def run_session(run_dir: Path) -> str:
+    """The session the last run.start names, or "" when the log holds none."""
+    session = ""
+    for line in (run_dir / "events.jsonl").read_text(encoding="utf-8").splitlines():
+        if '"run.start"' in line:
+            event = json.loads(line)
+            if event.get("event") == "run.start" and event.get("session"):
+                session = event["session"]
+    return session
+
+
+def live_sessions() -> list[dict]:
+    tree = json.loads(ctl("tree", "--json", *window_args()).stdout)["result"]["tree"]
+    return [s for ws in tree.get("workspaces", []) for s in ws.get("sessions", [])]
 
 
 def open_monitor(run_dir: Path, follow: bool) -> None:
@@ -86,20 +106,32 @@ def open_monitor(run_dir: Path, follow: bool) -> None:
     # Refresh the page from the plugin, so an older run gets the current monitor.
     shutil.copyfile(ASSET, run_dir / "monitor.html")
     name = f"{run_dir.name} monitor"
-    tree = json.loads(ctl("tree", "--json", *window_args()).stdout)["result"]["tree"]
-    existing = [s for ws in tree.get("workspaces", []) for s in ws.get("sessions", []) if s.get("name") == name]
-    if existing:
-        target = existing[0]["id"]
-        if any(page.get("file", "").endswith("/monitor.html") for page in existing[0].get("htmlOverlays", [])):
-            ctl("session", "overlay", "reload", "--target", target)
-        else:
-            open_page(run_dir, target)
+    live = live_sessions()
+    by_id = {s["id"].upper(): s for s in live}
+    owner = by_id.get(run_session(run_dir).upper()) or by_id.get(SESSION.upper())
+    if owner is None:
+        fail(f"neither the run's session nor this one ({SESSION}) is in this window")
+    # A companion's companion becomes its sibling, so the parent is the top of the group.
+    parent = (owner.get("parent") or owner["id"]).upper()
+    existing = [s for s in live if s.get("name") == name]
+    kept = next((s for s in existing if s.get("content") == "page" and (s.get("parent") or "").upper() == parent), None)
+    stale = [s for s in existing if s is not kept]
+    if stale:
+        ctl("session", "close", *[arg for s in stale for arg in ("--target", s["id"])])
+    if kept:
+        target = kept["id"]
+        ctl("session", "overlay", "reload", "--target", target)
     else:
-        target = ctl("session", "new", "--cwd", str(run_dir), "--name", name, "--after", SESSION, "--no-select").stdout.strip()
-        open_page(run_dir, target)
+        opened = ctl(
+            "session", "overlay", "open", "--html", str(run_dir / "monitor.html"), "--cwd", str(run_dir),
+            "--js", "--companion", "--target", parent, "--json",
+        )
+        target = json.loads(opened.stdout)["result"]["id"]
+        ctl("session", "rename", name, "--target", target)
+    ctl("session", "tint", TINT, "--on", "icon,name", "--target", target)
     if follow:
         ctl("session", "select", "--target", target)
-    print(f"{name}: session {target}, run {run_dir}")
+    print(f"{name}: companion {target} under session {parent}, run {run_dir}")
 
 
 def repository_runs() -> list[Run]:

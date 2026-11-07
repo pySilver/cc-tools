@@ -173,10 +173,11 @@ memory: finalize trusts it in place of a run it watched.
     and the monitor shows the plan, branch and executor from this record, so `log-event.py`
     refuses a `run.start` missing any of them. Then run
     `"${CLAUDE_SKILL_DIR}/scripts/open-monitor.py" "$RUN_DIR"`. It copies the page into
-    `RUN_DIR` and shows it in a session of its own named `<plan-stem> monitor`, next to this one
-    and without selecting it. A resumed run logs `run.start` again, so the monitor knows which
-    session and checkout run it now, and makes the same call, which reuses that session if it is
-    still open. The page reads the log through `events.js` and this session's agent status from
+    `RUN_DIR` and shows it as a green-tinted page companion named `<plan-stem> monitor`, indented
+    under this session and without selecting it; it closes when this session closes. A resumed run
+    logs `run.start` again, so the monitor knows which session and checkout run it now, and makes
+    the same call: it reloads the monitor already under this session, and closes and reopens one
+    that sits anywhere else. The page reads the log through `events.js` and this session's agent status from
     `tree`; its one action on agterm, "Go to the agents", selects this session. Tell the user
     where it is, then go to task 1.
 
