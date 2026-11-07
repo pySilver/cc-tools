@@ -1,0 +1,141 @@
+#!/usr/bin/env python3
+"""jev — ask TypeSafe's Jev decision model one or more choice questions through OpenRouter.
+
+  jev SPEC.json | jev - < spec.json     ask, print the answers as JSON
+  jev check SPEC.json | jev check -     validate the spec and its size, send nothing
+
+A spec is {"state": "<the facts to decide on>", "questions": {NAME: QUESTION, ...}} and
+optionally "model". A question is {"instructions": "<what to decide>", "choices": {ID: "<what
+this choice means>", ...}}; it is sent as Jev's "choice" type, with the choices as its criteria.
+
+The reply on stdout: {"model", "answers": {NAME: {"choice", "confidence", "probabilities"}},
+"cost"}. Jev returns probabilities per choice; read them, a confidence near 0.5 is a coin toss.
+
+Jev reads text best under about 32,000 bytes. Past that it runs in a long-context mode its docs
+call slower and less accurate, so a spec whose state and questions together pass LIMIT_BYTES is
+refused with exit 3 and nothing is sent. Nothing here truncates: a caller with a longer input
+sends it to a big model instead.
+
+The key is OPENROUTER_API_KEY from the environment. A process keeps the value it started with,
+so a key changed later reaches only processes started after the change.
+
+Exit codes: 0 answered; 1 a bad spec, no key, or a failed request (the error names which);
+3 the input is over LIMIT_BYTES.
+Environment: OPENROUTER_API_KEY (required), JEV_MODEL (default model), JEV_TIMEOUT (seconds).
+"""
+
+import json
+import os
+import ssl
+import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+URL = "https://openrouter.ai/api/alpha/decisions"
+DEFAULT_MODEL = os.environ.get("JEV_MODEL", "typesafe/jev-1.14")
+LIMIT_BYTES = 32_000
+TIMEOUT_SECONDS = float(os.environ.get("JEV_TIMEOUT", "120"))
+# macOS keeps its root certificates here. A python.org interpreter that never ran its
+# "Install Certificates" step has none of its own and fails every TLS handshake without this.
+MACOS_CA_BUNDLE = Path("/etc/ssl/cert.pem")
+
+
+class SpecError(Exception):
+    pass
+
+
+def load(arg: str) -> dict:
+    text = sys.stdin.read() if arg == "-" else Path(arg).read_text(encoding="utf-8")
+    try:
+        spec = json.loads(text)
+    except ValueError as error:
+        raise SpecError(f"the spec is not JSON: {error}") from error
+    if not isinstance(spec, dict):
+        raise SpecError("the spec must be a JSON object")
+    return spec
+
+
+def build(spec: dict) -> dict:
+    """The decisions request body, after checking the spec's shape and size."""
+    unknown = set(spec) - {"state", "questions", "model"}
+    if unknown:
+        raise SpecError(f"unknown spec keys: {sorted(unknown)}")
+    state = spec.get("state")
+    if not isinstance(state, str) or not state.strip():
+        raise SpecError("state must be a non-empty string")
+    questions = spec.get("questions")
+    if not isinstance(questions, dict) or not questions:
+        raise SpecError("questions must be a non-empty object")
+    body_questions = {}
+    for name, question in questions.items():
+        if not isinstance(question, dict) or set(question) - {"instructions", "choices"}:
+            raise SpecError(f"question {name!r} takes only instructions and choices")
+        instructions = question.get("instructions")
+        choices = question.get("choices")
+        if not isinstance(instructions, str) or not instructions.strip():
+            raise SpecError(f"question {name!r} needs instructions")
+        if not isinstance(choices, dict) or len(choices) < 2 or not all(
+            isinstance(k, str) and isinstance(v, str) and v.strip() for k, v in choices.items()
+        ):
+            raise SpecError(f"question {name!r} needs at least two choices, each with a meaning")
+        body_questions[name] = {"type": "choice", "instructions": instructions, "criteria": choices}
+    body = {"model": spec.get("model") or DEFAULT_MODEL, "state": state, "questions": body_questions}
+    size = len(state.encode()) + len(json.dumps(body_questions).encode())
+    if size > LIMIT_BYTES:
+        raise OverflowError(f"the input is {size} bytes, over Jev's {LIMIT_BYTES}; send it to a big model, never a cut-down copy")
+    return body
+
+
+def ask(body: dict) -> dict:
+    key = os.environ.get("OPENROUTER_API_KEY", "")
+    if not key:
+        raise RuntimeError("OPENROUTER_API_KEY is not set in this process's environment")
+    context = ssl.create_default_context(cafile=str(MACOS_CA_BUNDLE)) if MACOS_CA_BUNDLE.is_file() else ssl.create_default_context()
+    request = urllib.request.Request(
+        URL, data=json.dumps(body).encode(), method="POST",
+        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS, context=context) as response:
+            reply = json.load(response)
+    except urllib.error.HTTPError as error:
+        raise RuntimeError(f"OpenRouter answered HTTP {error.code}: {error.read().decode(errors='replace')[:400]}") from error
+    except urllib.error.URLError as error:
+        raise RuntimeError(f"OpenRouter could not be reached: {error.reason}") from error
+    answers = reply.get("answers")
+    if not isinstance(answers, dict) or set(answers) != set(body["questions"]):
+        raise RuntimeError(f"the reply does not answer every question: {json.dumps(reply)[:400]}")
+    return {
+        "model": reply.get("model"),
+        "answers": {
+            name: {k: a.get(k) for k in ("choice", "confidence", "probabilities")}
+            for name, a in answers.items()
+        },
+        "cost": (reply.get("usage") or {}).get("cost"),
+    }
+
+
+def main(argv: list[str]) -> int:
+    check = bool(argv) and argv[0] == "check"
+    args = argv[1:] if check else argv
+    if len(args) != 1:
+        print(__doc__.strip().splitlines()[2], file=sys.stderr)
+        return 1
+    try:
+        body = build(load(args[0]))
+        if check:
+            print(json.dumps({"ok": True, "model": body["model"], "questions": sorted(body["questions"])}))
+            return 0
+        print(json.dumps(ask(body)))
+        return 0
+    except OverflowError as error:
+        print(f"jev: {error}", file=sys.stderr)
+        return 3
+    except (SpecError, OSError, RuntimeError) as error:
+        print(f"jev: {error}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

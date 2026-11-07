@@ -39,6 +39,11 @@
       "description": "Lightweight project-state tracking: a deferred-work backlog under docs/backlog/, one slug-named file per item."
     },
     {
+      "name": "jev",
+      "source": "./plugins/jev",
+      "description": "A command-line client for TypeSafe's Jev decision model on OpenRouter: choice questions over a bounded input, answered with a choice, a confidence and per-choice probabilities. Refuses an input past Jev's accurate range instead of cutting it. Needs OPENROUTER_API_KEY and Python 3."
+    },
+    {
       "name": "huddle",
       "source": "./plugins/huddle",
       "description": "Ask the user as a page in an agterm overlay: visual options, side-by-side trade-offs, real code from disk, sliders with a live preview, several questions with a review. Needs agterm 0.34+ and Python 3."

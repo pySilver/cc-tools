@@ -4,6 +4,14 @@ This repo ships independent Claude Code plugins that are intentionally version-l
 
 ## Unreleased
 
+### jev (new plugin)
+
+- **add `jev`**, a stdlib command-line client for TypeSafe's Jev decision model on OpenRouter's decisions endpoint (`typesafe/jev-1.14` by default). It takes a state and named choice questions, prints each answer's choice, confidence and probabilities with the request's cost, and refuses an input over 32,000 bytes with exit 3 instead of cutting it, because Jev's docs call its long-context mode slower and less accurate.
+
+### tracking
+
+- **backlog triage.** `skills/backlog/scripts/triage.py` sorts `docs/backlog/` items by who can act next (owner, agent, waiting on an outside event, or already decided as `worth: no`) through `jev`. It judges an item when its text changes and re-checks a waiting one when the default branch moves, with no timer, and keeps the verdicts in the git directory. On mybaze the owner agreed with 10 of 10 in a fresh sample (2026-11-07).
+
 ### agrev (new plugin)
 
 - **add `agrev`**, moved here from a standalone skill in `~/.claude/skills/`, where it had no history. It opens a markdown document in [plannotator](https://github.com/backnotprop/plannotator), shown in an agterm session right after the agent's, and runs the review in rounds: the user annotates and sends feedback or approves, the agent edits the document and opens the next round with its replies pinned to the phrases they answer. Moved unchanged; as a plugin skill it is invoked as `/agrev:agrev` instead of `/agrev`.

@@ -182,6 +182,31 @@ directory — an item bundled with the run's other changes violates the rule bel
 answer. Offer commit and push together: a backlog item is notes with no code in it, and unpushed it stays
 invisible from every other machine, so the push is part of filing rather than an upsell.
 
+## Triage: who can act on each item
+
+`scripts/triage.py` sorts the items by who can act on them next, using TypeSafe's Jev model
+through the `jev` command, which the `jev` plugin puts on PATH and which reads
+`OPENROUTER_API_KEY`:
+
+- **owner**: it needs a ruling the owner has not given;
+- **agent**: an agent can plan and do it with nothing new from the owner;
+- **waiting**: it waits on an outside event the item names;
+- **decided**: `worth: no`; never sent to Jev.
+
+The verdicts live in the repository's git directory (`backlog-triage.json`), so they are never
+committed and every worktree shares them. Nothing runs on a timer:
+
+- After creating or editing an item, run `python3 ${CLAUDE_SKILL_DIR}/scripts/triage.py item <slug>`
+  and report its verdict with the filing.
+- When listing the backlog, run `python3 ${CLAUDE_SKILL_DIR}/scripts/triage.py refresh` first and
+  show the groups. It judges an item whose text changed, and re-checks a `waiting` item when the
+  default branch has moved since its last check, with the commits in between.
+
+A verdict is a sorting aid, never a ruling: Jev returns a confidence, and one under about 0.5 is
+close to a coin toss, so say it. When `jev` is missing or the key is unset, the script says so and
+the listing goes on without verdicts. An item too long for Jev is listed as not judged, never cut
+down to fit.
+
 ## Rules
 
 - **Never post a backlog item to a PR, MR, or issue thread** unless the user explicitly asks. These are the

@@ -90,6 +90,7 @@ Enable `/plugin` → **Marketplaces** → **Enable auto-update** to refresh the 
 | [basedpyright-lsp](#basedpyright-lsp) | Python LSP (basedpyright) for Claude — navigation + diagnostics, from the project's pinned venv |
 | [pyrefly-lsp](#pyrefly-lsp) | Same, backed by [pyrefly](https://pyrefly.org/) instead — pick whichever your type-check gate runs |
 | [tracking](#tracking) | Deferred-work backlog (`docs/backlog/`) — one slug-named file per item, `git rm`'d when fixed |
+| [jev](#jev) | `jev`: ask TypeSafe's Jev decision model a choice question through OpenRouter, refusing an input too long to judge well |
 | [huddle](#huddle) | Questions as a page in an agterm overlay — diagrams, trade-offs side by side, real code, sliders |
 | [agrev](#agrev) | Review a plan or other markdown document in plannotator, in an agterm session, round by round |
 | [peer-planning](#peer-planning) | Coarse-task plans, executed task by task with Codex reviewing each diff from the adjacent agterm pane |
@@ -191,10 +192,21 @@ Where side-quest findings live, so they neither derail the current task nor evap
 | Component | Trigger | Description |
 |-----------|---------|-------------|
 | skill | `/tracking:backlog [slug]` | Read, work, and append deferred-work items in `docs/backlog/` — one slug-named file per item, `worth: yes/later/no`, no index, `git rm` in the fixing commit |
+| script | `scripts/triage.py refresh\|report\|item SLUG` | Sorts the items by who can act next (owner, agent, waiting, decided) with Jev; verdicts kept in the git directory, never committed |
 
 **backlog** — a defect, open decision, or follow-up surfaces mid-conversation; this writes it into `docs/backlog/` instead of letting it derail the work or vanish, and reads it back later. One file per item, named by a slug that names the defect (`reopen-fallback-ignores-frontmost.md`) so it can be cited from a commit and dedupe is a filename check; **no index file** — the directory listing is the index. Three frontmatter fields: `worth: yes | later | no` (the triage call the list is ordered by — `later` must name the unknown that would settle it, `no` is kept deliberately so the next review that touches the file does not rediscover and re-argue it), `where: path` or `path:symbol` (never a line number — those rot), and `added` (never updated, so it reads as age). Items pass a three-part admission gate (real and re-derivable from code; not being done now; not owned by a dated review) and the body is written for a reader without the conversation: the concrete run with real values, the misreading to prevent, options with costs plus a recommendation for a `later`, and provenance. Reading the list verifies every `where` against the tree and reports stale anchors as stale rather than as work, then offers fix-a-named-item / drop / leave via `AskUserQuestion`; `/tracking:backlog <slug>` jumps to one item. Appending dedupes on `where` then slug, refuses to write onto a non-default branch without asking (a note on a feature branch gets swept into that PR or dies with it), checks the index for pre-existing staged work before offering to commit, and offers commit and push together. No checkbox, no resolved state: the item is `git rm`'d in the commit that lands its fix. Adapted from [umputun/cc-thingz](https://github.com/umputun/cc-thingz) (MIT); see [`NOTICE`](NOTICE) for what was kept and what changed.
 
 > **Tuned for my setup.** Assumes the `docs/` layout (`docs/backlog/`, dated reviews under `docs/reviews/<date>/`). The item shape is project-agnostic otherwise. `backlog` is Git-only by design.
+
+**triage** — `scripts/triage.py` asks Jev (through the `jev` plugin) who can act on each item next: the owner (a ruling not yet given), an agent (stated well enough to plan and do with nothing new from the owner), or nobody yet (it waits on an outside event the item names). A `worth: no` item is already decided and is never sent. Nothing runs on a timer: `refresh` judges an item whose text changed, and re-checks a waiting item when the default branch has moved, with the commits in between. The verdicts sit in the repository's git directory, so they are never committed and every worktree shares them. On mybaze's 76 items the owner agreed with 10 of 10 in a fresh random sample after one round of tightening the criteria (2026-11-07); confidences ranged from 0.14 to 0.98, so a low one is shown as a coin toss rather than trusted.
+
+### jev
+
+| Component | Trigger | Description |
+|-----------|---------|-------------|
+| command | `jev SPEC.json`, `jev -`, `jev check` (on the Bash tool's `PATH`) | One request to Jev on OpenRouter's decisions endpoint: a `state` and named choice questions, each choice with its meaning; prints each answer's choice, confidence and probabilities, and the cost |
+
+**jev** — the one client every Jev use calls, so the endpoint, the model id, the key and the size limit live in one place. Jev reads text best under about 32,000 bytes; past that it runs in a long-context mode its docs call slower and less accurate, so `jev` refuses such an input with exit 3 and sends nothing. It never truncates: a longer input belongs to a big model. The key is `OPENROUTER_API_KEY`; a process keeps the value it started with. It loads macOS's root certificates explicitly, so a python.org interpreter that never ran its certificate installer still connects.
 
 ### huddle
 

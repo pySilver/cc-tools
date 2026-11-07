@@ -1,0 +1,7 @@
+{
+  "name": "jev",
+  "description": "A command-line client for TypeSafe's Jev decision model on OpenRouter: one or more choice questions over a bounded input, answered with a choice, a confidence and per-choice probabilities. Refuses an input past Jev's accurate range instead of cutting it. Needs OPENROUTER_API_KEY and Python 3.",
+  "author": {
+    "name": "Silver"
+  }
+}
