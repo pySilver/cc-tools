@@ -4,6 +4,10 @@ This repo ships independent Claude Code plugins that are intentionally version-l
 
 ## Unreleased
 
+### decide
+
+- **add `decide:panel`.** Before a question that needs judgment about users reaches the owner, the project's personas (in mybaze, `docs/personas/`) answer it from evidence of what each option looks like to them, each once as an Opus subagent and once as a Sol subagent the paired Codex spawns (`~/.codex/agents/persona.toml`), so a split between model families shows as uncertainty. A fresh Opus moderator writes a card: the question in user terms, each option as a person would see it, a recommendation that says what it costs them, the strongest dissent, what would flip it, and the undo cost. Codex challenges it under the pair rules, and Jev checks the framing through `jev`. First run (2026-11-07), on a mybaze ranking question the owner had rejected in internal units: the owner judged the card clearer and chose from it the same option as the original ruling. Codex 0.167 opens four agents at once including itself, so Sol personas run in batches.
+
 ### jev (new plugin)
 
 - **add `jev`**, a stdlib command-line client for TypeSafe's Jev decision model on OpenRouter's decisions endpoint (`typesafe/jev-1.14` by default). It takes a state and named choice questions, prints each answer's choice, confidence and probabilities with the request's cost, and refuses an input over 32,000 bytes with exit 3 instead of cutting it, because Jev's docs call its long-context mode slower and less accurate.
