@@ -16,11 +16,38 @@
 # before continuing.
 # --check runs every refusal check and exits 0 without typing, so setup can confirm Codex is idle
 # and registered for mail.
+#
+# --model MODEL --reasoning EFFORT also switches the reviewer seat, right after the /clear and
+# before the READY prompt: it types "/model MODEL --reasoning=EFFORT" and waits for Codex to
+# confirm. A switch survives /clear, so it is typed only when the seat changes. The owner approved
+# this line on 2026-11-07, at this boundary only.
+#
+# --resets reads how many usage-limit resets are left and prints the number. The count is shown
+# only on Codex's /usage screen, under "Redeem reset", the same screen that redeems one. So this
+# types /usage, then 2, reads the count and leaves with Esc twice: it never sends Enter there,
+# because redeeming takes the owner's instruction. Exit codes as above.
 set -uo pipefail
 
 check_only=""
-if [ "${1:-}" = "--check" ]; then
-  check_only=yes
+read_resets=""
+model=""
+reasoning=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --check) check_only=yes ;;
+    --resets) read_resets=yes ;;
+    --model) model="${2:-}"; shift ;;
+    --reasoning) reasoning="${2:-}"; shift ;;
+    *)
+      echo "codex-clear: unknown argument '$1'" >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
+if { [ -n "$model" ] && [ -z "$reasoning" ]; } || { [ -z "$model" ] && [ -n "$reasoning" ]; }; then
+  echo "codex-clear: --model and --reasoning go together" >&2
+  exit 2
 fi
 
 target="${AGTERM_SESSION_ID:-}"
@@ -145,24 +172,82 @@ if [ -n "$check_only" ]; then
   exit 0
 fi
 
-# Step 1: type the command without a newline; a newline in the same write does not submit.
-printf '/clear' | agtermctl session type --stdin --target "$target" --pane right ${socket[@]+"${socket[@]}"} >/dev/null
+send() {
+  printf '%s' "$1" | agtermctl session type --stdin --target "$target" --pane right ${socket[@]+"${socket[@]}"} >/dev/null
+}
 
-typed=""
-for _ in 1 2 3 4 5; do
-  sleep 1
-  if [ "$(read_pane 20 | composer_line)" = "/clear" ]; then
-    typed=yes
-    break
+# Type a command without a newline, since a newline in the same write does not submit, and
+# wait until the composer shows it.
+type_command() {
+  send "$1"
+  for _ in 1 2 3 4 5; do
+    sleep 1
+    if [ "$(read_pane 20 | composer_line)" = "$1" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+if [ -n "$read_resets" ]; then
+  if ! type_command "/usage"; then
+    echo "codex-clear: typed '/usage' but the composer does not show it; read the pane" >&2
+    exit 1
   fi
-done
-if [ -z "$typed" ]; then
+  send $'\n'
+  menu=""
+  for _ in 1 2 3 4 5 6 7 8; do
+    sleep 1
+    if read_pane 15 | grep -q "Redeem reset"; then
+      menu=yes
+      break
+    fi
+  done
+  if [ -z "$menu" ]; then
+    echo "codex-clear: /usage did not show 'Redeem reset'; read the pane" >&2
+    exit 1
+  fi
+  send "2"
+  count=""
+  for _ in 1 2 3 4 5 6 7 8; do
+    sleep 1
+    screen="$(read_pane 15)"
+    # "1 usage limit reset available." or "3 usage limit resets available."
+    count="$(grep -oE '[0-9]+ usage limit resets? available' <<<"$screen" | grep -oE '^[0-9]+' | tail -n 1)"
+    if [ -z "$count" ] && grep -qiE 'no usage limit resets?' <<<"$screen"; then
+      count=0
+    fi
+    if [ -n "$count" ]; then
+      break
+    fi
+  done
+  send $'\e'
+  sleep 1
+  send $'\e'
+  sleep 1
+  case "$(read_pane 20 | composer_line)" in
+    "" | "Ask Codex to do anything") ;;
+    *)
+      echo "codex-clear: left the reset screen but the composer is not empty; read the pane" >&2
+      exit 1
+      ;;
+  esac
+  if [ -z "$count" ]; then
+    echo "codex-clear: the reset screen showed no count; read the pane" >&2
+    exit 1
+  fi
+  echo "$count"
+  exit 0
+fi
+
+# Step 1: type /clear and see it in the composer.
+if ! type_command "/clear"; then
   echo "codex-clear: typed '/clear' but the composer does not show it; read the pane" >&2
   exit 1
 fi
 
 # Step 2: submit on its own.
-printf '\n' | agtermctl session type --stdin --target "$target" --pane right ${socket[@]+"${socket[@]}"} >/dev/null
+send $'\n'
 
 cleared=""
 for _ in 1 2 3 4 5 6 7 8 9 10; do
@@ -177,23 +262,36 @@ if [ -z "$cleared" ]; then
   exit 1
 fi
 
-# Step 3: a first prompt for the new conversation, so it registers for mail. It carries no topic.
-ready="Answer with the single word READY."
-printf '%s' "$ready" | agtermctl session type --stdin --target "$target" --pane right ${socket[@]+"${socket[@]}"} >/dev/null
-
-typed=""
-for _ in 1 2 3 4 5; do
-  sleep 1
-  if [ "$(read_pane 20 | composer_line)" = "$ready" ]; then
-    typed=yes
-    break
+# Step 3, only with --model: switch the seat while the new conversation is still empty.
+if [ -n "$model" ]; then
+  switch="/model $model --reasoning=$reasoning"
+  if ! type_command "$switch"; then
+    echo "codex-clear: cleared, then typed '$switch' but the composer does not show it; read the pane" >&2
+    exit 1
   fi
-done
-if [ -z "$typed" ]; then
+  send $'\n'
+  switched=""
+  for _ in 1 2 3 4 5 6 7 8; do
+    sleep 1
+    # After a /clear the confirmation sits at the top of a mostly blank screen, so read it all.
+    if read_pane 80 | grep -qF "Model changed to $model $reasoning"; then
+      switched=yes
+      break
+    fi
+  done
+  if [ -z "$switched" ]; then
+    echo "codex-clear: cleared and submitted '$switch', but Codex did not confirm the change; read the pane" >&2
+    exit 1
+  fi
+fi
+
+# Step 4: a first prompt for the new conversation, so it registers for mail. It carries no topic.
+ready="Answer with the single word READY."
+if ! type_command "$ready"; then
   echo "codex-clear: cleared, then typed the READY prompt but the composer does not show it; read the pane" >&2
   exit 1
 fi
-printf '\n' | agtermctl session type --stdin --target "$target" --pane right ${socket[@]+"${socket[@]}"} >/dev/null
+send $'\n'
 
 for _ in $(seq 1 60); do
   sleep 1

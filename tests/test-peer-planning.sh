@@ -215,6 +215,51 @@ else
   fail "codex-clear clears and re-registers: exit $code: $out; typed: $(typed)"
 fi
 
+set +e
+code_out=$(bash "$SCRIPTS/codex-clear.sh" --model gpt-6.1-sol 2>&1)
+code=$?
+set -e
+if [ "$code" = 2 ]; then
+  pass "codex-clear refuses --model without --reasoning, typing nothing"
+else
+  fail "codex-clear refuses --model without --reasoning with exit 2: exit $code: $code_out"
+fi
+
+# ---- reviewer-seat.py ----
+# A fake CODEX_HOME holds one rollout whose last rate_limits record is the weekly window under test.
+seat_home=$WORK/codex-home
+rollout() {
+  rm -rf "$seat_home" && mkdir -p "$seat_home/sessions/2026/11/07"
+  printf '{"type":"event_msg","payload":{"rate_limits":{"primary":{"used_percent":%s,"window_minutes":10080,"resets_at":%s}}}}\n' \
+    "$1" "$2" >"$seat_home/sessions/2026/11/07/rollout-test.jsonl"
+}
+seat() {
+  CODEX_HOME=$seat_home py "$SCRIPTS/reviewer-seat.py" "$@" \
+    | "$PY" -I -c 'import json,sys; d=json.load(sys.stdin); print(d["seat"], d["model"], d["effort"])'
+}
+check_seat() {
+  local want=$1 label=$2 got
+  shift 2
+  got=$(seat "$@" 2>&1) || true
+  if [ "$got" = "$want" ]; then pass "reviewer-seat: $label"; else fail "reviewer-seat: $label: got '$got'"; fi
+}
+future=$(($(date +%s) + 86400))
+past=$(($(date +%s) - 60))
+
+rollout 52 "$future"
+check_seat "astra gpt-6-astra high" "weekly use read from the newest rollout keeps astra below 80%"
+check_seat "sol gpt-6.1-sol xhigh" "at 85% with one reset left, sol takes the seat" --used-percent 85 --resets 1
+check_seat "astra gpt-6-astra high" "at 85% with three resets left, astra keeps the seat" --used-percent 85 --resets 3
+check_seat "opus opus high" "with Codex down, the seat is an Opus subagent" --codex-down "no answer"
+rollout 95 "$past"
+check_seat "astra gpt-6-astra high" "a rollout whose weekly window has reset counts as 0%"
+rm -rf "$seat_home" && mkdir -p "$seat_home/sessions"
+if CODEX_HOME=$seat_home py "$SCRIPTS/reviewer-seat.py" >/dev/null 2>&1; then
+  fail "reviewer-seat fails loudly when no rollout records weekly use"
+else
+  pass "reviewer-seat fails loudly when no rollout records weekly use"
+fi
+
 if [ -d "$SCRIPTS/__pycache__" ]; then
   fail "the scripts left no __pycache__ in the plugin"
 else

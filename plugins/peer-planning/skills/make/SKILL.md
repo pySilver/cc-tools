@@ -56,6 +56,12 @@ writer; Codex is read-only in the repository.
   numbered from `001`; `000` is exec's setup
   check. Never create `progress.md` there: exec reads it as a run to resume. The plan must read
   whole without these files.
+- **Pick the reviewer seat** before the first message, with
+  `${CLAUDE_PLUGIN_ROOT}/skills/exec/scripts/reviewer-seat.py`, as
+  `${CLAUDE_PLUGIN_ROOT}/skills/exec/references/reviewer-seat.md` says. When it says `switch`, run
+  `codex-clear.sh` with the seat's `--model` and `--reasoning` once, before the first message. When
+  Codex is unavailable, the same reference makes the second voice an Opus subagent; that is a
+  second model family, so it needs no waiver. The plan header names the model that held the seat.
 - **Check that Codex is there** before the first message:
   `bash ${CLAUDE_PLUGIN_ROOT}/skills/exec/scripts/codex-clear.sh --check`. It reads the right pane
   without typing and exits 0 only when Codex is idle with an empty composer and registered for
