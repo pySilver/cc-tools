@@ -24,6 +24,7 @@ event is written as given.
 | `run.start` | setup is complete, and again when a run resumes | `plan` (its path from the repository root), `tasks:=N` (the plan's task count), `work_path`, `branch`, `executor`, `session` (this session's agterm id); every one required |
 | `codex.ready` | Codex answered the setup check | `files:=true\|false` (whether it can write long replies) |
 | `task.start` | a task begins | `task:=N`, `title`, `discuss:=true\|false` |
+| `branch.check` | `branch-overlap.py` ran at a task's start | `task:=N`, `behind:=N`, `rebased=true\|false\|conflict`, `overlaps:=N`, `later_than=<branches this plan adapts to>` when any |
 | `discuss.request` | a discussion message is sent | `task:=N`, or `stage=review` and `iteration:=N` for a design discussion in the branch review |
 | `discuss.reply` | Codex's discussion reply is read | the same, and `points:=N` (0 for `AGREED`) |
 | `discuss.agreed` | Codex replied `AGREED` to the proposal | the same as `discuss.request` |

@@ -1143,6 +1143,9 @@ function describe(e) {
       ? {actor: 'orchestrator', icon: 'alert', tone: 'bad', text: ['codex-clear exited ', b(String(e.exit))]}
       : {actor: 'orchestrator', icon: 'reset', text: ['Codex cleared']};
     case 'reviewer.switch': return {actor: 'orchestrator', icon: 'reset', tone: e.to === 'opus' ? 'warn' : undefined, text: ['Reviewer seat now ', b(String(e.to ?? '?')), sub(e.reason ? ` · ${e.reason}` : '')]};
+    case 'branch.check': return e.rebased === 'conflict'
+      ? {actor: 'orchestrator', icon: 'alert', tone: 'warn', text: ['Rebase onto the default branch ', b('conflicted'), sub(' · went on from the old base')]}
+      : {actor: 'orchestrator', icon: 'reset', text: [e.rebased === true || e.rebased === 'true' ? 'Rebased onto the default branch' : 'Branch up to date', sub(Number(e.overlaps) ? ` · overlaps ${e.overlaps} open plan(s)` : '')]};
     case 'task.done': return {actor: 'done', icon: 'check', tone: 'ok', text: [b(`Task ${e.task} done`)]};
     case 'stage.start':
       if (e.stage === 'review') return {actor: 'review', icon: 'search', text: ['Branch review, iteration ', b(String(e.iteration ?? '?'))]};

@@ -260,6 +260,58 @@ else
   pass "reviewer-seat fails loudly when no rollout records weekly use"
 fi
 
+# ---- branch-overlap.py ----
+# A bare origin, a main clone, and two plan worktrees that both change shared.txt. Commit dates
+# are set so plan-a starts before plan-b, which makes plan-b the later plan.
+OV=$WORK/overlap
+mkdir -p "$OV"
+git init -q --bare -b master "$OV/origin.git"
+git clone -q "$OV/origin.git" "$OV/main" 2>/dev/null
+commit_at() { GIT_AUTHOR_DATE=$1 GIT_COMMITTER_DATE=$1 git -C "$2" commit -qam "$3"; }
+printf 'one\n' >"$OV/main/shared.txt"
+printf 'base\n' >"$OV/main/other.txt"
+git -C "$OV/main" add . && commit_at 2026-11-01T10:00:00 "$OV/main" base
+git -C "$OV/main" push -q origin master
+git -C "$OV/main" remote set-head origin master
+git -C "$OV/main" worktree add -q -b plan-a "$OV/a" origin/master
+git -C "$OV/main" worktree add -q -b plan-b "$OV/b" origin/master
+printf 'one\na\n' >"$OV/a/shared.txt" && commit_at 2026-11-02T10:00:00 "$OV/a" "plan a"
+printf 'one\nb\n' >"$OV/b/shared.txt" && commit_at 2026-11-03T10:00:00 "$OV/b" "plan b"
+overlap() { py "$SCRIPTS/branch-overlap.py" "$@"; }
+field() { "$PY" -c 'import json,sys; d=json.load(sys.stdin); print(eval(sys.argv[1]))' "$1"; }
+
+got=$(overlap "$OV/b" | field '[(o["branch"], o["later"], o["files"]) for o in d["overlaps"]]')
+if [ "$got" = "[('plan-a', 'this', ['shared.txt'])]" ]; then
+  pass "branch-overlap finds the other open plan changing the same file, and calls this one later"
+else
+  fail "branch-overlap finds the shared file and the later plan: $got"
+fi
+got=$(overlap "$OV/a" --paths other.txt | field '[(o["branch"], o["later"]) for o in d["overlaps"]]')
+if [ "$got" = "[('plan-b', 'plan-b')]" ]; then
+  pass "from the earlier plan, the other branch is the later one"
+else
+  fail "from the earlier plan, the other branch is the later one: $got"
+fi
+
+printf 'base\nmoved\n' >"$OV/main/other.txt" && commit_at 2026-11-04T10:00:00 "$OV/main" "master moves"
+git -C "$OV/main" push -q origin master
+got=$(overlap "$OV/a" --rebase | field '(d["rebased"], d["behind"])')
+if [ "$got" = "(True, 0)" ] && git -C "$OV/a" merge-base --is-ancestor origin/master HEAD; then
+  pass "branch-overlap --rebase brings a clean branch up to the default branch"
+else
+  fail "branch-overlap --rebase on a clean branch: $got"
+fi
+
+printf 'one\nmaster\n' >"$OV/main/shared.txt" && commit_at 2026-11-05T10:00:00 "$OV/main" "master edits shared"
+git -C "$OV/main" push -q origin master
+got=$(overlap "$OV/b" --rebase | field '(d["rebased"], d["conflicts"])')
+if [ "$got" = "('conflict', ['shared.txt'])" ] && [ -z "$(git -C "$OV/b" status --porcelain)" ] \
+  && ! [ -d "$(git -C "$OV/b" rev-parse --git-path rebase-merge)" ]; then
+  pass "a conflicting rebase is aborted and reported, leaving the branch as it was"
+else
+  fail "a conflicting rebase is aborted and reported: $got"
+fi
+
 if [ -d "$SCRIPTS/__pycache__" ]; then
   fail "the scripts left no __pycache__ in the plugin"
 else

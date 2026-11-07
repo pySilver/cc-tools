@@ -220,7 +220,22 @@ the same plan file.
 1. **Pick the task.** Re-read the plan and take the first `### Task N:` section with an unticked
    box. If none is left, go to "After the last task".
 2. **Tell the user** which task is starting, in one line, followed by its "Done when" list.
-3. **Decide on discussion.** Discuss the approach first only when the task carries
+3. **Check the other running plans.** Run
+   `python3 ${CLAUDE_SKILL_DIR}/scripts/branch-overlap.py WORK_PATH --rebase --paths <the paths the task names>`
+   and log `branch.check` with its `behind`, `rebased` and the number of overlaps. Nothing here
+   asks the user.
+   - **Rebased:** the branch now starts from the current default branch, which keeps a late
+     finalize from meeting a wide rebase conflict.
+   - **A rebase conflict:** it was aborted, so the run goes on from its old base. Tell the user in
+     one line which files conflicted; the conflict is settled when the branch is finalized.
+   - **An overlap where this plan is the later one:** this plan adapts. Put each overlapping
+     branch, its worktree and the shared files in the implementer's brief, under Constraints:
+     another open plan changes these files; read its change with
+     `git -C WORK_PATH diff <base>...<branch> -- <files>` and keep this task's change compatible
+     with it, touching the shared lines only as far as the task needs, and say so in the report.
+     Tell Codex the same in the review request.
+   - **An overlap where the other plan is later:** nothing to do here; that run adapts to this one.
+4. **Decide on discussion.** Discuss the approach first only when the task carries
    `**Discuss:** yes`, or when the user's invocation asked for discussion on every task. Log
    `task.start` with `discuss:=true` or `discuss:=false`. Without discussion, go to C.
 
