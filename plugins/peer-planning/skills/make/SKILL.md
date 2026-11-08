@@ -45,8 +45,14 @@ writer; Codex is read-only in the repository.
   what breaks without it, or it is refused.
 - **Messages.** Load the `mailbox-chat` skill; its sending, waiting and manners rules apply to every
   message. `references/codex-messages.md` has the messages. After each one, end the turn: Codex's
-  reply wakes this session. Verify every claim Codex makes about the code with your own tool call
-  before accepting or disputing it.
+  reply wakes this session. Under `/goal`, whose Stop hook refuses an idle turn and answers each one
+  with a nudge that costs a filler turn, first start a background wait on the file the reply lands
+  in, with `run_in_background`: `until test -f RUN_DIR/msgs/NNN-codex-plan.md; do sleep 3; done`
+  (for a panel's Sol half, every answer file it names). The hook stays quiet while the wait runs,
+  and the chat reply or the wait's notification wakes the session, whichever comes first. It is the
+  one exception to mailbox-chat's never-wait rule: it watches a file, not the pane, and sends
+  nothing, so no second message reaches Codex mid-thought. Verify
+  every claim Codex makes about the code with your own tool call before accepting or disputing it.
 - **Long content goes in files.** Fix the plan's file name first (the naming rule in Step 2), so its
   stem is known. `RUN_DIR` is `.peer-planning/<plan-stem>/` at the root of this checkout, the same
   directory exec uses for the run. Create `RUN_DIR/msgs/`; if `git check-ignore -q "$RUN_DIR"`
