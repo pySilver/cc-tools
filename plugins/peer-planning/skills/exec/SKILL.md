@@ -146,12 +146,14 @@ memory: finalize trusts it in place of a run it watched.
      SHA, and every decision, deviation or user ruling.
 10. **Check whether Codex can write long replies.**
     - Pick the reviewer seat with `scripts/reviewer-seat.py`, as `references/reviewer-seat.md`
-      says: it names the model for the seat and whether the pane must switch, and the clear below
-      carries the switch. When it names the Opus seat, follow that reference instead of this step.
+      says: it names the model for the seat, whether the seat changes hands, and the
+      `clear_flags` the clear below carries. When it names the Opus seat, follow that reference
+      instead of this step.
     - Clear Codex first, unless the run is past it: run
-      `bash ${CLAUDE_SKILL_DIR}/scripts/codex-clear.sh` and log `codex.clear` with its exit code and
-      no `task`. `make` argues the plan with Codex in this same pane, and without the clear the first
-      review comes from a Codex holding that argument. Handle the exit codes as in "E. Close". A
+      `bash ${CLAUDE_SKILL_DIR}/scripts/codex-clear.sh <clear_flags>`, log `reviewer.switch` when
+      the picker said `switch`, and log `codex.clear` with its exit code and no `task`. `make`
+      argues the plan with Codex in this same pane, and without the clear the first review comes
+      from a Codex holding that argument. Handle the exit codes as in "E. Close". A
       resumed run decides from `events.jsonl`, not from `progress.md`, which step 9 has already
       written: skip the clear once the log holds a `task.start` (an open discussion or review needs
       the thread it stands on) or a taskless `codex.clear` with `exit` 0. If the last taskless
@@ -309,9 +311,11 @@ the same plan file.
 
 1. **Commit.** Resume the implementer with the "Commit" prompt. When it returns, confirm
    `git -C WORK_PATH log -1 --oneline` and the task's ticked boxes in the plan, then log `commit`.
-2. **Clear Codex.** Pick the reviewer seat first (`references/reviewer-seat.md`); when it says
-   `switch`, pass `--model` and `--reasoning` to the clear and log `reviewer.switch`. Run
-   `bash ${CLAUDE_SKILL_DIR}/scripts/codex-clear.sh` and log `codex.clear` with its exit code.
+2. **Clear Codex.** Pick the reviewer seat first (`references/reviewer-seat.md`). Run
+   `bash ${CLAUDE_SKILL_DIR}/scripts/codex-clear.sh <clear_flags>` with the picker's
+   `clear_flags`, on every clear: a `/clear` drops a `/model` switch, so a seat other than Codex's
+   configured default is re-applied each time. Log `reviewer.switch` only when the picker said
+   `switch`, and `codex.clear` with the exit code.
    - **Exit 0:** cleared.
    - **Exit 2:** it refused and typed nothing, usually because Codex is still finishing. Let
      Codex's next message arrive, then run the script again once. If it refuses again, ask the

@@ -21,8 +21,17 @@ Codex's /usage screen, reads the count and leaves with Esc; below 80 the count c
 read from Codex's status line in the right pane when agterm is there; without it, "switch" is
 true whenever the seat is a Codex model.
 
-Prints one JSON object: seat, model, effort, reason, used_percent, resets_left, pane_model, switch.
-Exit 1 when weekly use cannot be read and was not given.
+A /clear does not keep a /model switch: the new conversation starts on the model and effort in
+Codex's config.toml. So "clear_flags" carries the seat's --model and --reasoning for codex-clear.sh
+whenever the seat is a Codex model other than that configured default, or the pane shows another
+model, and is empty otherwise; the caller passes it to every clear. "switch" says only that the
+pane shows a model other than the seat, which, once every clear carries clear_flags, happens when
+the seat changes hands. When config.toml names no model, the default is unknown and clear_flags is
+never empty for a Codex seat.
+
+Prints one JSON object: seat, model, effort, reason, used_percent, resets_left, pane_model,
+pane_default, switch, clear_flags. Exit 1 when weekly use cannot be read and was not given, or when
+config.toml is not valid TOML.
 """
 
 import json
@@ -31,10 +40,12 @@ import re
 import subprocess
 import sys
 import time
+import tomllib
 from pathlib import Path
 from typing import NoReturn
 
-SESSIONS = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")) / "sessions"
+CODEX_HOME = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+SESSIONS = CODEX_HOME / "sessions"
 WEEK_MINUTES = 10080
 SOL_AT_PERCENT = 80
 SOL_AT_RESETS = 1
@@ -116,6 +127,21 @@ def pane_model() -> str:
     return ""
 
 
+def configured_default() -> str:
+    """The model and effort a cleared Codex starts on, from config.toml, as "gpt-6-astra high", or ""."""
+    path = CODEX_HOME / "config.toml"
+    try:
+        config = tomllib.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return ""
+    except tomllib.TOMLDecodeError as error:
+        fail(f"{path} is not valid TOML: {error}")
+    model, effort = config.get("model"), config.get("model_reasoning_effort")
+    if not isinstance(model, str) or not isinstance(effort, str):
+        return ""
+    return f"{model} {effort}"
+
+
 def option(argv: list[str], name: str) -> str | None:
     if name in argv:
         i = argv.index(name)
@@ -149,11 +175,16 @@ def main(argv: list[str]) -> None:
         seat, reason = "astra", f"weekly use {used:g}%"
 
     model, effort = SEATS[seat]
-    current = pane_model() if seat != "opus" else ""
+    codex = seat != "opus"
+    current = pane_model() if codex else ""
+    default = configured_default() if codex else ""
+    switch = codex and current != f"{model} {effort}"
+    reapply = codex and (switch or default != f"{model} {effort}")
     print(json.dumps({
         "seat": seat, "model": model, "effort": effort, "reason": reason,
         "used_percent": used, "resets_left": resets, "pane_model": current,
-        "switch": seat != "opus" and current != f"{model} {effort}",
+        "pane_default": default, "switch": switch,
+        "clear_flags": f"--model {model} --reasoning {effort}" if reapply else "",
     }))
 
 

@@ -9,18 +9,22 @@
 # After the /clear it also types a READY prompt. Codex registers a conversation for mail only
 # when that conversation runs a prompt (mailbox-chat.py codex-hook, on SessionStart), so until
 # then the mailbox keeps handing mail to the cleared thread. The reset counts as done once the
-# registered thread id has changed.
+# registered thread id has changed and Codex has finished answering the READY prompt. The thread
+# registers as that turn starts, so a return on the registration alone left Codex mid-turn, and the
+# next check of the pane (the seat picker's --resets read) refused.
 #
-# Exit 0: cleared, and the new conversation takes mail. Exit 2: refused, nothing typed.
+# Exit 0: cleared, the new conversation takes mail, and Codex is idle. Exit 2: refused, nothing typed.
 # Exit 1: typed, but the reset or the new registration could not be confirmed; read the pane
 # before continuing.
 # --check runs every refusal check and exits 0 without typing, so setup can confirm Codex is idle
 # and registered for mail.
 #
-# --model MODEL --reasoning EFFORT also switches the reviewer seat, right after the /clear and
-# before the READY prompt: it types "/model MODEL --reasoning=EFFORT" and waits for Codex to
-# confirm. A switch survives /clear, so it is typed only when the seat changes. The owner approved
-# this line on 2026-11-07, at this boundary only.
+# --model MODEL --reasoning EFFORT also sets the reviewer seat, right after the /clear and before
+# the READY prompt: it types "/model MODEL --reasoning=EFFORT" and waits for Codex to confirm. A
+# switch does not survive /clear: the new conversation starts on config.toml's model and effort.
+# So the caller passes the seat on every clear while the seat differs from that default
+# (reviewer-seat.py's clear_flags). The owner approved this line on 2026-11-07, at this boundary
+# only.
 #
 # --resets reads how many usage-limit resets are left and prints the number. The count is shown
 # only on Codex's /usage screen, under "Redeem reset", the same screen that redeems one. So this
@@ -293,13 +297,28 @@ if ! type_command "$ready"; then
 fi
 send $'\n'
 
+registered=""
 for _ in $(seq 1 60); do
   sleep 1
   new_thread="$(registered_thread "$pane_id")"
   if [ -n "$new_thread" ] && [ "$new_thread" != "$old_thread" ]; then
+    registered=yes
+    break
+  fi
+done
+if [ -z "$registered" ]; then
+  echo "codex-clear: cleared and sent the READY prompt, but no new conversation registered for mail within 60s; mail still goes to the cleared thread; read the pane" >&2
+  exit 1
+fi
+
+# Step 5: wait for the READY turn to end, with the same mid-turn markers the refusal checks read.
+for _ in $(seq 1 120); do
+  sleep 1
+  screen="$(read_pane 40)"
+  if [ -n "$screen" ] && ! grep -qiE 'esc to interrupt|Working \(' <<<"$screen"; then
     echo "codex-clear: Codex context cleared; the new conversation takes mail"
     exit 0
   fi
 done
-echo "codex-clear: cleared and sent the READY prompt, but no new conversation registered for mail within 60s; mail still goes to the cleared thread; read the pane" >&2
+echo "codex-clear: cleared, and the new conversation registered for mail, but Codex was still answering the READY prompt after 120s; read the pane" >&2
 exit 1

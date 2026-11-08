@@ -10,11 +10,12 @@ model holds the seat follows the owner's order:
 | `opus` | an Opus subagent at high effort | Codex is unavailable |
 
 `scripts/reviewer-seat.py` picks the seat and prints one JSON object: `seat`, `model`, `effort`,
-`reason`, `used_percent`, `resets_left`, `pane_model` (what Codex's status line shows) and
-`switch` (whether the pane must change). Weekly use comes from Codex's own rollouts. Resets left
-are read only at 80% or more, through `codex-clear.sh --resets`, which opens Codex's `/usage`
-screen, reads the count and leaves with Esc; it never sends Enter there. Redeeming a reset still
-takes the owner's instruction.
+`reason`, `used_percent`, `resets_left`, `pane_model` (what Codex's status line shows),
+`pane_default` (the model and effort in Codex's `config.toml`, which every cleared conversation
+starts on), `switch` (whether the seat changes hands) and `clear_flags` (what every clear
+carries). Weekly use comes from Codex's own rollouts. Resets left are read only at 80% or more,
+through `codex-clear.sh --resets`, which opens Codex's `/usage` screen, reads the count and leaves
+with Esc; it never sends Enter there. Redeeming a reset still takes the owner's instruction.
 
 ## When to pick
 
@@ -25,22 +26,34 @@ Run the picker at the two points where the pane may change hands, and nowhere el
 - **At each close**, just before `codex-clear.sh` (`exec` "E. Close" step 2).
 
 Never in the middle of a discussion or a review: the argument needs the thread and the model it
-stands on.
+stands on. Never right after a clear to check it either: a clear with `clear_flags` that exits 0
+has already seen Codex confirm the model.
 
 ## Switching between Codex models
 
-When `switch` is true and the seat is `astra` or `sol`, pass the seat to the clear:
+A `/clear` does not keep a `/model` switch: the new conversation starts on `pane_default`. Four
+runs on 2026-11-07 logged a switch to Sol, and Codex's rollouts show the conversation after each
+one's next plain clear running Astra. So the seat is applied on every clear, not once. Pass the
+picker's `clear_flags` to every clear while the seat is `astra` or `sol`:
 
 ```bash
-bash ${CLAUDE_SKILL_DIR}/scripts/codex-clear.sh --model <model> --reasoning <effort>
+bash ${CLAUDE_SKILL_DIR}/scripts/codex-clear.sh <clear_flags>
 ```
 
-It types `/model <model> --reasoning=<effort>` right after the `/clear`, waits for Codex to
-confirm, then sends the READY prompt as usual. A switch survives later clears, so a plain clear is
-enough while the seat stays. Log `reviewer.switch` with `from` (the old `pane_model`, or `opus`),
-`to` (the new seat), `reason` (the picker's) and `used_percent`. In `make`, where nothing is
-cleared before the first message, run the clear with the seat once before the first message only
-when the picker says `switch`.
+`clear_flags` is `--model <model> --reasoning <effort>` whenever the seat differs from
+`pane_default` or the pane shows another model, and empty when a plain clear already lands on the
+seat. When `config.toml` names no model, the default is unknown and `clear_flags` is never empty.
+With the flags, the script types `/model <model> --reasoning=<effort>` right after the `/clear`,
+waits for Codex to confirm, then sends the READY prompt as usual.
+
+Log `reviewer.switch` only when `switch` is true, with `from` (the old `pane_model`, or `opus`),
+`to` (the new seat), `reason` (the picker's) and `used_percent`. Re-applying the same seat at a
+clear is not a switch and logs nothing beyond `codex.clear`. Because each clear re-applies the
+seat, the pane shows the seat at the next close, and `switch` is true only when the seat changes.
+
+In `make`, where nothing is cleared before the first message, run the clear with `clear_flags`
+once before the first message only when the picker says `switch`; the planning conversation keeps
+its model for as long as it is not cleared.
 
 ## Codex unavailable
 
@@ -64,4 +77,4 @@ to Codex. Give it the exact message `references/codex-messages.md` would have se
 same subagent; the next task starts a new one, which is the Opus seat's version of a clear.
 
 Return to Codex at the next close where `codex-clear.sh --check` passes again: run the picker
-without `--codex-down`, clear with the seat it names, and log `reviewer.switch` with `from=opus`.
+without `--codex-down`, clear with its `clear_flags`, and log `reviewer.switch` with `from=opus`.

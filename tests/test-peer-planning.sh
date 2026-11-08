@@ -2,7 +2,9 @@
 # peer-planning exec: the run-record scripts. log-event.py refuses a run.start that a later reader
 # cannot use, and run-records.py lists a repository's landed runs, skipping a run whose record it
 # cannot read instead of aborting the listing, and codex-clear.sh, against a fake agtermctl, refuses
-# a Codex not registered for mail and confirms the new conversation's registration after a clear.
+# a Codex not registered for mail, confirms the new conversation's registration after a clear and
+# returns only once the READY turn has ended. reviewer-seat.py re-applies a seat other than Codex's
+# configured default at every clear without calling it a switch.
 # Everything happens in a throwaway clone; no agterm session is touched.
 set -euo pipefail
 
@@ -128,7 +130,9 @@ fi
 # ---- codex-clear.sh ----
 # A fake agtermctl stands in for agterm: it serves a tree with a right pane, a Codex pane whose
 # composer holds what was typed since the last newline, and it records every write. A submitted
-# READY prompt re-registers the pane under a new thread, as mailbox-chat.py's codex-hook would.
+# READY prompt re-registers the pane under a new thread, as mailbox-chat.py's codex-hook would, and
+# with FAKE_BUSY=N the pane then reads as mid-turn for N more reads. A submitted /model line shows
+# Codex's confirmation, and FAKE_STATUS is the status line the pane shows.
 FAKE=$WORK/fake-bin
 mkdir -p "$FAKE"
 ln -s "$PY" "$FAKE/python3"
@@ -144,8 +148,15 @@ case "$1 ${2:-}" in
     ;;
   "session text")
     printf 'OpenAI Codex\n'
+    if [ -f "$state/model" ]; then printf 'Model changed to %s\n' "$(cat "$state/model")"; fi
     if [ -f "$state/cleared" ]; then printf 'Context 0%% used\n'; fi
+    busy=$(cat "$state/busy" 2>/dev/null || echo 0)
+    if [ "$busy" -gt 0 ]; then
+      printf '• Working (3s • esc to interrupt)\n'
+      echo $((busy - 1)) >"$state/busy"
+    fi
     printf '› %s\n' "$(cat "$state/composer" 2>/dev/null || true)"
+    if [ -n "${FAKE_STATUS:-}" ]; then printf '  %s\n' "$FAKE_STATUS"; fi
     ;;
   "session type")
     input=$(cat; printf x)
@@ -155,8 +166,15 @@ case "$1 ${2:-}" in
       submitted=$(cat "$state/composer" 2>/dev/null || true)
       : >"$state/composer"
       if [ "$submitted" = /clear ]; then touch "$state/cleared"; fi
+      case "$submitted" in
+        "/model "*)
+          set -- $submitted
+          printf '%s %s' "$2" "${3#--reasoning=}" >"$state/model"
+          ;;
+      esac
       if [ "$submitted" = "Answer with the single word READY." ] && [ -n "${FAKE_REREGISTER:-}" ]; then
         printf '{"session":"%s","thread":"thread-new","pid":%s}' "$AGTERM_SESSION_ID" "$FAKE_PID" >"$FAKE_REG"
+        echo "${FAKE_BUSY:-0}" >"$state/busy"
       fi
     else
       printf '%s' "$input" >>"$state/composer"
@@ -215,6 +233,23 @@ else
   fail "codex-clear clears and re-registers: exit $code: $out; typed: $(typed)"
 fi
 
+register thread-old $$
+FAKE_REREGISTER=1 FAKE_BUSY=3 codex_clear
+if [ "$code" = 0 ] && [ "$(cat "$CC/state/busy")" = 0 ]; then
+  pass "codex-clear returns only once Codex has finished answering the READY prompt"
+else
+  fail "codex-clear waits out the READY turn: exit $code: $out; busy left: $(cat "$CC/state/busy" 2>/dev/null)"
+fi
+
+register thread-old $$
+FAKE_REREGISTER=1 codex_clear --model gpt-6.1-sol --reasoning xhigh
+expected=$'/clear|\n|/model gpt-6.1-sol --reasoning=xhigh|\n|Answer with the single word READY.|\n|'
+if [ "$code" = 0 ] && [ "$(tr '\0' '|' <"$CC/state/typed")" = "$expected" ]; then
+  pass "codex-clear --model types the switch between /clear and READY and waits for its confirmation"
+else
+  fail "codex-clear --model switches the seat: exit $code: $out; typed: $(typed)"
+fi
+
 set +e
 code_out=$(bash "$SCRIPTS/codex-clear.sh" --model gpt-6.1-sol 2>&1)
 code=$?
@@ -253,6 +288,51 @@ check_seat "astra gpt-6-astra high" "at 85% with three resets left, astra keeps 
 check_seat "opus opus high" "with Codex down, the seat is an Opus subagent" --codex-down "no answer"
 rollout 95 "$past"
 check_seat "astra gpt-6-astra high" "a rollout whose weekly window has reset counts as 0%"
+# The clear after a switch: the pane runs the seat, and a /clear would return it to config.toml's
+# default. The pane's status line comes from the fake agtermctl.
+rollout 52 "$future"
+printf 'model = "gpt-6-astra"\nmodel_reasoning_effort = "high"\n' >"$seat_home/config.toml"
+seat_clear() {
+  local status=$1
+  shift
+  mkdir -p "$CC/state"
+  PATH="$FAKE:$PATH" AGTERM_SESSION_ID=S-1 FAKE_STATE="$CC/state" FAKE_STATUS="$status" \
+    CODEX_HOME=$seat_home py "$SCRIPTS/reviewer-seat.py" "$@" \
+    | "$PY" -I -c 'import json,sys; d=json.load(sys.stdin); print(d["switch"], "|" + d["clear_flags"] + "|")'
+}
+check_clear() {
+  local want=$1 label=$2 got
+  shift 2
+  got=$(seat_clear "$@" 2>&1) || true
+  if [ "$got" = "$want" ]; then pass "reviewer-seat: $label"; else fail "reviewer-seat: $label: got '$got'"; fi
+}
+sol_status="GPT-6.1-Sol xhigh · ~/p · Context 2% used · weekly 12% left"
+astra_status="GPT-6-Astra high · ~/p · Context 2% used · weekly 48% left"
+check_clear "True |--model gpt-6.1-sol --reasoning xhigh|" \
+  "a pane on Astra moving to Sol is a switch, and the clear carries Sol" \
+  "$astra_status" --used-percent 85 --resets 1
+check_clear "False |--model gpt-6.1-sol --reasoning xhigh|" \
+  "a pane already on Sol is no switch, but every clear still re-applies Sol" \
+  "$sol_status" --used-percent 85 --resets 1
+check_clear "False ||" "Astra on a pane whose default is Astra needs a plain clear" "$astra_status"
+check_clear "True |--model gpt-6-astra --reasoning high|" \
+  "Sol handing the seat back to Astra is a switch" "$sol_status"
+check_clear "False ||" "the Opus seat carries nothing to a clear" "$astra_status" --codex-down "no answer"
+rm "$seat_home/config.toml"
+check_clear "False |--model gpt-6-astra --reasoning high|" \
+  "with no configured default, every clear carries the seat" "$astra_status"
+printf 'model = \n' >"$seat_home/config.toml"
+set +e
+toml_out=$(PATH="$FAKE:$PATH" AGTERM_SESSION_ID=S-1 FAKE_STATE="$CC/state" FAKE_STATUS="$astra_status" \
+  CODEX_HOME=$seat_home py "$SCRIPTS/reviewer-seat.py" 2>&1)
+code=$?
+set -e
+if [ "$code" = 1 ] && [[ $toml_out == *"is not valid TOML"* ]]; then
+  pass "reviewer-seat fails loudly on a config.toml that is not TOML"
+else
+  fail "reviewer-seat fails loudly on a config.toml that is not TOML: exit $code: $toml_out"
+fi
+
 rm -rf "$seat_home" && mkdir -p "$seat_home/sessions"
 if CODEX_HOME=$seat_home py "$SCRIPTS/reviewer-seat.py" >/dev/null 2>&1; then
   fail "reviewer-seat fails loudly when no rollout records weekly use"
