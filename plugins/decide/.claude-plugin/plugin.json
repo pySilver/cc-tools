@@ -1,6 +1,6 @@
 {
   "name": "decide",
-  "description": "Decision gates: extracting what the user actually wants before anything is drafted (interview-me skill), and rebuilding the owner's context before they choose (brief skill).",
+  "description": "Decision gates: interviewing the owner for what they actually want, briefing the owner before they pick, gating which questions reach the owner, and a persona panel that answers questions, reads stories and reviews artifacts as the people they affect.",
   "author": {
     "name": "Silver"
   }

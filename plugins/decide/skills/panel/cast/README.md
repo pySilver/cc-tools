@@ -1,16 +1,12 @@
-# The built-in cast
+# The cast
 
-The people a persona panel brings when neither the project (`.personas/cast/`) nor the user
-(`~/.config/personas/cast/`) has a cast of its own. They are generic on purpose: they know nothing
-about the product beyond what the panel brief tells them. A card or review they answer says so on
-its persona line, so a reader knows generic people answered.
-
-A project gets a cast of its own by running `scripts/cast.py init`, which copies this one into
-`.personas/cast/`, and then rewriting each file for the people who actually use, run and pay for
-that product.
+The people a persona panel brings to a question, a story or a review. This cast is generic: it
+knows nothing about the product beyond what the panel brief tells it. Rewrite each file for the
+people who actually use, run and pay for the product, and add one for anyone else whose view a
+decision turns on.
 
 One file per persona. A file says who the person is, what they want, what they notice and what they
-never see. It holds no system internals: the panel brief supplies the evidence for each option.
+never see. It holds no system internals: the panel brief supplies the evidence.
 
 | Persona | File |
 |---|---|

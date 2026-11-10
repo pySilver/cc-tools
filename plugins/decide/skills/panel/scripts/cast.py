@@ -5,11 +5,11 @@ Usage: cast.py [--repo DIR]
        cast.py init [--repo DIR]
        cast.py run-dir SLUG [--repo DIR]
 
-With no command it prints the cast as JSON: the layer it came from, its directory, its index
-(README.md, or null) and each persona's stem and path. The cast comes from the first of three
-layers that holds any persona file, a `*.md` other than README.md:
+With no command it prints the cast as JSON: the layer it came from, where in that layer (`source`),
+its directory, its index (README.md, or null) and each persona's stem and path. The cast comes from
+the first of three layers that holds any persona file, a `*.md` other than README.md:
 
-  project   .personas/cast/ at the root of the checkout
+  project   .personas/cast/ in the checkout, or else on the repository's default branch
   user      ~/.config/personas/cast/
   built-in  the cast shipped beside this script
 
@@ -17,12 +17,16 @@ The whole cast comes from one layer, never merged file by file: persona names di
 projects, so a merge would set a generic "person who uses the product" beside a project's own
 shopper and the panel would pick from both.
 
-A checkout with no project cast whose default branch has one is refused, not given the next
-layer: it is a worktree branched before the cast landed, and a generic cast answering that
-project's question gives a wrong card that looks right. Rebasing onto the default branch fixes it.
+A checkout with no cast of its own may still belong to a project that has one: a worktree branched
+before the cast landed, or moved. Its panel reads the default branch's cast, never a generic one, so
+a session running in that worktree keeps the project's people without a rebase. Of the local and
+remote default branch, the newer one is read: work can land on either side first. The files
+are written once per commit under the repository's git directory (personas-cast/<sha>/), which is
+never committed and is shared by every worktree; `source` names the branch and commit.
 
 `init` copies the cast that resolves into .personas/cast/ so the project has a local copy to edit.
-It refuses a checkout that already has a project cast.
+It refuses a checkout whose .personas/cast/ already holds any file, and one whose default branch
+already has a cast, which a rebase brings in instead.
 
 `run-dir` makes .personas/runs/<YYYY-MM-DD>-<SLUG>/ and prints its path. The runs folder holds a
 .gitignore of `*`, which ignores the folder and itself, so a panel's files never show in
@@ -35,6 +39,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -56,52 +61,101 @@ def git(cwd: Path, *args: str) -> str:
 
 
 def checkout_root(start: Path) -> Path:
+    if not start.is_dir():
+        fail(f"{start} is not a directory")
     top = git(start, "rev-parse", "--show-toplevel")
     return Path(top) if top else start.resolve()
 
 
-def default_ref(root: Path) -> str:
-    ref = git(root, "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD")
-    if ref:
-        return ref.removeprefix("refs/remotes/")
-    for name in ("origin/master", "origin/main", "master", "main"):
-        if git(root, "rev-parse", "--verify", "--quiet", name):
-            return name
-    return ""
+def is_persona(name: str) -> bool:
+    return name.endswith(".md") and Path(name).name != "README.md"
 
 
 def personas(directory: Path) -> list[Path]:
     if not directory.is_dir():
         return []
-    return sorted(p for p in directory.glob("*.md") if p.name != "README.md")
+    return sorted(p for p in directory.glob("*.md") if is_persona(p.name))
 
 
-def refuse_stale_checkout(root: Path) -> None:
-    ref = default_ref(root)
-    if not ref:
-        return
-    listed = git(root, "ls-tree", "-r", "--name-only", ref, "--", PROJECT_CAST.as_posix())
-    if any(Path(name).suffix == ".md" and Path(name).name != "README.md" for name in listed.splitlines()):
-        fail(
-            f"{ref} has a project cast in {PROJECT_CAST}/ and this checkout ({root}) does not; "
-            f"rebase or merge {ref} first, or the panel would answer with another layer's cast"
-        )
+def commit_of(root: Path, ref: str) -> str:
+    return git(root, "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}")
+
+
+def default_refs(root: Path) -> list[str]:
+    """The default branch's local and remote refs that exist, the newer first.
+
+    Work can land on either side first: a commit on the local branch waits for its push, and a
+    worktree that pushes straight to the remote leaves the local branch behind until someone
+    fast-forwards it. When one contains the other, the containing one is read first; when they have
+    diverged, the local one is.
+    """
+    remote_head = git(root, "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD")
+    names = [remote_head.removeprefix("refs/remotes/origin/")] if remote_head else ["master", "main", "trunk"]
+    refs: list[str] = []
+    for name in names:
+        local, upstream = f"refs/heads/{name}", f"refs/remotes/origin/{name}"
+        pair = [ref for ref in (local, upstream) if commit_of(root, ref)]
+        if len(pair) == 2 and commit_of(root, local) != commit_of(root, upstream):
+            local_is_behind = subprocess.run(
+                ["git", "-C", str(root), "merge-base", "--is-ancestor", local, upstream],
+            ).returncode == 0
+            if local_is_behind:
+                pair.reverse()
+        refs += pair
+    return refs
+
+
+def default_branch_cast(root: Path) -> tuple[str, Path] | None:
+    """The default branch's cast, written out under the git directory, or None when it has none."""
+    for ref in default_refs(root):
+        sha = commit_of(root, ref)
+        label = ref.removeprefix("refs/heads/").removeprefix("refs/remotes/")
+        listed = git(root, "ls-tree", "--name-only", sha, "--", f"{PROJECT_CAST.as_posix()}/")
+        names = [n for n in listed.splitlines() if n.endswith(".md")]
+        if not any(is_persona(n) for n in names):
+            continue
+        common = Path(git(root, "rev-parse", "--git-common-dir"))
+        target = (common if common.is_absolute() else root / common).resolve() / "personas-cast" / sha
+        if not target.is_dir():
+            # Two sessions may resolve the same commit at once: each stages under its own name and
+            # the first rename wins; the loser's copy is identical, so it is dropped.
+            staging = target.with_name(f"{sha}.{os.getpid()}.partial")
+            staging.mkdir(parents=True)
+            for name in names:
+                body = subprocess.run(["git", "-C", str(root), "show", f"{sha}:{name}"], capture_output=True)
+                if body.returncode:
+                    fail(f"could not read {name} at {label} ({sha[:9]}): {body.stderr.decode().strip()}")
+                (staging / Path(name).name).write_bytes(body.stdout)
+            try:
+                staging.rename(target)
+            except OSError:
+                if not target.is_dir():
+                    raise
+                shutil.rmtree(staging)
+        return f"{label} at {sha[:9]}", target
+    return None
 
 
 def resolve(root: Path) -> dict[str, object]:
-    project = root / PROJECT_CAST
-    if not personas(project):
-        refuse_stale_checkout(root)
-    layers = (("project", project), ("user", Path.home() / ".config" / "personas" / "cast"), ("built-in", BUILT_IN))
-    for layer, directory in layers:
-        found = personas(directory)
+    candidates: list[tuple[str, str, Path]] = [("project", "checkout", root / PROJECT_CAST)]
+    if not personas(root / PROJECT_CAST):
+        found = default_branch_cast(root)
         if found:
+            candidates.append(("project", found[0], found[1]))
+    candidates += [
+        ("user", "~/.config/personas/cast", Path.home() / ".config" / "personas" / "cast"),
+        ("built-in", "decide:panel", BUILT_IN),
+    ]
+    for layer, source, directory in candidates:
+        found_personas = personas(directory)
+        if found_personas:
             index = directory / "README.md"
             return {
                 "layer": layer,
+                "source": source,
                 "dir": str(directory),
                 "index": str(index) if index.is_file() else None,
-                "personas": [{"stem": p.stem, "path": str(p)} for p in found],
+                "personas": [{"stem": p.stem, "path": str(p)} for p in found_personas],
             }
     fail(f"no persona files in any layer; the built-in cast at {BUILT_IN} is missing")
     raise AssertionError
@@ -109,9 +163,11 @@ def resolve(root: Path) -> dict[str, object]:
 
 def init(root: Path) -> None:
     target = root / PROJECT_CAST
-    if personas(target):
-        fail(f"{target} already holds a cast; edit it there")
+    if target.is_dir() and any(target.iterdir()):
+        fail(f"{target} already holds files; edit them there")
     cast = resolve(root)
+    if cast["layer"] == "project":
+        fail(f"the default branch already has a cast ({cast['source']}); rebase onto it instead")
     source = Path(str(cast["dir"]))
     target.mkdir(parents=True, exist_ok=True)
     for path in sorted(source.glob("*.md")):
@@ -120,7 +176,7 @@ def init(root: Path) -> None:
 
 
 def run_dir(root: Path, slug: str) -> None:
-    if not slug or "/" in slug or slug.startswith("."):
+    if not slug or "/" in slug or slug.startswith(".") or slug.startswith("-"):
         fail(f"a slug is one plain path segment, not {slug!r}")
     runs = root / RUNS
     runs.mkdir(parents=True, exist_ok=True)
@@ -129,7 +185,7 @@ def run_dir(root: Path, slug: str) -> None:
         ignore.write_text("*\n")
     target = runs / f"{datetime.date.today().isoformat()}-{slug}"
     if target.exists():
-        fail(f"{target} already exists; pick another slug")
+        fail(f"{target} already exists; add a suffix such as -2 to the slug")
     target.mkdir()
     print(target)
 

@@ -2,8 +2,8 @@
 
 Each message names files by absolute path. Fill `PANEL_DIR`, `PERSONA_FILE`, `PERSONA` (the
 file's stem, or the slug of a question-specific persona), `PERSONAS` (the list of persona files
-with their stems) and `CAST_LAYER` (the `layer` `scripts/cast.py` printed: project, user or
-built-in) before sending.
+with their stems) and `CAST_LAYER` (the `layer` and `source` `scripts/cast.py` printed, as
+"project (checkout)", "project (master at 1a2b3c4d5)", "user" or "built-in") before sending.
 
 ## Opus persona
 

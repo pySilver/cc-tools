@@ -211,8 +211,10 @@ down to fit.
 ## Personas on one item
 
 When the user asks to triage or evaluate an item with the personas, run the persona panel's review
-(`decide:panel`, "Reviewing") with the item file as the artifact. The brief states, in user terms,
-what the defect or decision means to a person and the outcomes the item's options lead to. Report
+(`decide:panel`, "Reviewing") on the item. The brief restates it in user terms: what the defect or
+decision means to a person and the outcomes the item's options lead to. It leaves out the item's
+`where:`, its code names and its recommendation, so the personas judge the outcomes and not the
+author's lean. Report
 the review beside the item. If it changes the `worth` call or sharpens the options, offer to edit
 the item in place, as **Appending** says; never write the review into the item unasked. It runs on
 demand only, one item at a time: each persona answers twice, once per model family, so a sweep over

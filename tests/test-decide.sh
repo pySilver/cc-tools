@@ -2,8 +2,8 @@
 # decide:gate's shadow log, offline: gate-log.py records the judge's verdict and the user's answer
 # in the git directory (never the work tree), refuses an unknown verdict and an answer to a
 # question it never logged, and reports both side by side. Then decide:panel's cast.py: the cast
-# resolves from one layer (project, then user, then built-in), a checkout that predates its
-# default branch's cast is refused, init copies a cast down, and run-dir makes a folder git ignores.
+# resolves from one layer (project, then user, then built-in), a checkout older than its default
+# branch's cast reads that cast, init copies a cast down, and run-dir makes a folder git ignores.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -50,6 +50,10 @@ layer_of() { cast --repo "$1" | "$PY" -c 'import json, sys; c = json.load(sys.st
 REPO=$PANEL/repo
 git init -q -b main "$REPO"
 commit "$REPO" "start"
+git init -q --bare "$PANEL/origin.git"
+git -C "$REPO" remote add origin "$PANEL/origin.git"
+git -C "$REPO" push -q origin main
+git -C "$REPO" remote set-head origin main
 if [ "$(layer_of "$REPO")" = "built-in 3" ]; then pass "with no project or user cast, the built-in cast of three answers"; else fail "built-in fallback: $(layer_of "$REPO")"; fi
 
 mkdir -p "$HOME/.config/personas/cast"
@@ -64,15 +68,49 @@ printf '# Shopper\n' >"$REPO/.personas/cast/shopper.md"
 printf '# Merchant\n' >"$REPO/.personas/cast/merchant.md"
 if [ "$(layer_of "$REPO")" = "project 2" ]; then pass "the project's cast replaces the user's whole"; else fail "project layer: $(layer_of "$REPO")"; fi
 
+# The cast lands on local main only; origin/HEAD still names a main without it.
 git -C "$REPO" add .personas
 commit "$REPO" "cast"
 git -C "$REPO" worktree add -q "$PANEL/old" old
-refusal=$(cast --repo "$PANEL/old" 2>&1 || true)
-if [ "$(status_of cast --repo "$PANEL/old")" = 1 ] && grep -q 'rebase or merge main' <<<"$refusal"; then
-  pass "a worktree branched before the default branch's cast is refused, not given the user's cast"
+source_of() { cast --repo "$1" | "$PY" -c 'import json, sys; c = json.load(sys.stdin); print(c["layer"], c["source"].split(" at ")[0], len(c["personas"]))'; }
+if [ "$(source_of "$PANEL/old")" = "project main 2" ] && [ ! -e "$PANEL/old/.personas" ]; then
+  pass "a worktree older than the cast reads it from the local default branch before it is pushed"
 else
-  fail "a stale worktree was not refused"
+  fail "stale worktree, cast unpushed: $(source_of "$PANEL/old")"
 fi
+git -C "$REPO" push -q origin main
+if [ "$(source_of "$PANEL/old")" = "project main 2" ] && [ -z "$(git -C "$PANEL/old" status --porcelain --untracked-files=all)" ]; then
+  pass "after the push it still reads the default branch's cast, and leaves the worktree clean"
+else
+  fail "stale worktree, cast pushed: $(source_of "$PANEL/old")"
+fi
+git -C "$REPO" branch -q -m main trunk
+git -C "$REPO" remote set-head origin -d
+git -C "$REPO" push -q origin trunk
+git -C "$REPO" push -q origin --delete main
+git -C "$REPO" fetch -q --prune origin
+if [ "$(source_of "$PANEL/old")" = "project trunk 2" ]; then pass "a default branch named trunk is found without origin/HEAD"; else fail "trunk: $(source_of "$PANEL/old")"; fi
+
+# A persona edit lands on the remote from another clone; the local branch is left behind.
+git clone -q -b trunk "$PANEL/origin.git" "$PANEL/other"
+printf '# Shopper, edited\n' >"$PANEL/other/.personas/cast/shopper.md"
+git -C "$PANEL/other" add .personas
+commit "$PANEL/other" "edit shopper"
+git -C "$PANEL/other" push -q origin trunk
+git -C "$REPO" fetch -q origin
+shopper=$(cast --repo "$PANEL/old" | "$PY" -c 'import json, sys; print([p["path"] for p in json.load(sys.stdin)["personas"] if p["stem"] == "shopper"][0])')
+if [ "$(source_of "$PANEL/old")" = "project origin/trunk 2" ] && grep -q 'edited' "$shopper"; then
+  pass "when the local default branch is behind the remote one, the remote's newer cast is read"
+else
+  fail "local behind remote: $(source_of "$PANEL/old"), $(head -1 "$shopper")"
+fi
+refusal=$(cast init --repo "$PANEL/old" 2>&1 || true)
+if [ "$(status_of cast init --repo "$PANEL/old")" = 1 ] && grep -q 'rebase onto it' <<<"$refusal"; then
+  pass "init refuses a worktree whose default branch already has a cast"
+else
+  fail "init in a stale worktree: $refusal"
+fi
+if [ "$(status_of cast --repo "$PANEL/no-such-dir")" = 1 ]; then pass "a --repo that does not exist is refused"; else fail "a missing --repo was accepted"; fi
 
 FRESH=$PANEL/fresh
 git init -q -b main "$FRESH"
@@ -83,6 +121,15 @@ else
   fail "init did not copy the resolved cast"
 fi
 if [ "$(status_of cast init --repo "$FRESH")" = 1 ]; then pass "init refuses a project that already has a cast"; else fail "init overwrote a project cast"; fi
+README_ONLY=$PANEL/readme-only
+git init -q -b main "$README_ONLY"
+mkdir -p "$README_ONLY/.personas/cast"
+printf '# Ours\n' >"$README_ONLY/.personas/cast/README.md"
+if [ "$(status_of cast init --repo "$README_ONLY")" = 1 ] && grep -q '^# Ours$' "$README_ONLY/.personas/cast/README.md"; then
+  pass "init refuses a cast folder that holds only an index, and leaves it as it was"
+else
+  fail "init overwrote an index"
+fi
 
 dir=$(cast run-dir pack-size --repo "$REPO")
 if [ -d "$dir" ] && [ "$(basename "$dir")" = "$(date +%Y-%m-%d)-pack-size" ] && [ -z "$(git -C "$REPO" status --porcelain --untracked-files=all)" ]; then

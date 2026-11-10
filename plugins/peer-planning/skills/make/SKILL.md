@@ -249,10 +249,10 @@ cannot discover: why this, which alternatives were refused, and what must not br
 
 Before the user approves the stories, run the persona panel's story read (`decide:panel`,
 "Reading stories") on the plan's `## Stories`, unless the plan says "No actor observes a change".
-Its files go in the panel's own run folder, `.personas/runs/<YYYY-MM-DD>-<plan-stem>-stories/`
-(the panel skill's `cast.py run-dir <plan-stem>-stories` makes it), since the run directory does
-not exist yet. When the user approves the stories, put the flagged ones first, each
-with the persona answers that flagged it quoted beside it; the others follow as already read. A
+Its files go in `RUN_DIR/panels/<NNN>-stories/`, the next free number, as for any panel inside a
+run, so a second read after the stories change never meets the first one's files. When the user
+approves the stories, put the flagged ones first, each with the persona answers that flagged it
+quoted beside it; the others follow as already read. A
 flag is a reason to look, not a verdict: the user may keep a flagged story as written.
 
 ## Step 2.5: Codex reads the draft
