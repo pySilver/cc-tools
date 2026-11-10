@@ -12,8 +12,12 @@ description: >
   shopper or merchant would notice), whenever a peer-planning run, a plan
   interview or a question gate is about to ask one, and when the user says
   "panel", "run the personas", "ask the personas" or "what would users say".
-  Not for intent or taste, which the user answers: the panel informs those,
-  it never decides them.
+  It also reviews any artifact as those people (a backlog item, a plan
+  section, a doc, a PR body, product copy) and synthesizes what each would
+  notice, how much it matters to them and where they split: use it when the
+  user says "personas review", "review this with the personas", "triage this
+  with the personas" or "how would users take this". Not for intent or taste,
+  which the user answers: the panel informs those, it never decides them.
 ---
 
 # Persona panel
@@ -34,9 +38,24 @@ each from what they would actually see, and the user gets a card instead of a li
 
 ## The people
 
-The project's persona files (in mybaze, `docs/personas/`) define the cast: a shopper, a merchant,
-an ops admin, the engineer on call and the CEO. A panel brings only the people the question
-affects, never the whole cast by default. Pick them before writing the brief: a persona is in when
+The cast is a folder of persona files, one person each, with a `README.md` index. It comes from
+the first of three layers that has any persona file, the same order revmux reads its prompts in:
+
+1. `.personas/cast/` at the root of the checkout, the project's own people (in mybaze a shopper, a
+   merchant, an ops admin, the engineer on call and the CEO);
+2. `~/.config/personas/cast/`, the user's;
+3. the built-in cast in this skill's `cast/`: a person who uses the product, the engineer who runs
+   it and the owner who pays for it, generic enough for any repository.
+
+The whole cast comes from one layer; files are never merged across layers, because a generic
+person beside a project's own shopper would be picked as if they were one of its users. Resolve it
+before every panel with `python3 ${CLAUDE_SKILL_DIR}/scripts/cast.py`, which prints the layer,
+the index and each persona's path as JSON. It refuses a checkout with no project cast whose default
+branch has one, a worktree branched before the cast landed: stop and tell the user to rebase it,
+never pick from another layer instead. `cast.py init` copies the cast that resolves into
+`.personas/cast/` when the user asks to set up personas for a project.
+
+A panel brings only the people the question affects, never the whole cast by default. Pick them before writing the brief: a persona is in when
 some option changes what that person sees, does or answers for, and the brief says in one line why
 each one is there. A question about the storefront order brings the shopper and the merchant; one
 about an alert brings the engineer on call; the CEO comes in when the options differ in cost to
@@ -49,8 +68,10 @@ they are, what they want, what they notice, what they never see.
 ## Steps
 
 The panel's files live in one directory, `PANEL_DIR`: inside a peer-planning run,
-`RUN_DIR/panels/<NNN>-<slug>/`; otherwise `.peer-planning/panels/<YYYY-MM-DD>-<slug>/` at the
-root of the checkout. Both are inside Codex's workspace, so Codex can write the Sol answers there.
+`RUN_DIR/panels/<NNN>-<slug>/`, removed with the run's records; otherwise the folder
+`python3 ${CLAUDE_SKILL_DIR}/scripts/cast.py run-dir <slug>` makes and prints,
+`.personas/runs/<YYYY-MM-DD>-<slug>/` at the root of the checkout, which git ignores without any
+rule in the project. Both are inside Codex's workspace, so Codex can write the Sol answers there.
 
 ### 1. Evidence first
 
@@ -138,17 +159,47 @@ to them before the user approves it.
    what they would expect, and is anything confusing, missing or wrong for them?
 3. A story is **flagged** when any answer says it is unexpected, confusing or wrong. Write
    `PANEL_DIR/story-read.md`: the flagged stories first, each with the answers that flagged it,
-   quoted, then one line naming the stories nobody flagged.
+   quoted, then one line naming the stories nobody flagged, then the layer the cast came from.
 
 The caller puts the flagged stories in front of the user first, with those answers beside them.
 The panel never rewrites a story; the user and the agent who drafted it do.
+
+## Reviewing
+
+The panel's third job is reading any artifact as the people it affects: a backlog item, a plan
+section, a document, a PR body, the copy a page shows. It asks no question and writes no card; the
+review informs whoever acts next, and a decision that follows from it still goes through a card.
+
+1. Write `PANEL_DIR/brief.md`: the artifact, copied in whole or cited by absolute path, then, in
+   user terms, what it changes or leaves broken for a person and what outcomes are on the table.
+   Then the personas taking part, as paths, each with one line on why the artifact touches them;
+   two is the floor, as for a question. The brief stays neutral: no expected verdict and no
+   internal names a persona would not know. When the artifact is internal (a defect in a sweep, a
+   plan task), the brief says what a person would meet because of it: what they would see, when,
+   and how often.
+2. Run each persona once as Opus and once as Sol, as in step 2 of a question, with the "Review"
+   prompts from `references/messages.md`, saving `PANEL_DIR/answers/<persona>.opus.md` and
+   `.sol.md`.
+3. A fresh Opus subagent with the "Review moderator" prompt reads the brief and every answer and
+   writes `PANEL_DIR/review.md`:
+   - **What it is**, in user terms, one or two sentences.
+   - **Each persona**: what they would notice, how much it matters to them (stops them, costs them
+     something, annoys them, or goes unnoticed), and the outcome they would want.
+   - **Where they agree**, and **where they split**, between personas or between the two answers
+     of one persona, which means the panel is unsure there.
+   - **What would change the read**: the fact that, if true, would move the verdict most.
+   - **The cast**: the layer it came from, and "one model family only" when Codex was unavailable.
+
+The caller reports the review with the artifact it was about. Reviewing a backlog item, the
+`tracking:backlog` skill may offer to fold what the review changed into the item; the panel never
+edits the artifact itself.
 
 ## The card
 
 A card carries, in this order:
 
 1. **The question**, in user terms, one sentence.
-2. **Each option as what a shopper or merchant would see**, a short paragraph each, from the
+2. **Each option as what the people it affects would see**, a short paragraph each, from the
    evidence.
 3. **The recommendation**, and what it costs a user.
 4. **The strongest dissent**: the best case against the recommendation that survived the
@@ -156,7 +207,7 @@ A card carries, in this order:
 5. **Wrong if**: the fact that, if true, would flip the recommendation.
 6. **Undo**: whether the choice can be reversed later, and what reversing costs.
 7. **The personas**, one line: what they said, with any split between personas or between the two
-   model families.
+   model families, and the layer the cast came from (project, user or built-in).
 
 No internal units on the card: no scores, ticks, priors, levels or flags. When a number matters,
 say it as a person would meet it ("about one more size on the page").

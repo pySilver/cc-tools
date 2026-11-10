@@ -8,8 +8,9 @@ description: >
   create-then-git-rm lifecycle. Use when the user says "backlog", "check
   backlog", "what's on my backlog", "work the backlog", "address the
   backlog", "add to backlog", "clean up backlog", "log this issue", "log an
-  issue", "park this as an issue", "register this decision", or when a
-  review or task produced items that are real but not being fixed now.
+  issue", "park this as an issue", "register this decision", "triage this
+  item with the personas", or when a review or task produced items that are
+  real but not being fixed now.
 allowed-tools: Read, Edit, Write, Bash, Grep, Glob, AskUserQuestion
 ---
 
@@ -206,6 +207,16 @@ A verdict is a sorting aid, never a ruling: Jev returns a confidence, and one un
 close to a coin toss, so say it. When `jev` is missing or the key is unset, the script says so and
 the listing goes on without verdicts. An item too long for Jev is listed as not judged, never cut
 down to fit.
+
+## Personas on one item
+
+When the user asks to triage or evaluate an item with the personas, run the persona panel's review
+(`decide:panel`, "Reviewing") with the item file as the artifact. The brief states, in user terms,
+what the defect or decision means to a person and the outcomes the item's options lead to. Report
+the review beside the item. If it changes the `worth` call or sharpens the options, offer to edit
+the item in place, as **Appending** says; never write the review into the item unasked. It runs on
+demand only, one item at a time: each persona answers twice, once per model family, so a sweep over
+the whole list costs a panel per item.
 
 ## Rules
 

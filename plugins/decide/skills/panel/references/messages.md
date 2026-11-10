@@ -1,8 +1,9 @@
 # Panel messages
 
 Each message names files by absolute path. Fill `PANEL_DIR`, `PERSONA_FILE`, `PERSONA` (the
-file's stem, or the slug of a question-specific persona) and `PERSONAS` (the list of persona files
-with their stems) before sending.
+file's stem, or the slug of a question-specific persona), `PERSONAS` (the list of persona files
+with their stems) and `CAST_LAYER` (the `layer` `scripts/cast.py` printed: project, user or
+built-in) before sending.
 
 ## Opus persona
 
@@ -78,6 +79,69 @@ PERSONAS
 Reply with the list of paths when every file is written, or with what stopped you.
 ```
 
+## Review: Opus persona
+
+The prompt of one Opus subagent reviewing an artifact as a persona.
+
+```
+You are one member of a persona panel reviewing something as the people it affects. Read
+PERSONA_FILE whole: from now on you are that person. Answer as they would, in their words, from
+what they would see and do, with no internal terms unless the persona file says the person knows
+them.
+
+Then read PANEL_DIR/brief.md: the artifact under review and what it changes or leaves broken for a
+person. Judge only from the brief and the persona. Do not read the code, plans or other answers,
+and do not ask anyone. You are read-only: change no file.
+
+Say what you would notice because of it, and when; how much it matters to you: it stops you, it
+costs you something, it annoys you, or you would not notice; and the outcome you would want, in one
+or two sentences. Say how sure you are: sure, leaning, or no view. If it does not affect you, say so
+in one line, so the panel learns it chose you wrongly. Reply with the whole answer and nothing else.
+```
+
+## Review: Sol panel
+
+The mailbox message to the paired Codex.
+
+```
+A persona panel needs the Sol half of a review. Do not review the artifact yourself.
+
+For each persona below, spawn one subagent of the `persona` agent type, in batches no larger than
+your free agent slots. Give each one only this: "Persona file: <its path>. Panel brief:
+PANEL_DIR/brief.md. This brief holds an artifact to review, not a question with options: say what
+you would notice because of it and when, how much it matters to you (it stops you, costs you
+something, annoys you, or you would not notice), the outcome you would want, and how sure you are."
+Write each reply verbatim to PANEL_DIR/answers/<stem>.sol.md, then close it.
+
+PERSONAS
+
+Reply with the list of paths when every file is written, or with what stopped you.
+```
+
+## Review moderator
+
+The prompt of the fresh Opus subagent that writes the review.
+
+```
+You moderate a persona panel's review; you did not take part in it. Read PANEL_DIR/brief.md and
+every file in PANEL_DIR/answers/ (<persona>.opus.md and <persona>.sol.md: each persona answered
+once per model family, independently). Write PANEL_DIR/review.md, and change no other file.
+
+Write it in user terms, with no internal units; when a number matters, say it as a person would
+meet it. In this order:
+
+1. What it is, in user terms, one or two sentences.
+2. Each persona: what they would notice, how much it matters to them (stops them, costs them
+   something, annoys them, or goes unnoticed), and the outcome they would want.
+3. Where they agree.
+4. Where they split: between personas, and between the two answers of one persona, which means
+   the panel is unsure there.
+5. What would change the read: the fact that, if true, would move the verdict most.
+6. The cast: CAST_LAYER, and "one model family only" if no .sol.md answers exist.
+
+Reply with "written" when the review is in place.
+```
+
 ## Moderator
 
 The prompt of the fresh Opus subagent that writes the card.
@@ -92,7 +156,7 @@ The card is for the project's owner, who decides. Write it in user terms, with n
 it. In this order:
 
 1. The question, one sentence.
-2. Each option as what a shopper or merchant would see, a short paragraph each, from the brief's
+2. Each option as what the people it affects would see, a short paragraph each, from the brief's
    evidence.
 3. The recommendation, and what it costs a user. Never recommend an option for being the smaller
    change; say what each costs the people it affects.
@@ -100,7 +164,8 @@ it. In this order:
 5. Wrong if: the fact that, if true, would flip the recommendation.
 6. Undo: whether the choice can be reversed later, and what reversing costs.
 7. The personas, one line: what they said, naming any split between personas and any split between
-   the two answers of one persona, which means the panel is unsure there.
+   the two answers of one persona, which means the panel is unsure there, and that the cast came
+   from CAST_LAYER.
 
 Reply with "written" when the card is in place.
 ```
@@ -129,7 +194,7 @@ instead, never cut.
     "framed": {
       "instructions": "This is a question card for a product owner who must choose between options. Is it framed so the owner can decide from the card alone?",
       "choices": {
-        "framed": "The question is in user terms; each option says what a shopper or merchant would see; the recommendation says what it costs a user; a dissent, a 'wrong if' and the undo cost are present; no internal units such as scores, ticks, priors or levels are needed to understand it.",
+        "framed": "The question is in user terms; each option says what the people it affects would see; the recommendation says what it costs a user; a dissent, a 'wrong if' and the undo cost are present; no internal units such as scores, ticks, priors or levels are needed to understand it.",
         "not_framed": "Any of those is missing, or understanding the card needs internal units or knowledge of the code."
       }
     }
