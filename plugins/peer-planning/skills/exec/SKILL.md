@@ -212,6 +212,12 @@ Log each step as it happens:
 afterwards from memory: the timestamps are what the log is for. A failed log call is a failed
 step; fix it before moving on.
 
+When the plan is edited mid-run and gains or loses a `### Task N:` section, log `run.start`
+again straight after the edit, with the new `tasks` and every other field as before. The monitor
+takes its task count from the latest `run.start`. Without it, an added task shows as 9 of 8 once
+it runs, and a plan grown from 8 to 10 shows 8 of 8 and the branch review as next while two tasks
+are still queued.
+
 ## The task cycle
 
 Tasks run strictly one at a time. Later tasks build on earlier commits, and all of them write to

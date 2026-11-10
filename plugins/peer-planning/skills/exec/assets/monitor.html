@@ -708,7 +708,14 @@ function derive(now) {
     feed.push({e, after});
   }
 
-  const total = start?.tasks ?? Math.max(0, ...tasks.keys());
+  // A plan edited mid-run re-logs run.start with its new task count. A task numbered past that
+  // count means the re-log was missed; say so instead of stretching the total to fit, since a
+  // missed re-log for a task not yet started cannot be seen from the log at all.
+  const highest = Math.max(0, ...tasks.keys());
+  const total = start?.tasks ?? highest;
+  const countProblem = highest > total
+    ? `task ${highest} is logged but run.start says ${plural(total, 'task')}: the plan changed, so log run.start again with its task count`
+    : null;
   for (let n = 1; n <= total; n++) task(n);
   const rows = [...tasks.values()].sort((a, b) => a.n - b.n);
   const done = rows.filter(t => t.end != null);
@@ -734,7 +741,7 @@ function derive(now) {
 
   return {
     start, firstStart, last, ended, t0, tEnd, tq, intervals, split, rows, done, current, reviewed, avg, estimate, scale, queued,
-    total, state, waited, limits, level, feed, phase: phaseNow, reviewIterations, phaseSpans,
+    total, countProblem, state, waited, limits, level, feed, phase: phaseNow, reviewIterations, phaseSpans,
     mustFix: rows.reduce((a, t) => a + t.mustFix, 0), rounds: rows.reduce((a, t) => a + t.rounds, 0),
   };
 }
@@ -746,7 +753,7 @@ const jumpButton = () => h('button', {class: 'jump', type: 'button', 'data-jump'
 function buildBanners(m) {
   const out = [];
   const action = m.start?.session ? jumpButton() : null;
-  const problems = [feedProblem, paneProblem].filter(Boolean);
+  const problems = [feedProblem, paneProblem, m.countProblem].filter(Boolean);
   if (problems.length) out.push(keyed('problem', h('div', {class: 'banner problem'}, icon('alert'), h('span', {}, problems.join(' · ')))));
   if (paneInfo?.status === 'blocked') {
     const pane = paneInfo.statusPane === 'right' ? "Codex's pane" : paneInfo.statusPane === 'left' ? "Claude's pane" : 'A pane';
@@ -1248,7 +1255,7 @@ function render() {
   const now = Date.now();
   const m = derive(now);
   multiDay = events.length > 0 && dayKey(m.t0) !== dayKey(m.tEnd);
-  const problems = [feedProblem, paneProblem].filter(Boolean);
+  const problems = [feedProblem, paneProblem, m.countProblem].filter(Boolean);
 
   const page = $('page');
   page.style.setProperty('--actor', `var(--${m.state?.actor ?? 'orchestrator'})`);

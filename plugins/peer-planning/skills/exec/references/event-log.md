@@ -21,7 +21,7 @@ event is written as given.
 
 | Event | Logged when | Fields |
 |---|---|---|
-| `run.start` | setup is complete, and again when a run resumes | `plan` (its path from the repository root), `tasks:=N` (the plan's task count), `work_path`, `branch`, `executor`, `session` (this session's agterm id); every one required |
+| `run.start` | setup is complete, again when a run resumes, and again when a plan edit mid-run adds or removes a task | `plan` (its path from the repository root), `tasks:=N` (the plan's task count), `work_path`, `branch`, `executor`, `session` (this session's agterm id); every one required |
 | `codex.ready` | Codex answered the setup check | `files:=true\|false` (whether it can write long replies) |
 | `task.start` | a task begins | `task:=N`, `title`, `discuss:=true\|false` |
 | `branch.check` | `branch-overlap.py` ran at a task's start | `task:=N`, `behind:=N`, `rebased=true\|false\|conflict`, `overlaps:=N`, `later_than=<branches this plan adapts to>` when any |
