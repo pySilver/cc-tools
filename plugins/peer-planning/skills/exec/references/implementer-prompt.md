@@ -2,9 +2,10 @@
 
 Three prompts go to the implementation subagent: one to start a task, one to apply Codex's
 review, and one to commit. A fourth goes to a fresh fixer subagent after each round of the branch
-review, and a fifth to a fresh subagent that runs the whole suite once at the end. Substitute
-every `UPPER_CASE` token before sending, because the subagent runs in a fresh context and knows
-none of these values.
+review, which the closer starts, and a fifth to a fresh subagent that runs the whole suite once at
+the end. The closer's own prompts are in `references/closer-prompt.md`. Substitute every
+`UPPER_CASE` token before sending, because the subagent runs in a fresh context and knows none of
+these values.
 
 The implementer writes each report to its own file, and that file is `REPORT_PATH` in the prompt
 that asks for it: `RUN_DIR/msgs/NNN-implementer-report.md`, numbered with the run's other message

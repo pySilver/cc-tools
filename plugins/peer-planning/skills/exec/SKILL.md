@@ -1,13 +1,14 @@
 ---
 name: exec
-description: Execute a plan task by task as a two-agent run. An implementation subagent (Opus at medium by default) builds each task, Codex in the adjacent agterm pane reviews the diff before the commit, then Codex is cleared and the next task starts; a task the plan marks for discussion has its approach agreed with Codex first. The agents talk through agterm's pane mailboxes (the mailbox-chat skill), with long content in files, and every step lands in a jsonl event log that a live agterm page shows. Finish with the project's revmux review rounds, its polish step and one run of the whole suite. Use it whenever the user says peer-planning:exec, asks to execute a peer-planning:make plan, or wants plan execution reviewed by Codex task by task, even when they just say "run this plan with Codex".
+description: Execute a plan task by task as a two-agent run. An implementation subagent (Opus at medium by default) builds each task, Codex in the adjacent agterm pane reviews the diff before the commit, then Codex is cleared and the next task starts; a task the plan marks for discussion has its approach agreed with Codex first. The agents talk through agterm's pane mailboxes (the mailbox-chat skill), with long content in files, and every step lands in a jsonl event log that a live agterm page shows. Finish with the project's revmux review rounds and its polish step, each run by a fresh closing-stage subagent, and one run of the whole suite. Use it whenever the user says peer-planning:exec, asks to execute a peer-planning:make plan, or wants plan execution reviewed by Codex task by task, even when they just say "run this plan with Codex".
 ---
 
 # peer-planning:exec, two-agent plan execution
 
 **Who does what:**
-- **This session** is the orchestrator. It hands each task to an implementation subagent, carries
-  the messages between Codex and the subagent, and keeps the run's record.
+- **This session** is the orchestrator. It hands each task to an implementation subagent and each
+  closing stage to a closer, carries the messages between Codex and the subagents, puts every
+  question to the user, and keeps the run's record.
 - **Codex**, in the right pane of the agterm split, is the reviewer. It checks each task's outcome
   before the commit: whether the diff delivers the approach, the "Done when" list and the plan's
   Decisions, on evidence that exercises them. Rule, architecture and style issues wait for the
@@ -18,6 +19,10 @@ description: Execute a plan task by task as a two-agent run. An implementation s
   commands there.
 - **The implementation subagent** does the code work, so the file reading and the diffs never enter
   this session's context.
+- **The closer**, a closing-stage subagent, runs the branch review and then, in a second fresh
+  context, the polish. It starts their review rounds and fixers and returns a few lines. It cannot
+  reach the user or Codex: a question goes into a file, a design discussion comes back to this
+  session, and this session resumes the same closer with the answer.
 
 A task closes only when Codex has found nothing left to fix and the commit has passed the project's
 hooks. A task marked for discussion also needs both agents' agreement on its approach before any
@@ -120,6 +125,11 @@ memory: finalize trusts it in place of a run it watched.
      (`.claude/agents/` or `~/.claude/agents/`; `worker`, for example, is Opus at high).
    - If none matches, or the default definition is missing, say so and ask before task 1, offering
      to create one. Never approximate silently.
+   - Resolve the closing-stage agent the same way: the user's invocation text, then the plan's
+     Execution section, then the default, the `closer` agent definition (Opus at high, with an
+     hour's prompt cache, since a closer waits minutes on each review round). If the named or the
+     default definition is missing, say so and ask before task 1, offering to create one. Never
+     fall back to the executor, and never run the closing stages in this session.
 7. **Find the default branch.** Take `git symbolic-ref --short refs/remotes/origin/HEAD` without
    its `origin/` prefix; if that fails, the first of `main` and `master` that exists. Call it
    `DEFAULT_BRANCH`. A new worktree starts from it, and the branch review diffs against it.
@@ -141,7 +151,8 @@ memory: finalize trusts it in place of a run it watched.
    - If `RUN_DIR/progress.md` exists, this is a resumed run: read it and `events.jsonl`, and
      continue from the last entry.
    - Run "Run-record housekeeping" once, before task 1, for the repository's other runs.
-   - Otherwise start `progress.md` with the plan, `WORK_PATH`, the branch and the executor.
+   - Otherwise start `progress.md` with the plan, `WORK_PATH`, the branch, the executor and the
+     closing-stage agent.
    - Re-read `progress.md` on every wake-up before acting. A Codex message arrives as a new turn
      (hook feedback opening with `[peer chat]`), and the context may compact in the middle of a
      run.
@@ -356,33 +367,46 @@ report what it shows.
 
 ## Context hygiene
 
-This session reads the plan, `progress.md`, the subagents' final messages, Codex's messages and the
-discussion files they name, and the few lines a disputed claim cites. Code work, diffs, test
-output and the implementers' reports stay out of it: an implementer writes its report for Codex,
-and Codex's review items go to the implementer unopened. Keeping them out is how this session
-remains coherent across a whole plan.
+This session reads the plan, `progress.md`, the subagents' final messages, a closer's questions
+file, Codex's messages and the discussion files they name, and the few lines a disputed claim
+cites. Code work, diffs, test output and the implementers' reports stay out of it: an implementer
+writes its report for Codex, and Codex's review items go to the implementer unopened. The closing
+stages stay out of it too. A review round's JSON, the fixers' reports and the polish's tool calls
+belong to the closer, and its report waits for the completion report. Keeping them out is how this
+session remains coherent across a whole plan. A session cannot clear its own context, so whatever
+reaches it stays for every later call.
 
 ## After the last task: review, polish, then the whole suite
 
-1. **Review the whole branch.** Follow the project's `.claude/peer-planning/review.md` if it has
-   one, otherwise `references/review.md`, which runs revmux rounds. Substitute `WORK_PATH`,
-   `DEFAULT_BRANCH`, `PLAN_FILE_PATH`, `PROGRESS_FILE_PATH` (as `RUN_DIR/progress.md`) and
-   `REVIEW_PHASE`. Then run the loop:
-   - The first iteration runs `REVIEW_PHASE=comprehensive`, and later ones run `critical`, up to
-     five iterations, until the playbook ends the phase. An iteration whose findings list is
-     empty also ends it: nothing changed, so a re-check would review the same diff. Log
-     `stage.start` and `stage.done` for each, with `stage=review`.
-   - When an iteration's findings list is not empty, spawn a fresh fixer subagent with the "Fix
-     review findings" prompt from `references/implementer-prompt.md`, the resolved executor as
-     its `subagent_type`, and the next numbered `RUN_DIR/msgs/NNN-fixer-report.md` as its
-     `REPORT_PATH`. When it returns, read only its final message and confirm the commit with
-     `git -C WORK_PATH log -1 --oneline`. Then append one line to `progress.md`:
-     `Review iteration N fixer: <report path>, commit <sha>, <n> fixed, <m> false positive`. The
-     fixes and decisions stay in the report, where the next round and the completion report read
-     them. A `COMMIT` line that names a failure ends the phase; tell the user.
-   - Codex takes no part, since it has already reviewed every task, with one exception: when the
-     default playbook's stop rule fires on a function or symbol, that finding goes to a design
-     discussion with Codex before the fixer runs (`references/review.md`, Step 7).
+1. **Review the whole branch.** A closer runs it. This session holds only the design discussion
+   and the questions.
+   - The playbook is the project's `.claude/peer-planning/review.md` if it has one, otherwise
+     `references/review.md`, which runs revmux rounds. Spawn a fresh subagent with the "Run the
+     branch review" prompt from `references/closer-prompt.md`, every token substituted
+     (`PROGRESS_FILE_PATH` is `RUN_DIR/progress.md`), the resolved closing-stage agent as
+     `subagent_type`, `run_in_background: true`, and a description `Branch review`. End your
+     turn.
+   - The closer runs the loop its prompt sets out: `comprehensive` first and `critical` after, up
+     to five iterations, a fresh fixer for each findings list that is not empty, the playbook's
+     lines in `progress.md`, and each iteration's `stage.start` and `stage.done` with
+     `stage=review`, which it logs itself. Codex takes no part, since it has already reviewed
+     every task, except in a design discussion.
+   - When it returns, read only its final message. A message without its `REVIEW:` and `REPORT:`
+     lines goes to the user as it is. Never read the report to fill it in, and never run the
+     stage another way.
+   - **`REVIEW: waiting on a design discussion`:** the playbook's stop rule fired on the symbol
+     its `DISCUSS:` line names (`references/review.md`, Step 7). Hold the discussion here. Send
+     "Opening a design discussion in the branch review" from `references/codex-messages.md`, with
+     the closer's report as `FINDINGS_OR_FILE`, log `discuss.request` with `stage=review` and the
+     iteration, and go on as section B steps 3 to 5 say. Write the outcome into `progress.md`:
+     the agreed design, that the design holds, or the user's ruling on a stall. Then resume the
+     same closer with `SendMessage` and the "Continue the branch review" prompt carrying that
+     outcome, in the background, and end your turn. A symbol gets one discussion.
+   - **`REVIEW: waiting on answers`:** put the questions its `QUESTIONS:` line names to the user
+     as step 3 does, and resume it the same way.
+   - **`REVIEW: clean after N iterations` or `REVIEW: ended: <reason>`:** append
+     `Branch review: <REVIEW line>; <OPEN line>; report <path>` to `progress.md`. Tell the user the
+     `REVIEW` line, an ended review's reason first, and the `OPEN` counts. Then go to step 2.
 2. **Cover the gaps in the stories.** Behavior the branch changed that no story describes, such
    as a fix added mid-run, gets a story now. Skip this step when the plan says "No actor observes
    a change" and the branch changed nothing a shopper, merchant or operator would see.
@@ -401,11 +425,33 @@ remains coherent across a whole plan.
    - Tell the user about the flagged drafts only, each with the answers that flagged it, and log
      `stage.start` and `stage.done` with `stage=stories`. Unflagged drafts are listed in the
      completion report.
-3. **Polish.** Run the project's polish step if it has one; here that is `/polish`
-   (`.claude/commands/polish.md`), inside `WORK_PATH`. Log `stage.start` and `stage.done` with
-   `stage=polish`. It is interactive, and the project's polish ends by telling the user to
-   finalize. Under exec the suite stage comes first: it runs once polish returns, and the
-   completion report follows it.
+3. **Polish.** Run the project's polish step if it has one. Its command is a file, here
+   `/polish` in `WORK_PATH/.claude/commands/polish.md`, and that file is `POLISH_PATH`. A closer
+   runs it. This session puts its questions to the user.
+   - Log `stage.start` with `stage=polish`. Spawn a fresh subagent with the "Run the polish"
+     prompt from `references/closer-prompt.md`, every token substituted, the resolved
+     closing-stage agent as `subagent_type`, `run_in_background: true`, and a description
+     `Polish`. End your turn.
+   - The closer follows the polish file inside `WORK_PATH` as if the user had typed the command
+     with no argument. Where the file asks the user something, the closer writes the question to
+     its questions file and carries on with every step that does not depend on the answer.
+   - When it returns, read only its final message. A message without its `POLISH:` and `REPORT:`
+     lines goes to the user as it is.
+   - **`POLISH: waiting on answers`:** read the file its `QUESTIONS:` line names, and put each
+     question to the user through the gate ("Questions to the user go through the gate"), with
+     its items and its options as the file gives them, the recommended one first. Then resume the
+     same closer with `SendMessage` and "The user's answers", with a new `QUESTIONS_PATH`, in the
+     background, and end your turn. This can happen more than once.
+   - **`POLISH: complete` or `POLISH: ended: <reason>`:** log `stage.done` with `stage=polish`.
+     It is logged once, after the whole stage, the waits on answers included. Append
+     `Polish: <POLISH line>; commits <COMMITS line>; report <path>` to `progress.md`, and tell the
+     user what matters in its `SUMMARY` line, an ended polish's reason first.
+   - The project's polish ends by telling the user to finalize. Under exec the suite stage comes
+     first: it runs once polish returns, and the completion report follows it.
+
+   A `SendMessage` resume that fails, in this stage or the review, goes to the user. Never start
+   a fresh closer in its place without the user's word, and never finish the stage in this
+   session.
 4. **Run the whole suite.** First resolve `SUITE_COMMAND`: the whole-suite command the plan's
    Execution section names, or else the one the project's agent docs name. A plan written before
    this stage existed names none. Then spawn a fresh subagent with the "Run the full suite"
@@ -429,9 +475,12 @@ remains coherent across a whole plan.
 Tell the user:
 - each task with its commit SHA and its must-fix count from the log;
 - every decision and deviation the implementers reported, from `progress.md`, and every decision
-  a review fixer made, from the `DECISIONS` section of the fixer reports `progress.md` names;
+  a review fixer made, from the `DECISIONS` section of the branch review's closer report;
 - every disagreement with Codex and how it was settled, including the user's rulings;
-- the review rounds' outcome;
+- the review rounds' outcome, from the branch review closer's final lines and the `ITERATIONS`
+  and `OPEN` sections of its report, with each open question listed;
+- the polish's outcome, from its closer's final lines and its report: each round, what it fixed,
+  the questions it put to the user and their answers;
 - the suite stage's outcome: how many runs it took, each failure with the commit that caused it
   (from the `FAILURES` section of the suite report), and whether the full-suite record was written;
 - `WORK_PATH`, the branch and `RUN_DIR`, and what is left for the user: `/git:finalize-feature-branch`,
@@ -484,4 +533,5 @@ setup and once after the completion report, and deletes only what the user picks
 - Type anything into Codex's pane other than through `codex-clear.sh`.
 - Treat "Codex agreed" as the user's approval of anything that needs it.
 - Write or fix code in this session. Implementers and fixers do the code work.
+- Run a closing stage, the branch review or the polish, in this session. A closer runs each one.
 - Run two tasks at once, or push.

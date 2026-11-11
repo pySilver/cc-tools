@@ -14,6 +14,12 @@ monitor reads these names, so a change here is a change to the monitor as well.
 `key=value` stores a string. `key:=value` stores JSON, for counts and flags: `task:=3`,
 `must_fix:=2`, `discuss:=false`. A commit SHA is always `sha=…`, a string.
 
+The orchestrator logs every event but one pair: a branch review iteration's `stage.start` and
+`stage.done`, which the closer running the review logs itself as the iteration starts and ends.
+The design discussion inside the review is the orchestrator's, so its `discuss.*` events are too.
+The polish closer logs nothing; the orchestrator logs `stage=polish` once on each side of the
+whole stage, the waits on the user's answers included.
+
 `log-event.py` refuses a `run.start` missing any of its fields, or whose `plan` is an absolute
 path: `run-records.py` reads `plan` against the remote's default branch to tell whether the run
 landed, and the monitor shows the plan, branch and executor from the same record. Every other
@@ -41,9 +47,11 @@ event is written as given.
 | `codex.clear` | `codex-clear.sh` returned | `task:=N` (none for the clear at a new run's setup), `exit:=N` |
 | `reviewer.switch` | the reviewer seat changed hands (`references/reviewer-seat.md`) | `from` (the old pane model, or `opus`), `to` (`astra`, `sol` or `opus`), `reason`, `used_percent:=N` when measured; `task:=N` except at setup |
 | `task.done` | the task is closed | `task:=N`, `sha` |
-| `stage.start` | the branch review loop, the story gap step, the polish step or the closing suite run begins | `stage=review\|stories\|polish\|suite`, `iteration:=N` for review |
-| `stage.done` | that stage ends | `stage=review\|stories\|polish\|suite`, `iteration:=N` for review |
+| `stage.start` | a branch review iteration (logged by its closer), the story gap step, the polish step or the closing suite run begins | `stage=review\|stories\|polish\|suite`, `iteration:=N` for review |
+| `stage.done` | that iteration or stage ends | `stage=review\|stories\|polish\|suite`, `iteration:=N` for review |
 | `run.end` | the completion report is given | |
 
 What a run spends waiting follows from the last line: after `implement.start` or `fix.start` the
-implementer is working, and after a `*.request` Codex is. Nothing needs logging to mark a wait.
+implementer is working, after a `*.request` Codex is, and after a `stage.start` for `review` or
+`polish` a closer is. A polish closer's questions to the user log nothing, so the log cannot tell
+that wait from the closer's work. Nothing else needs logging to mark a wait.

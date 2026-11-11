@@ -1,16 +1,19 @@
 # Branch review: revmux rounds
 
-The orchestrator follows this playbook itself after the last task. It is not a prompt for a
-subagent. A project replaces it with its own `.claude/peer-planning/review.md`, which takes the
-same placeholders: `WORK_PATH`, `DEFAULT_BRANCH`, `PLAN_FILE_PATH`, `PROGRESS_FILE_PATH` and
-`REVIEW_PHASE`.
+After the last task, a closing-stage subagent, the closer, follows this playbook. The exec skill
+hands it over with the "Run the branch review" prompt in `references/closer-prompt.md`, which
+carries the loop, the logging and the report. Where this playbook says "you", that is the closer.
+It cannot reach the user or Codex: what goes to either goes into its report and final message,
+and the orchestrator passes it on. A project replaces this playbook with its own
+`.claude/peer-planning/review.md`, which takes the same placeholders: `WORK_PATH`,
+`DEFAULT_BRANCH`, `PLAN_FILE_PATH`, `PROGRESS_FILE_PATH` and `REVIEW_PHASE`.
 
 Each iteration runs one revmux round through the `revmux:revmux` skill. revmux runs its own panel,
 then synthesizes and verifies before it returns findings, so this phase spawns no review subagents.
 The one Agent call in a round belongs to the revmux skill, which writes the round's context files
 through a subagent of its own. That agent reviews nothing.
 
-If a round cannot run, stop the review phase and tell the user. Never fall back to reviewing with
+If a round cannot run, end the review phase with that reason. Never fall back to reviewing with
 subagents of your own: that review would look complete while running none of the project's review
 setup. A review that is missing and says so can be recovered; a silent substitute cannot.
 
@@ -29,7 +32,7 @@ floor, so a minor finding cannot reach the critical pass.
 
 The revmux skill checks `revmux` and every CLI the roster needs before it launches anything. Pass
 it the profile this iteration runs. Without one it checks the default roster, and a missing CLI
-surfaces mid-round. On a preflight failure, stop the phase and tell the user.
+surfaces mid-round. On a preflight failure, end the phase with that reason.
 
 ## Step 2: hand the round to the skill
 
@@ -54,7 +57,9 @@ each prompt itself, and a pasted copy anchors the panel on conclusions it should
 
 ## Step 3: run it
 
-The skill runs the round and returns its JSON. A round takes 10 to 20 minutes. Findings are a
+The skill runs the round and returns its JSON. A round takes 10 to 20 minutes, longer than a
+foreground call may run, so start it in the background and go on when its notification arrives.
+Findings are a
 result, not a failure: never re-run a round because it found something, and never review again by
 other means because it found nothing.
 
@@ -64,7 +69,7 @@ Read `sources`. If `degraded` is non-empty, the panel was short a source, so its
 evidence. Ask the skill for one fresh round with the same context. If that round is degraded too:
 1. Say `Review degraded: <n> of <m> sources reported. Missing: <names>.`
 2. In `critical` mode, never report the iteration clean, even with zero findings.
-3. Tell the user the phase finished without full coverage, and name the missing source.
+3. End the phase: the reason says it finished without full coverage and names the missing source.
 
 ## Step 5: the findings list for the fixer
 
@@ -90,10 +95,10 @@ say `Critical re-check: clean.` and log it to `progress.md`.
 and `open_questions` want the user's decision, not an edit. An unattended fixer handed them
 overturns the verifier, edits code outside the branch, and answers questions for the user.
 
-Report them to the user after the findings list, one line each (`Open questions: <n>`,
+Write them into your report after the findings list, one line each (`Open questions: <n>`,
 `Pre-existing: <n>`, `Immaterial: <n>`) with a bullet per item, and append the same to
-`progress.md`. Never write a severity word in these bullets: the loop below reads severity words
-as open findings.
+`progress.md`; the orchestrator tells the user. Never write a severity word in these bullets: the
+loop below reads severity words as open findings.
 
 ## Step 7: what may drive another iteration
 
@@ -104,9 +109,9 @@ rules below compare against them.
 **Only executable code drives another iteration.** A gating finding in a document an agent
 executes as a contract (rule files, `AGENTS.md`, `CLAUDE.md`, skill and prompt files, `.revmux/*`,
 the plan) is real and worth fixing, but fixing it writes new prose that the next round reviews, and
-a rewritten rubric tends to produce a new finding of its own. List such findings for the user as
-`Batched prose findings: <n>`, keep them out of `FINDINGS_LIST`, and leave them for one batch fix
-after the loop. A script is code: fixing a `.sh` or `.py` replaces logic and counts normally. Only
+a rewritten rubric tends to produce a new finding of its own. List such findings in your report
+and in `progress.md` as `Batched prose findings: <n>`, keep them out of `FINDINGS_LIST`, and leave
+them for one batch fix after the loop. A script is code: fixing a `.sh` or `.py` replaces logic and counts normally. Only
 the text a script prints batches with the prose.
 
 **When the fixes are not landing, step back with Codex.** The rule fires when this round's gating
@@ -115,15 +120,17 @@ findings sits in the same function or symbol as a gating finding of the previous
 decides, not the mechanism: a design gap patched one finding at a time shows up as a new mechanism
 in the same function every round. Another fix would answer one more case, so when the rule fires:
 
-1. Open a design discussion with Codex. It is the one exception to Codex taking no part in this
-   phase. Send "Opening a design discussion in the branch review" from
-   `references/codex-messages.md`, log `discuss.request` with `stage=review` and this iteration,
-   and end your turn. The exchange follows the exec skill's task discussion, section B steps 3 to
-   5: verify every claim Codex makes, answer each point, propose agreement once the thread
-   converges, and take a stall to the user.
-2. Once the design is agreed, write it into `progress.md` and run the fixer on this round's
-   `FINDINGS_LIST`, with `DESIGN_BLOCK` carrying the agreed design. When Codex shows that the
-   design holds and you accept its cite, run the fixer on the findings as they are. Either way the
-   next iteration follows as usual.
-3. A symbol gets one discussion. If the rule fires again on a symbol already discussed, name its
-   finding to the user and end the phase without another iteration.
+1. Hand a design discussion with Codex to the orchestrator. It is the one exception to Codex
+   taking no part in this phase, and Codex answers only in the orchestrator's pane. Write this
+   round's gating findings in the symbol into your report, run no fixer for this round, and end
+   with `DISCUSS:` naming the symbol and its file. The orchestrator sends "Opening a design
+   discussion in the branch review" from `references/codex-messages.md`, logs `discuss.request`
+   with `stage=review` and this iteration, and holds the exchange as the exec skill's task
+   discussion, section B steps 3 to 5: it verifies every claim Codex makes, answers each point,
+   proposes agreement once the thread converges, and takes a stall to the user.
+2. The orchestrator writes the outcome into `progress.md` and resumes you with it. With an agreed
+   design, run the fixer on this round's `FINDINGS_LIST`, with `DESIGN_BLOCK` carrying that
+   design. When Codex showed that the design holds and the orchestrator accepted its cite, run
+   the fixer on the findings as they are. Either way the next iteration follows as usual.
+3. A symbol gets one discussion. If the rule fires again on a symbol already discussed, end the
+   phase without another iteration, with that finding as the reason.
