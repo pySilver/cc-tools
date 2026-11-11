@@ -60,7 +60,10 @@ checkout this session runs in:
 
 The conversation itself stays in chat, where the user reads both agents. The directory stays out
 of git and outlives the run: it is the record the monitor and later tuning read. Once the run's
-branch has landed, "Run-record housekeeping" offers to remove it.
+branch has landed, "Run-record housekeeping" offers to remove it, and first keeps `events.jsonl`
+and `progress.md` in the repository's workflow ledger,
+`<git common dir>/workflow-ledger/runs/<plan-stem>/`, which later tuning reads once the directory
+is gone.
 
 ### The full-suite record
 
@@ -464,10 +467,14 @@ setup and once after the completion report, and deletes only what the user picks
    - keep everything, always as the last option.
 
    Every option names each run's plan, the commit that archived it and its size. Say in the
-   question that a removed record is gone from the monitor and from later tuning of this skill.
+   question that a removed record is gone from the monitor, and that its `events.jsonl` and
+   `progress.md`, the files later tuning of this skill reads, stay in the workflow ledger while
+   `msgs/` and the rest go.
 4. Remove exactly what the user picked, one call per run:
    `"${CLAUDE_SKILL_DIR}/scripts/run-records.py" --remove RUN_DIR`. It refuses any path that is
-   not a landed run's directory, and it closes the run's `<plan-stem> monitor` session if one is
+   not a landed run's directory. It copies `events.jsonl` and `progress.md` into the ledger
+   first, and when that copy fails it removes nothing and exits non-zero with the reason: tell
+   the user and leave the run. Then it closes the run's `<plan-stem> monitor` session if one is
    open. It removes nothing else: the worktree, the branch and any database belong to the
    project's own setup, and a revmux task to revmux's own cleanup.
 

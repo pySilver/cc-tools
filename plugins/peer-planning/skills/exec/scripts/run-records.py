@@ -16,14 +16,22 @@ path cannot be told landed; it is named on stderr and left out, and the other ru
 listed.
 
 --remove deletes a run directory only when it is a landed run's, then closes the run's
-"<plan-stem> monitor" agterm session if one is open. It refuses any other path.
+"<plan-stem> monitor" agterm session if one is open. It refuses any other path. Before it deletes
+anything it copies the run's events.jsonl and progress.md, the files later tuning of the skill
+reads, into the repository's workflow ledger, <git common dir>/workflow-ledger/runs/<plan-stem>/,
+which is outside git and outlives every worktree. When that name already holds other files, the
+copy goes under <plan-stem>~<the first 8 hex digits of the sha256 of the kept files>, the same
+rule git/wrap-up's keep-records.py follows, so the same record lands in the same place whichever
+script keeps it. A copy that fails removes nothing. msgs/ and the monitor page are not kept.
 """
 
+import hashlib
 import json
 import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import NoReturn
@@ -124,14 +132,66 @@ def close_monitor(run_dir: Path) -> str:
     return f"closed the {name!r} session"
 
 
+# The ledger copy duplicates keep() in git/wrap-up's keep-records.py: the two plugins install
+# separately, and both must name a record alike or one run would be kept twice.
+LEDGER_FILES = ("events.jsonl", "progress.md")
+
+
+def digest(files: dict[str, bytes]) -> str:
+    h = hashlib.sha256()
+    for name in sorted(files):
+        data = files[name]
+        h.update(f"{name}\0{len(data)}\0".encode())
+        h.update(data)
+    return h.hexdigest()
+
+
+def held(place: Path) -> dict[str, bytes] | None:
+    if not place.exists():
+        return None
+    if not place.is_dir():
+        return {}
+    return {p.relative_to(place).as_posix(): p.read_bytes() for p in place.rglob("*") if p.is_file()}
+
+
+def keep(run: Run) -> str:
+    """Copy the run's analysis files into the ledger; return where they are."""
+    common = git(run.checkout, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    if common.returncode:
+        raise OSError(f"no git directory for {run.checkout}: {common.stderr.strip()}")
+    parent = Path(common.stdout.strip()) / "workflow-ledger" / "runs"
+    files = {name: (run.run_dir / name).read_bytes() for name in LEDGER_FILES if (run.run_dir / name).is_file()}
+    place = parent / run.run_dir.name
+    if (current := held(place)) is not None and current != files:
+        place = parent / f"{run.run_dir.name}~{digest(files)[:8]}"
+        if (current := held(place)) is not None and current != files:
+            raise OSError(f"{place} holds other files under this record's own digest")
+    if current == files:
+        return f"already kept in {place}"
+    place.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=f".{place.name}.", dir=place.parent))
+    try:
+        for name, data in files.items():
+            (staging / name).write_bytes(data)
+        staging.rename(place)
+    except BaseException:
+        shutil.rmtree(staging)
+        raise
+    return f"kept {', '.join(files)} in {place}"
+
+
 def remove(path: str) -> None:
     run_dir = Path(path).resolve()
     match = next((found for found in landed_runs() if found.run.run_dir.resolve() == run_dir), None)
     if match is None:
         fail(f"{run_dir} is not a landed peer-planning run; nothing removed")
+    try:
+        kept = keep(match.run)
+    except OSError as error:
+        fail(f"could not keep {run_dir} in the workflow ledger, so nothing was removed: {error}")
     monitor = close_monitor(run_dir)
     shutil.rmtree(run_dir)
-    print(f"removed {run_dir}; {monitor}")
+    print(f"removed {run_dir}; {kept}; {monitor}")
 
 
 def main(argv: list[str]) -> None:

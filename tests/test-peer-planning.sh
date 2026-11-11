@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # peer-planning exec: the run-record scripts. log-event.py refuses a run.start that a later reader
 # cannot use, and run-records.py lists a repository's landed runs, skipping a run whose record it
-# cannot read instead of aborting the listing, and codex-clear.sh, against a fake agtermctl, refuses
+# cannot read instead of aborting the listing and keeping a run's events.jsonl and progress.md in
+# the workflow ledger before it removes the run, and codex-clear.sh, against a fake agtermctl, refuses
 # a Codex not registered for mail, confirms the new conversation's registration after a clear and
 # returns only once the READY turn has ended. reviewer-seat.py re-applies a seat other than Codex's
 # configured default at every clear without calling it a switch.
@@ -121,10 +122,35 @@ else
   fail "--remove refuses the unreadable run: exit $code"
 fi
 
+# The ledger is the clone's git directory. A file where its runs/ directory belongs makes the copy
+# fail, and then nothing may be removed.
+LEDGER=$CLONE/.git/workflow-ledger
+printf 'progress\n' >"$CLONE/.peer-planning/landed/progress.md"
+mkdir -p "$CLONE/.peer-planning/landed/msgs" && printf 'm\n' >"$CLONE/.peer-planning/landed/msgs/001-codex-plan.md"
+mkdir -p "$LEDGER" && : >"$LEDGER/runs"
+set +e
+err=$(cd "$CLONE" && py "$SCRIPTS/run-records.py" --remove "$CLONE/.peer-planning/landed" 2>&1)
+code=$?
+set -e
+if [ "$code" != 0 ] && [[ $err == *"could not keep"*"nothing was removed"* ]] && [ -f "$CLONE/.peer-planning/landed/events.jsonl" ]; then
+  pass "--remove refuses to remove a run it could not keep in the ledger"
+else
+  fail "--remove refuses to remove a run it could not keep in the ledger: exit $code: $err"
+fi
+rm "$LEDGER/runs"
+
 if out=$(cd "$CLONE" && py "$SCRIPTS/run-records.py" --remove "$CLONE/.peer-planning/landed" 2>&1) && [ ! -d "$CLONE/.peer-planning/landed" ]; then
   pass "--remove deletes the landed run"
 else
   fail "--remove deletes the landed run: $out"
+fi
+if [ "$(cat "$LEDGER/runs/landed/events.jsonl")" = "$start"$'\n'"$end" ] \
+  && [ "$(cat "$LEDGER/runs/landed/progress.md")" = progress ] \
+  && [ "$(cd "$LEDGER/runs/landed" && find . -mindepth 1 | sort | tr '\n' ' ')" = "./events.jsonl ./progress.md " ] \
+  && [[ $out == *"kept events.jsonl, progress.md in $LEDGER/runs/landed"* ]]; then
+  pass "--remove first keeps events.jsonl and progress.md, and nothing else, in the ledger"
+else
+  fail "--remove keeps the run's analysis files in the ledger: $out; $(find "$LEDGER" | sort)"
 fi
 
 # ---- codex-clear.sh ----
