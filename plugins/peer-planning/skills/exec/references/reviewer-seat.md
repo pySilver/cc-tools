@@ -1,28 +1,37 @@
 # The reviewer seat
 
 The second voice in `make` and `exec` is a second model family, never the planner's own. Which
-model holds the seat follows the owner's order:
+model holds the seat follows the owner's order. The models and efforts come from the plugin's
+`models.toml`, the table of recommended models both skills read:
 
 | Seat | Model | When |
 |---|---|---|
 | `astra` | `gpt-6-astra`, reasoning `high` | the default |
 | `sol` | `gpt-6.1-sol`, reasoning `xhigh` | the OpenAI week is at least 80% used and at most one usage reset is left |
 | `opus` | an Opus subagent at high effort | Codex is unavailable |
+| `kept` | the model Codex's pane ran at setup | the owner chose to keep it for the run, at the model check |
 
 `scripts/reviewer-seat.py` picks the seat and prints one JSON object: `seat`, `model`, `effort`,
-`reason`, `used_percent`, `resets_left`, `pane_model` (what Codex's status line shows),
+`reason`, `used_percent`, `resets_left`, `unmeasured`, `pane_model` (what Codex's status line shows),
 `pane_default` (the model and effort in Codex's `config.toml`, which every cleared conversation
 starts on), `switch` (whether the seat changes hands) and `clear_flags` (what every clear
 carries). Weekly use comes from Codex's own rollouts. Resets left are read only at 80% or more,
 through `codex-clear.sh --resets`, which opens Codex's `/usage` screen, reads the count and leaves
 with Esc; it never sends Enter there. Redeeming a reset still takes the owner's instruction.
 
+When the week cannot be read, the seat is `astra` and `unmeasured` says why. Since 2026-11-12
+Codex runs through CLIProxyAPI, which records no `rate_limits` in the rollouts and makes `/usage`
+answer "Sign in with ChatGPT to use /usage", so this is every run's case while the proxy is in
+the way. The owner's ruling that day: "try to read the usage and fallback to" astra, and say so
+once, at the model check. The 80% rule reads one account's week, and the proxy shares two, so
+it needs a new rule before the proxy's figures can stand in.
+
 ## When to pick
 
 Run the picker at the two points where the pane may change hands, and nowhere else:
 
-- **At setup**, just before the first clear (`exec` setup step 10), or before the first message
-  in `make`.
+- **At setup**, at the model check, before the first clear (`exec` setup step 10), or before the
+  first message in `make`.
 - **At each close**, just before `codex-clear.sh` (`exec` "E. Close" step 2).
 
 Never in the middle of a discussion or a review: the argument needs the thread and the model it
@@ -52,8 +61,19 @@ clear is not a switch and logs nothing beyond `codex.clear`. Because each clear 
 seat, the pane shows the seat at the next close, and `switch` is true only when the seat changes.
 
 In `make`, where nothing is cleared before the first message, run the clear with `clear_flags`
-once before the first message only when the picker says `switch`; the planning conversation keeps
-its model for as long as it is not cleared.
+once before the first message only when the picker says `switch` and the owner chose the seat at
+the model check; the planning conversation keeps its model for as long as it is not cleared.
+
+## A kept model
+
+At setup, the model check asks the owner when Codex's pane runs a model other than the seat. When
+the owner keeps the pane's model, `exec` writes `MODEL ACCEPTED codex <model> <effort>` to
+`progress.md`, picks again with `--keep "<model> <effort>"` before the setup clear, and passes
+it to every later pick of the run. A pane whose model could not be read offers no keep, and the
+picker refuses `--keep` with `unknown` in it. The seat is then
+`kept`, the sol rule no longer applies, and `clear_flags` puts the kept model back at each clear
+just as it would a seat. `--codex-down` still wins: the Opus seat replaces a kept model as it
+would any other, and the next pick with `--keep` returns to it.
 
 ## Codex unavailable
 

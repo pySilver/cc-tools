@@ -1,0 +1,55 @@
+# The recommended model and effort for each role in a peer-planning run.
+#
+# The one table both skills read. scripts/model-check.py compares the run against it at setup of
+# make and exec and asks the owner once about any row that differs. skills/exec/scripts/
+# reviewer-seat.py takes the Codex seats from it. Each row says where its value came from.
+#
+# A Claude session row lists model IDs as the transcript records them; an agent row lists the
+# values a definition's `model:` line may carry, the alias and the ID it resolves to today.
+
+[session.make]
+# The planner: this session while it runs peer-planning:make.
+models = ["claude-fable-5-2"]
+effort = "high"
+source = "owner ruling, 2026-11-12"
+
+[session.exec]
+# The orchestrator: this session while it runs peer-planning:exec.
+models = ["claude-opus-5-5"]
+effort = "high"
+source = "owner ruling, 2026-11-12"
+
+[agent.executor]
+# The implementer of each task, the review fixer and the suite stage: the `implementer`
+# definition by default, or whatever definition the invocation, the task or the plan names.
+models = ["opus", "claude-opus-5-5"]
+effort = "high"
+source = "owner ruling, 2026-11-12"
+
+[agent.closer]
+# The closing-stage agent of exec: the branch review and the polish.
+models = ["opus", "claude-opus-5-5"]
+effort = "high"
+source = "exec's closing stages, as the closer definition was written"
+
+[agent.second-opinion]
+# make's one Fable call on a stalled design question.
+models = ["fable", "claude-fable-5-2"]
+effort = "high"
+source = "~/.claude/rules/subagent-models.md, second opinions"
+
+# The Codex seats, in the owner's order; reviewer-seat.py picks one (references/reviewer-seat.md).
+[seat.astra]
+model = "gpt-6-astra"
+effort = "high"
+source = "owner's order, references/reviewer-seat.md"
+
+[seat.sol]
+model = "gpt-6.1-sol"
+effort = "xhigh"
+source = "owner's order, references/reviewer-seat.md"
+
+[seat.opus]
+model = "opus"
+effort = "high"
+source = "owner's order, references/reviewer-seat.md"

@@ -1,6 +1,6 @@
 ---
 name: exec
-description: Execute a plan task by task as a two-agent run. An implementation subagent (Opus at medium by default) builds each task, Codex in the adjacent agterm pane reviews the diff before the commit, then Codex is cleared and the next task starts; a task the plan marks for discussion has its approach agreed with Codex first. The agents talk through agterm's pane mailboxes (the mailbox-chat skill), with long content in files, and every step lands in a jsonl event log that a live agterm page shows. Finish with the project's revmux review rounds and its polish step, each run by a fresh closing-stage subagent, and one run of the whole suite. Use it whenever the user says peer-planning:exec, asks to execute a peer-planning:make plan, or wants plan execution reviewed by Codex task by task, even when they just say "run this plan with Codex".
+description: Execute a plan task by task as a two-agent run. An implementation subagent (Opus at high by default) builds each task, Codex in the adjacent agterm pane reviews the diff before the commit, then Codex is cleared and the next task starts; a task the plan marks for discussion has its approach agreed with Codex first. The agents talk through agterm's pane mailboxes (the mailbox-chat skill), with long content in files, and every step lands in a jsonl event log that a live agterm page shows. Finish with the project's revmux review rounds and its polish step, each run by a fresh closing-stage subagent, and one run of the whole suite. Use it whenever the user says peer-planning:exec, asks to execute a peer-planning:make plan, or wants plan execution reviewed by Codex task by task, even when they just say "run this plan with Codex".
 ---
 
 # peer-planning:exec, two-agent plan execution
@@ -109,8 +109,8 @@ memory: finalize trusts it in place of a run it watched.
    It reads the right pane without typing and exits 0 only when Codex is idle with an empty
    composer and registered for mail. If Codex is not running in the right pane, or is not
    registered (its first prompt has not run, or its mailbox-chat hook is missing), stop and say
-   what the script reported. This skill never starts an agent or opens a pane, and Codex runs with
-   the model and effort the user started it with.
+   what the script reported. This skill never starts an agent or opens a pane, and it changes the
+   model Codex was started with only after step 10 has asked.
 4. **Resolve the plan.** Use the argument, or list `docs/plans/*.md` outside `completed/` and ask
    the user to pick one.
 5. **Load the rules.** Run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-rules.sh`. Drop its
@@ -118,9 +118,11 @@ memory: finalize trusts it in place of a run it watched.
    It prints nothing when the project has none; `USER_RULES` is then "none".
 6. **Resolve the executor.** The first source that names one wins: the user's invocation text, the
    task's own **Executor:** line, the plan's Execution section, then the default, the `implementer`
-   agent definition (Opus at medium).
-   - The Agent tool takes a model but no effort. Effort comes from an agent definition's
-     frontmatter, so the executor is always a definition, passed as `subagent_type`.
+   agent definition (Opus at high).
+   - The executor is always an agent definition, passed as `subagent_type`, with no `model` or
+     `effort` on the call. The definition's frontmatter carries both, and the model check at
+     setup reads them there; a per-call value, which the Agent tool now accepts, would run the
+     subagent on something the check never saw.
    - A stated model and effort need a definition whose frontmatter carries both
      (`.claude/agents/` or `~/.claude/agents/`; `worker`, for example, is Opus at high).
    - If none matches, or the default definition is missing, say so and ask before task 1, offering
@@ -158,11 +160,45 @@ memory: finalize trusts it in place of a run it watched.
      run.
    - Append to it after every step: the task, its phase, the implementer's agent id, the commit
      SHA, and every decision, deviation or user ruling.
-10. **Check whether Codex can write long replies.**
+10. **Check the models.** The owner asked to be asked before a run goes on with a model other than
+    the recommended one, on the Claude side and on the Codex side. `${CLAUDE_PLUGIN_ROOT}/models.toml`
+    holds the recommended model and effort of each role, and `make` reads the same table.
     - Pick the reviewer seat with `scripts/reviewer-seat.py`, as `references/reviewer-seat.md`
-      says: it names the model for the seat, whether the seat changes hands, and the
-      `clear_flags` the clear below carries. When it names the Opus seat, follow that reference
-      instead of this step.
+      says, and write its JSON to `RUN_DIR/seat.json`. When `progress.md` holds a
+      `MODEL ACCEPTED codex <model> <effort>` line, pass `--keep "<model> <effort>"`. Step 11 uses
+      the seat in that file.
+    - Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/model-check.py exec --seat "$RUN_DIR/seat.json"
+      --accepted "$RUN_DIR/progress.md"` with one `--agent executor=<definition>` for each
+      executor the run will use (the default or the plan's, and each task's **Executor:** line)
+      and `--agent closer=<definition>`. It prints one row for this session, one for each
+      definition and one for Codex's pane, each with its current and recommended value.
+    - When `differs` is false, say nothing about it and go on.
+    - When a row differs, ask once, with every differing row in the one question: the role, its
+      current value, the recommended one and where the recommendation comes from. It confirms
+      this run's setup against a table the owner already ruled, so it skips the gate; inside
+      agterm it is a huddle page. The answers for each row:
+      - this session or a definition: "go on as it is" or "I will switch";
+      - Codex: "switch to the seat", which step 11's clear does (in a resumed run past that
+        clear, the next close), or "keep `<pane model>` for this run". Offer "keep" only when the
+        pane's model was read; a row that shows `unknown unknown` gets "switch to the seat" and
+        "I will look at the pane".
+    - Write each "go on" and "keep" to `progress.md` on a line of its own, as
+      `MODEL ACCEPTED <row> <model> <effort>` with the row's current value. A resumed run passes
+      the file again and asks only about a row that changed since.
+    - After "keep" for Codex, pick the seat again with `--keep` and rewrite `RUN_DIR/seat.json`
+      before step 11, or the setup clear puts the seat back. Pass `--keep` to every later pick of
+      the run too, so each clear puts the kept model back.
+    - After "I will switch", wait until the user says it is done, then run the check again. This
+      session switches with `/model` and `/effort`, which keep the conversation. A definition
+      switches with an edit to its `model:` or `effort:` line.
+    - The first time in the run that a pick has `unmeasured` set, here or at a close, tell the
+      user in one line that the weekly use is unknown and why, and that the seat is astra. Write
+      `Weekly use unknown: told` to `progress.md`, so neither a later pick nor a resumed run says
+      it again.
+11. **Check whether Codex can write long replies.**
+    - Take the seat in `RUN_DIR/seat.json`, which step 10 wrote: it names the model for the
+      seat, whether the seat changes hands, and the `clear_flags` the clear below carries. When it
+      names the Opus seat, follow `references/reviewer-seat.md` instead of this step.
     - Clear Codex first, unless the run is past it: run
       `bash ${CLAUDE_SKILL_DIR}/scripts/codex-clear.sh <clear_flags>`, log `reviewer.switch` when
       the picker said `switch`, and log `codex.clear` with its exit code and no `task`. `make`
@@ -180,7 +216,7 @@ memory: finalize trusts it in place of a run it watched.
       file; it answers in chat only. Record which in `progress.md`.
     - If Codex's pane shows an approval prompt instead, stop and tell the user. The prompt is theirs
       to answer.
-11. **Open the monitor.** Log `run.start` with every field `references/event-log.md` gives it:
+12. **Open the monitor.** Log `run.start` with every field `references/event-log.md` gives it:
 
     ```bash
     "${CLAUDE_SKILL_DIR}/scripts/log-event.py" "$RUN_DIR" run.start plan=docs/plans/<plan>.md \
@@ -331,7 +367,8 @@ the same plan file.
 
 1. **Commit.** Resume the implementer with the "Commit" prompt. When it returns, confirm
    `git -C WORK_PATH log -1 --oneline` and the task's ticked boxes in the plan, then log `commit`.
-2. **Clear Codex.** Pick the reviewer seat first (`references/reviewer-seat.md`). Run
+2. **Clear Codex.** Pick the reviewer seat first (`references/reviewer-seat.md`), with
+   `--keep` when `progress.md` holds a `MODEL ACCEPTED codex` line. Run
    `bash ${CLAUDE_SKILL_DIR}/scripts/codex-clear.sh <clear_flags>` with the picker's
    `clear_flags`, on every clear: a `/clear` drops a `/model` switch, so a seat other than Codex's
    configured default is re-applied each time. Log `reviewer.switch` only when the picker said

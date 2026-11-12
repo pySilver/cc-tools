@@ -33,7 +33,7 @@ before the task closes; a task marked `**Discuss:** yes` has its approach agreed
 - Cite code by path and symbol, never by line number.
 
 ## Execution
-- **Implementer:** the `implementer` agent definition (Opus at medium). A task may
+- **Implementer:** the `implementer` agent definition (Opus at high). A task may
   name another definition in its own **Executor:** line.
 - **Validation:** <the project's commands, stated once here: format, lint, type
   check, framework checks, and pytest over only the test files a task writes or

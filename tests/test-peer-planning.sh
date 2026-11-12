@@ -5,7 +5,9 @@
 # the workflow ledger before it removes the run, and codex-clear.sh, against a fake agtermctl, refuses
 # a Codex not registered for mail, confirms the new conversation's registration after a clear and
 # returns only once the READY turn has ended. reviewer-seat.py re-applies a seat other than Codex's
-# configured default at every clear without calling it a switch.
+# configured default at every clear without calling it a switch, keeps astra when the week cannot
+# be read, and holds a model the owner kept. model-check.py compares the session, the agent
+# definitions and Codex's pane with models.toml.
 # Everything happens in a throwaway clone; no agterm session is touched.
 set -euo pipefail
 
@@ -359,11 +361,121 @@ else
   fail "reviewer-seat fails loudly on a config.toml that is not TOML: exit $code: $toml_out"
 fi
 
+# A week it cannot read (Codex behind a proxy records no rate_limits) keeps astra and says why.
+seat_fields() {
+  CODEX_HOME=$seat_home py "$SCRIPTS/reviewer-seat.py" "$@" \
+    | "$PY" -I -c 'import json,sys; d=json.load(sys.stdin); print(d["seat"], d["model"], d["effort"], "|", d["unmeasured"] or "")'
+}
 rm -rf "$seat_home" && mkdir -p "$seat_home/sessions"
-if CODEX_HOME=$seat_home py "$SCRIPTS/reviewer-seat.py" >/dev/null 2>&1; then
-  fail "reviewer-seat fails loudly when no rollout records weekly use"
+got=$(seat_fields 2>&1) || true
+if [[ $got == "astra gpt-6-astra high | none of the newest 0 rollouts"*"records weekly rate_limits" ]]; then
+  pass "reviewer-seat: an unreadable week keeps astra and names the cause"
 else
-  pass "reviewer-seat fails loudly when no rollout records weekly use"
+  fail "reviewer-seat: an unreadable week keeps astra and names the cause: got '$got'"
+fi
+got=$(seat_fields --used-percent 90 2>&1) || true
+if [[ $got == "astra gpt-6-astra high | resets left unreadable: "* ]]; then
+  pass "reviewer-seat: at 90% with resets left unreadable, astra keeps the seat and says why"
+else
+  fail "reviewer-seat: at 90% with resets left unreadable: got '$got'"
+fi
+check_seat "kept gpt-6.1-sol xhigh" "a model the owner kept holds the seat at any weekly use" \
+  --keep "gpt-6.1-sol xhigh" --used-percent 95 --resets 0
+check_seat "opus opus high" "Codex down replaces a kept model with the Opus seat" \
+  --keep "gpt-6.1-sol xhigh" --codex-down "no answer"
+for bad in "gpt-6.1-sol" "unknown unknown"; do
+  if CODEX_HOME=$seat_home py "$SCRIPTS/reviewer-seat.py" --keep "$bad" >/dev/null 2>&1; then
+    fail "reviewer-seat refuses --keep '$bad'"
+  else
+    pass "reviewer-seat refuses --keep '$bad'"
+  fi
+done
+rollout 52 "$future"
+printf 'model = "gpt-6-astra"\nmodel_reasoning_effort = "high"\n' >"$seat_home/config.toml"
+check_clear "False |--model gpt-6.1-sol --reasoning xhigh|" \
+  "a kept model on its pane is no switch, and every clear puts it back" \
+  "$sol_status" --keep "gpt-6.1-sol xhigh"
+
+# ---- model-check.py ----
+# A fake config dir holds this session's transcript and the agent definitions; the project has
+# none of its own, so the definitions come from the config dir.
+MC=$WORK/model-check
+mkdir -p "$MC/config/projects/-p" "$MC/config/agents" "$MC/project"
+transcript() {
+  : >"$MC/config/projects/-p/S-MC.jsonl"
+  for entry in "$@"; do printf '%s\n' "$entry" >>"$MC/config/projects/-p/S-MC.jsonl"; done
+}
+printf -- '---\nname: implementer\nmodel: opus\neffort: high\n---\nbody\n' >"$MC/config/agents/implementer.md"
+printf -- '---\nname: closer\nmodel: opus\n---\nbody\n' >"$MC/config/agents/closer.md"
+check_model() {
+  local want=$1 label=$2 got
+  shift 2
+  got=$(CLAUDE_CONFIG_DIR=$MC/config CLAUDE_CODE_SESSION_ID=S-MC \
+    py "$PWD/plugins/peer-planning/scripts/model-check.py" "$@" --project "$MC/project" 2>&1 \
+    | "$PY" -I -c 'import json,sys; d=json.load(sys.stdin); print(d["differs"], *[r["row"] + "=" + r["current"] + ("" if r["matches"] else "!") for r in d["rows"]])' 2>&1) || true
+  if [ "$got" = "$want" ]; then pass "model-check: $label"; else fail "model-check: $label: got '$got'"; fi
+}
+opus='{"type":"assistant","effort":"high","message":{"model":"claude-opus-5-5"}}'
+fable='{"type":"assistant","effort":"high","message":{"model":"claude-fable-5-2"}}'
+synthetic='{"type":"assistant","message":{"model":"<synthetic>"}}'
+transcript "$fable" "$opus" "$synthetic"
+check_model "False session=claude-opus-5-5 high executor/implementer=opus high" \
+  "the newest real assistant message gives the session's model, past a synthetic one" \
+  exec --agent executor=implementer
+transcript "$opus" "$fable"
+check_model "True session=claude-fable-5-2 high!" "Fable as exec's orchestrator differs" exec
+check_model "False session=claude-fable-5-2 high" "Fable as make's planner matches" make
+printf 'notes\nMODEL ACCEPTED session claude-fable-5-2 high\n' >"$MC/progress.md"
+check_model "False session=claude-fable-5-2 high" "a value the owner accepted for the run matches" \
+  exec --accepted "$MC/progress.md"
+transcript "$opus"
+check_model "True session=claude-opus-5-5 high closer/closer=opus unset!" \
+  "a definition with no effort line differs" exec --agent closer=closer
+mkdir -p "$MC/project/.claude/agents"
+printf -- '---\nname: closer\nmodel: sonnet\neffort: high\n---\n' >"$MC/project/.claude/agents/closer.md"
+check_model "True session=claude-opus-5-5 high closer/closer=sonnet high!" \
+  "the project's definition comes before the user's" exec --agent closer=closer
+check_model "True session=claude-opus-5-5 high executor/worker=unknown unknown!" \
+  "a definition that exists nowhere is a row that differs, not an exit" exec --agent executor=worker
+printf '%s' '{"seat":"astra","model":"gpt-6-astra","effort":"high","reason":"weekly use 12%","pane_model":"gpt-6.1-sol xhigh"}' >"$MC/astra.json"
+check_model "True session=claude-opus-5-5 high codex=gpt-6.1-sol xhigh!" \
+  "a pane on another model than the seat differs" exec --seat "$MC/astra.json"
+# shellcheck disable=SC2016 # the backticks are the text under test
+printf -- '- `MODEL ACCEPTED codex gpt-6.1-sol xhigh`\n' >"$MC/progress-codex.md"
+check_model "False session=claude-opus-5-5 high codex=gpt-6.1-sol xhigh" \
+  "a pane model the owner kept, written as a list item in backticks, matches" \
+  exec --seat "$MC/astra.json" --accepted "$MC/progress-codex.md"
+printf '%s' '{"seat":"astra","model":"gpt-6-astra","effort":"high","reason":"weekly use 12%","pane_model":""}' >"$MC/blind.json"
+check_model "True session=claude-opus-5-5 high codex=unknown unknown!" \
+  "a pane whose status line was not read differs as unknown" exec --seat "$MC/blind.json"
+# The picker's own output for a kept model, apostrophes and all, goes through the file unharmed.
+CODEX_HOME=$seat_home py "$SCRIPTS/reviewer-seat.py" --keep "gpt-6.1-sol xhigh" >"$MC/kept.json"
+check_model "True session=claude-opus-5-5 high codex=unknown unknown!" \
+  "the picker's kept-seat JSON reads from its file" exec --seat "$MC/kept.json"
+printf '%s' '{"seat":"kept","model":"gpt-6.1-sol","effort":"xhigh","reason":"kept","pane_model":"gpt-6.1-sol xhigh"}' >"$MC/kept-pane.json"
+check_model "False session=claude-opus-5-5 high codex=gpt-6.1-sol xhigh" \
+  "a pane on the model the owner kept matches" exec --seat "$MC/kept-pane.json"
+printf '%s' '{"seat":"opus","model":"opus","effort":"high"}' >"$MC/opus.json"
+check_model "False session=claude-opus-5-5 high" "the Opus seat has no pane row" exec --seat "$MC/opus.json"
+printf -- '---\nname: builder\neffort: high\n---\n' >"$MC/config/agents/some-file.md"
+check_model "True session=claude-opus-5-5 high executor/builder=inherit high!" \
+  "a definition is found by its name line, and one with no model line differs" exec --agent executor=builder
+for bad in "exec --agent executor" "exec --seat" "exec --agent nosuchrole=implementer" "exec --seat $MC/progress.md" "plan"; do
+  # shellcheck disable=SC2086 # each case is a word list on purpose
+  if CLAUDE_CONFIG_DIR=$MC/config CLAUDE_CODE_SESSION_ID=S-MC \
+    py "$PWD/plugins/peer-planning/scripts/model-check.py" $bad >/dev/null 2>&1; then
+    fail "model-check refuses '$bad' with exit 1"
+  else
+    pass "model-check refuses '$bad' with exit 1"
+  fi
+done
+got=$(CLAUDE_CONFIG_DIR=$MC/config CLAUDE_CODE_SESSION_ID=S-MISSING \
+  py "$PWD/plugins/peer-planning/scripts/model-check.py" make --project "$MC/project" 2>&1 \
+  | "$PY" -I -c 'import json,sys; r=json.load(sys.stdin)["rows"][0]; print(r["current"], "|", r["note"])' 2>&1) || true
+if [[ $got == "unknown unknown | no transcript for session S-MISSING"* ]]; then
+  pass "model-check: a session with no transcript is unknown, with the reason"
+else
+  fail "model-check: a session with no transcript is unknown: got '$got'"
 fi
 
 # ---- branch-overlap.py ----

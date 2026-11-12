@@ -6,7 +6,7 @@ description: Create an implementation plan in docs/plans/ whose tasks are coarse
 # peer-planning:make, plans with coarse tasks
 
 The plan this skill writes is executed by `/peer-planning:exec`. There, a subagent implements each
-task (Opus at medium by default) and Codex reviews the diff before the commit. A task the plan marks
+task (Opus at high by default) and Codex reviews the diff before the commit. A task the plan marks
 for discussion has its approach agreed with Codex before any code. The executor is capable and finds
 details itself, so each task states the outcome, the constraints and the proof that it is done, not
 the steps. The planner's job moves up a level: settle the decisions an
@@ -64,8 +64,10 @@ writer; Codex is read-only in the repository.
   whole without these files.
 - **Pick the reviewer seat** before the first message, with
   `${CLAUDE_PLUGIN_ROOT}/skills/exec/scripts/reviewer-seat.py`, as
-  `${CLAUDE_PLUGIN_ROOT}/skills/exec/references/reviewer-seat.md` says. When it says `switch`, run
-  `codex-clear.sh` with its `clear_flags` once, before the first message. When
+  `${CLAUDE_PLUGIN_ROOT}/skills/exec/references/reviewer-seat.md` says, and write its JSON to
+  `RUN_DIR/seat.json` for the model check. When it says `switch`, the
+  model check below asks first, and only on "switch to the seat" run `codex-clear.sh` with its
+  `clear_flags`, once, before the first message. When
   Codex is unavailable, the same reference makes the second voice an Opus subagent; that is a
   second model family, so it needs no waiver. The plan header names the model that held the seat.
 - **Check that Codex is there** before the first message:
@@ -76,6 +78,24 @@ writer; Codex is read-only in the repository.
 - **Skipping Codex takes an explicit waiver** from the user: "skip Codex", "plan it alone", or "just
   plan it" given as the answer to that choice. "Plan this" or "just plan it" on its own names the
   work, not who does it. Ask for the waiver once and record it in the plan's header.
+- **Check the models** once Codex's presence and any waiver are settled, before the first
+  message. The owner asked to be asked before planning goes on with a model other than the
+  recommended one, on the Claude side and on the Codex side. `${CLAUDE_PLUGIN_ROOT}/models.toml`
+  holds the recommended model and effort of each role, and exec reads the same table. Run
+  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/model-check.py make --agent second-opinion=second-opinion --seat "$RUN_DIR/seat.json"`,
+  without `--seat` when Codex is unavailable or waived. It prints one row for this session, one
+  for the Fable definition and one for Codex's pane.
+  - When `differs` is false, say nothing about it and go on.
+  - When a row differs, ask once, with every differing row in the one question: the role, its
+    current value, the recommended one and where the recommendation comes from. It confirms this
+    plan's setup against a table the owner already ruled, so it skips the gate; inside agterm it
+    is a huddle page. For this session or the definition the answers are "go on as it is" or "I
+    will switch"; for Codex, "switch to the seat" or "keep `<pane model>`", which leaves the pane
+    as it is. Offer "keep" only when the pane's model was read, not for `unknown unknown`.
+  - After "I will switch", wait until the user says it is done, then run the check again. This
+    session switches with `/model` and `/effort`, which keep the conversation.
+  - When the picker's `unmeasured` is set, tell the user in one line that the weekly use is
+    unknown and why, and that the seat is astra.
 
 ## Night mode
 
@@ -232,7 +252,7 @@ cannot discover: why this, which alternatives were refused, and what must not br
   from: a checked fact (a code cite or a measurement), pair-settled (Claude and Codex), an owner
   ruling, or the planner's own call with its reason. Pair-settled is a claim, not a fact; the
   project's review reads it as one.
-- **Execution:** names the implementer, the `implementer` agent definition (Opus at medium) unless
+- **Execution:** names the implementer, the `implementer` agent definition (Opus at high) unless
   the plan names another definition, the validation commands and the whole-suite command, once.
   Tasks refer to them rather than repeating them.
 - **The project's rules still apply in full:**
