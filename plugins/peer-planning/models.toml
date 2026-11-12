@@ -38,16 +38,19 @@ models = ["fable", "claude-fable-5-2"]
 effort = "high"
 source = "~/.claude/rules/subagent-models.md, second opinions"
 
-# The Codex seats, in the owner's order; reviewer-seat.py picks one (references/reviewer-seat.md).
-[seat.astra]
-model = "gpt-6-astra"
-effort = "high"
-source = "owner's order, references/reviewer-seat.md"
-
-[seat.sol]
+# The reviewer seats; reviewer-seat.py picks one (references/reviewer-seat.md). Codex holds the
+# skill's own seat, and the Opus subagent takes over when Codex is unavailable.
+[seat.make]
+# Codex arguing and checking the plan.
 model = "gpt-6.1-sol"
 effort = "xhigh"
-source = "owner's order, references/reviewer-seat.md"
+source = "owner ruling, 2026-11-12: faster and cheaper than gpt-6-astra, still smart"
+
+[seat.exec]
+# Codex reviewing each task; the branch review's revmux rounds catch what a task review missed.
+model = "gpt-6.1-sol"
+effort = "high"
+source = "owner ruling, 2026-11-12: faster and cheaper than gpt-6-astra, revmux catches the rest"
 
 [seat.opus]
 model = "opus"

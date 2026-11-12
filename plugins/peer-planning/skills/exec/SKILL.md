@@ -163,8 +163,8 @@ memory: finalize trusts it in place of a run it watched.
 10. **Check the models.** The owner asked to be asked before a run goes on with a model other than
     the recommended one, on the Claude side and on the Codex side. `${CLAUDE_PLUGIN_ROOT}/models.toml`
     holds the recommended model and effort of each role, and `make` reads the same table.
-    - Pick the reviewer seat with `scripts/reviewer-seat.py`, as `references/reviewer-seat.md`
-      says, and write its JSON to `RUN_DIR/seat.json`. When `progress.md` holds a
+    - Pick the reviewer seat with `scripts/reviewer-seat.py exec`, as
+      `references/reviewer-seat.md` says, and write its JSON to `RUN_DIR/seat.json`. When `progress.md` holds a
       `MODEL ACCEPTED codex <model> <effort>` line, pass `--keep "<model> <effort>"`. Step 11 uses
       the seat in that file.
     - Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/model-check.py exec --seat "$RUN_DIR/seat.json"
@@ -191,10 +191,6 @@ memory: finalize trusts it in place of a run it watched.
     - After "I will switch", wait until the user says it is done, then run the check again. This
       session switches with `/model` and `/effort`, which keep the conversation. A definition
       switches with an edit to its `model:` or `effort:` line.
-    - The first time in the run that a pick has `unmeasured` set, here or at a close, tell the
-      user in one line that the weekly use is unknown and why, and that the seat is astra. Write
-      `Weekly use unknown: told` to `progress.md`, so neither a later pick nor a resumed run says
-      it again.
 11. **Check whether Codex can write long replies.**
     - Take the seat in `RUN_DIR/seat.json`, which step 10 wrote: it names the model for the
       seat, whether the seat changes hands, and the `clear_flags` the clear below carries. When it
@@ -367,8 +363,8 @@ the same plan file.
 
 1. **Commit.** Resume the implementer with the "Commit" prompt. When it returns, confirm
    `git -C WORK_PATH log -1 --oneline` and the task's ticked boxes in the plan, then log `commit`.
-2. **Clear Codex.** Pick the reviewer seat first (`references/reviewer-seat.md`), with
-   `--keep` when `progress.md` holds a `MODEL ACCEPTED codex` line. Run
+2. **Clear Codex.** Pick the reviewer seat first with `scripts/reviewer-seat.py exec`
+   (`references/reviewer-seat.md`), with `--keep` when `progress.md` holds a `MODEL ACCEPTED codex` line. Run
    `bash ${CLAUDE_SKILL_DIR}/scripts/codex-clear.sh <clear_flags>` with the picker's
    `clear_flags`, on every clear: a `/clear` drops a `/model` switch, so a seat other than Codex's
    configured default is re-applied each time. Log `reviewer.switch` only when the picker said

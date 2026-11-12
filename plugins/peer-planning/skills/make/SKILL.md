@@ -63,7 +63,7 @@ writer; Codex is read-only in the repository.
   check. Never create `progress.md` there: exec reads it as a run to resume. The plan must read
   whole without these files.
 - **Pick the reviewer seat** before the first message, with
-  `${CLAUDE_PLUGIN_ROOT}/skills/exec/scripts/reviewer-seat.py`, as
+  `${CLAUDE_PLUGIN_ROOT}/skills/exec/scripts/reviewer-seat.py make`, as
   `${CLAUDE_PLUGIN_ROOT}/skills/exec/references/reviewer-seat.md` says, and write its JSON to
   `RUN_DIR/seat.json` for the model check. When it says `switch`, the
   model check below asks first, and only on "switch to the seat" run `codex-clear.sh` with its
@@ -94,8 +94,6 @@ writer; Codex is read-only in the repository.
     as it is. Offer "keep" only when the pane's model was read, not for `unknown unknown`.
   - After "I will switch", wait until the user says it is done, then run the check again. This
     session switches with `/model` and `/effort`, which keep the conversation.
-  - When the picker's `unmeasured` is set, tell the user in one line that the weekly use is
-    unknown and why, and that the seat is astra.
 
 ## Night mode
 

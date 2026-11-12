@@ -4,9 +4,9 @@
 # cannot read instead of aborting the listing and keeping a run's events.jsonl and progress.md in
 # the workflow ledger before it removes the run, and codex-clear.sh, against a fake agtermctl, refuses
 # a Codex not registered for mail, confirms the new conversation's registration after a clear and
-# returns only once the READY turn has ended. reviewer-seat.py re-applies a seat other than Codex's
-# configured default at every clear without calling it a switch, keeps astra when the week cannot
-# be read, and holds a model the owner kept. model-check.py compares the session, the agent
+# returns only once the READY turn has ended. reviewer-seat.py takes make's or exec's seat from
+# models.toml, re-applies a seat other than Codex's configured default at every clear without calling
+# it a switch, and holds a model the owner kept. model-check.py compares the session, the agent
 # definitions and Codex's pane with models.toml.
 # Everything happens in a throwaway clone; no agterm session is touched.
 set -euo pipefail
@@ -289,13 +289,9 @@ else
 fi
 
 # ---- reviewer-seat.py ----
-# A fake CODEX_HOME holds one rollout whose last rate_limits record is the weekly window under test.
+# A fake CODEX_HOME holds config.toml, the model a cleared Codex starts on.
 seat_home=$WORK/codex-home
-rollout() {
-  rm -rf "$seat_home" && mkdir -p "$seat_home/sessions/2026/11/07"
-  printf '{"type":"event_msg","payload":{"rate_limits":{"primary":{"used_percent":%s,"window_minutes":10080,"resets_at":%s}}}}\n' \
-    "$1" "$2" >"$seat_home/sessions/2026/11/07/rollout-test.jsonl"
-}
+mkdir -p "$seat_home"
 seat() {
   CODEX_HOME=$seat_home py "$SCRIPTS/reviewer-seat.py" "$@" \
     | "$PY" -I -c 'import json,sys; d=json.load(sys.stdin); print(d["seat"], d["model"], d["effort"])'
@@ -306,19 +302,18 @@ check_seat() {
   got=$(seat "$@" 2>&1) || true
   if [ "$got" = "$want" ]; then pass "reviewer-seat: $label"; else fail "reviewer-seat: $label: got '$got'"; fi
 }
-future=$(($(date +%s) + 86400))
-past=$(($(date +%s) - 60))
-
-rollout 52 "$future"
-check_seat "astra gpt-6-astra high" "weekly use read from the newest rollout keeps astra below 80%"
-check_seat "sol gpt-6.1-sol xhigh" "at 85% with one reset left, sol takes the seat" --used-percent 85 --resets 1
-check_seat "astra gpt-6-astra high" "at 85% with three resets left, astra keeps the seat" --used-percent 85 --resets 3
-check_seat "opus opus high" "with Codex down, the seat is an Opus subagent" --codex-down "no answer"
-rollout 95 "$past"
-check_seat "astra gpt-6-astra high" "a rollout whose weekly window has reset counts as 0%"
+check_seat "codex gpt-6.1-sol xhigh" "make's seat is Sol at xhigh" make
+check_seat "codex gpt-6.1-sol high" "exec's seat is Sol at high" exec
+check_seat "opus opus high" "with Codex down, the seat is an Opus subagent" exec --codex-down "no answer"
+for bad in "" "plan" "--keep"; do
+  if CODEX_HOME=$seat_home py "$SCRIPTS/reviewer-seat.py" ${bad:+"$bad"} >/dev/null 2>&1; then
+    fail "reviewer-seat refuses a first argument other than make or exec: '$bad'"
+  else
+    pass "reviewer-seat refuses a first argument other than make or exec: '$bad'"
+  fi
+done
 # The clear after a switch: the pane runs the seat, and a /clear would return it to config.toml's
 # default. The pane's status line comes from the fake agtermctl.
-rollout 52 "$future"
 printf 'model = "gpt-6-astra"\nmodel_reasoning_effort = "high"\n' >"$seat_home/config.toml"
 seat_clear() {
   local status=$1
@@ -334,25 +329,28 @@ check_clear() {
   got=$(seat_clear "$@" 2>&1) || true
   if [ "$got" = "$want" ]; then pass "reviewer-seat: $label"; else fail "reviewer-seat: $label: got '$got'"; fi
 }
-sol_status="GPT-6.1-Sol xhigh · ~/p · Context 2% used · weekly 12% left"
+sol_xhigh_status="GPT-6.1-Sol xhigh · ~/p · Context 2% used · weekly 12% left"
+sol_high_status="GPT-6.1-Sol high · ~/p · Context 2% used · weekly 12% left"
 astra_status="GPT-6-Astra high · ~/p · Context 2% used · weekly 48% left"
-check_clear "True |--model gpt-6.1-sol --reasoning xhigh|" \
-  "a pane on Astra moving to Sol is a switch, and the clear carries Sol" \
-  "$astra_status" --used-percent 85 --resets 1
+check_clear "True |--model gpt-6.1-sol --reasoning high|" \
+  "a pane on the configured Astra moving to exec's seat is a switch, and the clear carries it" \
+  "$astra_status" exec
+check_clear "True |--model gpt-6.1-sol --reasoning high|" \
+  "a pane left on make's seat moves to exec's seat at exec's setup clear" "$sol_xhigh_status" exec
+check_clear "False |--model gpt-6.1-sol --reasoning high|" \
+  "a pane already on exec's seat is no switch, but every clear still re-applies it" "$sol_high_status" exec
 check_clear "False |--model gpt-6.1-sol --reasoning xhigh|" \
-  "a pane already on Sol is no switch, but every clear still re-applies Sol" \
-  "$sol_status" --used-percent 85 --resets 1
-check_clear "False ||" "Astra on a pane whose default is Astra needs a plain clear" "$astra_status"
-check_clear "True |--model gpt-6-astra --reasoning high|" \
-  "Sol handing the seat back to Astra is a switch" "$sol_status"
-check_clear "False ||" "the Opus seat carries nothing to a clear" "$astra_status" --codex-down "no answer"
+  "a pane already on make's seat is no switch" "$sol_xhigh_status" make
+check_clear "False ||" "the Opus seat carries nothing to a clear" "$astra_status" exec --codex-down "no answer"
+printf 'model = "gpt-6.1-sol"\nmodel_reasoning_effort = "high"\n' >"$seat_home/config.toml"
+check_clear "False ||" "exec's seat on a pane whose default is that seat needs a plain clear" "$sol_high_status" exec
 rm "$seat_home/config.toml"
-check_clear "False |--model gpt-6-astra --reasoning high|" \
-  "with no configured default, every clear carries the seat" "$astra_status"
+check_clear "False |--model gpt-6.1-sol --reasoning high|" \
+  "with no configured default, every clear carries the seat" "$sol_high_status" exec
 printf 'model = \n' >"$seat_home/config.toml"
 set +e
 toml_out=$(PATH="$FAKE:$PATH" AGTERM_SESSION_ID=S-1 FAKE_STATE="$CC/state" FAKE_STATUS="$astra_status" \
-  CODEX_HOME=$seat_home py "$SCRIPTS/reviewer-seat.py" 2>&1)
+  CODEX_HOME=$seat_home py "$SCRIPTS/reviewer-seat.py" exec 2>&1)
 code=$?
 set -e
 if [ "$code" = 1 ] && [[ $toml_out == *"is not valid TOML"* ]]; then
@@ -360,41 +358,24 @@ if [ "$code" = 1 ] && [[ $toml_out == *"is not valid TOML"* ]]; then
 else
   fail "reviewer-seat fails loudly on a config.toml that is not TOML: exit $code: $toml_out"
 fi
+rm "$seat_home/config.toml"
 
-# A week it cannot read (Codex behind a proxy records no rate_limits) keeps astra and says why.
-seat_fields() {
-  CODEX_HOME=$seat_home py "$SCRIPTS/reviewer-seat.py" "$@" \
-    | "$PY" -I -c 'import json,sys; d=json.load(sys.stdin); print(d["seat"], d["model"], d["effort"], "|", d["unmeasured"] or "")'
-}
-rm -rf "$seat_home" && mkdir -p "$seat_home/sessions"
-got=$(seat_fields 2>&1) || true
-if [[ $got == "astra gpt-6-astra high | none of the newest 0 rollouts"*"records weekly rate_limits" ]]; then
-  pass "reviewer-seat: an unreadable week keeps astra and names the cause"
-else
-  fail "reviewer-seat: an unreadable week keeps astra and names the cause: got '$got'"
-fi
-got=$(seat_fields --used-percent 90 2>&1) || true
-if [[ $got == "astra gpt-6-astra high | resets left unreadable: "* ]]; then
-  pass "reviewer-seat: at 90% with resets left unreadable, astra keeps the seat and says why"
-else
-  fail "reviewer-seat: at 90% with resets left unreadable: got '$got'"
-fi
-check_seat "kept gpt-6.1-sol xhigh" "a model the owner kept holds the seat at any weekly use" \
-  --keep "gpt-6.1-sol xhigh" --used-percent 95 --resets 0
+check_seat "kept gpt-6-astra high" "a model the owner kept holds the seat" exec --keep "gpt-6-astra high"
 check_seat "opus opus high" "Codex down replaces a kept model with the Opus seat" \
-  --keep "gpt-6.1-sol xhigh" --codex-down "no answer"
+  exec --keep "gpt-6-astra high" --codex-down "no answer"
 for bad in "gpt-6.1-sol" "unknown unknown"; do
-  if CODEX_HOME=$seat_home py "$SCRIPTS/reviewer-seat.py" --keep "$bad" >/dev/null 2>&1; then
+  if CODEX_HOME=$seat_home py "$SCRIPTS/reviewer-seat.py" exec --keep "$bad" >/dev/null 2>&1; then
     fail "reviewer-seat refuses --keep '$bad'"
   else
     pass "reviewer-seat refuses --keep '$bad'"
   fi
 done
-rollout 52 "$future"
 printf 'model = "gpt-6-astra"\nmodel_reasoning_effort = "high"\n' >"$seat_home/config.toml"
+check_clear "False ||" "a kept model that is the configured default needs a plain clear" \
+  "$astra_status" exec --keep "gpt-6-astra high"
 check_clear "False |--model gpt-6.1-sol --reasoning xhigh|" \
   "a kept model on its pane is no switch, and every clear puts it back" \
-  "$sol_status" --keep "gpt-6.1-sol xhigh"
+  "$sol_xhigh_status" exec --keep "gpt-6.1-sol xhigh"
 
 # ---- model-check.py ----
 # A fake config dir holds this session's transcript and the agent definitions; the project has
@@ -437,19 +418,24 @@ check_model "True session=claude-opus-5-5 high closer/closer=sonnet high!" \
   "the project's definition comes before the user's" exec --agent closer=closer
 check_model "True session=claude-opus-5-5 high executor/worker=unknown unknown!" \
   "a definition that exists nowhere is a row that differs, not an exit" exec --agent executor=worker
-printf '%s' '{"seat":"astra","model":"gpt-6-astra","effort":"high","reason":"weekly use 12%","pane_model":"gpt-6.1-sol xhigh"}' >"$MC/astra.json"
-check_model "True session=claude-opus-5-5 high codex=gpt-6.1-sol xhigh!" \
-  "a pane on another model than the seat differs" exec --seat "$MC/astra.json"
+printf '%s' '{"seat":"codex","model":"gpt-6.1-sol","effort":"high","reason":"the exec seat in models.toml","pane_model":"gpt-6-astra high"}' >"$MC/seat.json"
+check_model "True session=claude-opus-5-5 high codex=gpt-6-astra high!" \
+  "a pane on another model than the seat differs" exec --seat "$MC/seat.json"
 # shellcheck disable=SC2016 # the backticks are the text under test
-printf -- '- `MODEL ACCEPTED codex gpt-6.1-sol xhigh`\n' >"$MC/progress-codex.md"
-check_model "False session=claude-opus-5-5 high codex=gpt-6.1-sol xhigh" \
+printf -- '- `MODEL ACCEPTED codex gpt-6-astra high`\n' >"$MC/progress-codex.md"
+check_model "False session=claude-opus-5-5 high codex=gpt-6-astra high" \
   "a pane model the owner kept, written as a list item in backticks, matches" \
-  exec --seat "$MC/astra.json" --accepted "$MC/progress-codex.md"
-printf '%s' '{"seat":"astra","model":"gpt-6-astra","effort":"high","reason":"weekly use 12%","pane_model":""}' >"$MC/blind.json"
+  exec --seat "$MC/seat.json" --accepted "$MC/progress-codex.md"
+printf '%s' '{"seat":"codex","model":"gpt-6.1-sol","effort":"high","reason":"the exec seat in models.toml","pane_model":""}' >"$MC/blind.json"
 check_model "True session=claude-opus-5-5 high codex=unknown unknown!" \
   "a pane whose status line was not read differs as unknown" exec --seat "$MC/blind.json"
+transcript "$fable"
+printf '%s' '{"seat":"codex","model":"gpt-6.1-sol","effort":"xhigh","reason":"the make seat in models.toml","pane_model":"gpt-6.1-sol xhigh"}' >"$MC/make-seat.json"
+check_model "False session=claude-fable-5-2 high codex=gpt-6.1-sol xhigh" \
+  "a pane on make's seat matches in make" make --seat "$MC/make-seat.json"
+transcript "$opus"
 # The picker's own output for a kept model, apostrophes and all, goes through the file unharmed.
-CODEX_HOME=$seat_home py "$SCRIPTS/reviewer-seat.py" --keep "gpt-6.1-sol xhigh" >"$MC/kept.json"
+CODEX_HOME=$seat_home py "$SCRIPTS/reviewer-seat.py" exec --keep "gpt-6.1-sol xhigh" >"$MC/kept.json"
 check_model "True session=claude-opus-5-5 high codex=unknown unknown!" \
   "the picker's kept-seat JSON reads from its file" exec --seat "$MC/kept.json"
 printf '%s' '{"seat":"kept","model":"gpt-6.1-sol","effort":"xhigh","reason":"kept","pane_model":"gpt-6.1-sol xhigh"}' >"$MC/kept-pane.json"

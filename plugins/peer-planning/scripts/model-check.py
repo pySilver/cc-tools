@@ -18,7 +18,8 @@ One row per model the run will use:
   one with no `effort:` line the session's effort; neither is a recommendation, so the row
   differs;
 - Codex's pane, from the file holding the JSON reviewer-seat.py printed, given as --seat: the
-  model its status line shows against the seat the picker chose. An Opus seat has no pane row. A
+  model its status line shows against the seat the picker chose ([seat.make] or [seat.exec], or
+  the model the owner kept). An Opus seat has no pane row. A
   pane whose status line could not be read is "unknown unknown", which differs and which the
   picker refuses as a model to keep.
 
@@ -206,8 +207,10 @@ def main(argv: list[str]) -> None:
         if seat.get("seat") == "opus":
             continue
         pane_model, pane_effort = ((seat.get("pane_model") or "").split() + ["unknown", "unknown"])[:2]
-        source = str(table.get("seat", {}).get(str(seat.get("seat")), {}).get("source", "the owner's keep at setup"))
-        # The reason carries an unmeasured week's cause, which the owner hears once at setup.
+        if seat.get("seat") == "codex":
+            source = str(table.get("seat", {}).get(skill, {}).get("source", ""))
+        else:
+            source = "the owner's keep at setup"
         rows.append(row("codex", pane_model, pane_effort, [str(seat.get("model"))], str(seat.get("effort")),
                         source, f"seat {seat.get('seat')}: {seat.get('reason')}", accepted))
 

@@ -11,7 +11,7 @@
 # then the mailbox keeps handing mail to the cleared thread. The reset counts as done once the
 # registered thread id has changed and Codex has finished answering the READY prompt. The thread
 # registers as that turn starts, so a return on the registration alone left Codex mid-turn, and the
-# next check of the pane (the seat picker's --resets read) refused.
+# next check of the pane refused.
 #
 # Exit 0: cleared, the new conversation takes mail, and Codex is idle. Exit 2: refused, nothing typed.
 # Exit 1: typed, but the reset or the new registration could not be confirmed; read the pane
@@ -25,21 +25,14 @@
 # So the caller passes the seat on every clear while the seat differs from that default
 # (reviewer-seat.py's clear_flags). The owner approved this line on 2026-11-07, at this boundary
 # only.
-#
-# --resets reads how many usage-limit resets are left and prints the number. The count is shown
-# only on Codex's /usage screen, under "Redeem reset", the same screen that redeems one. So this
-# types /usage, then 2, reads the count and leaves with Esc twice: it never sends Enter there,
-# because redeeming takes the owner's instruction. Exit codes as above.
 set -uo pipefail
 
 check_only=""
-read_resets=""
 model=""
 reasoning=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --check) check_only=yes ;;
-    --resets) read_resets=yes ;;
     --model) model="${2:-}"; shift ;;
     --reasoning) reasoning="${2:-}"; shift ;;
     *)
@@ -192,57 +185,6 @@ type_command() {
   done
   return 1
 }
-
-if [ -n "$read_resets" ]; then
-  if ! type_command "/usage"; then
-    echo "codex-clear: typed '/usage' but the composer does not show it; read the pane" >&2
-    exit 1
-  fi
-  send $'\n'
-  menu=""
-  for _ in 1 2 3 4 5 6 7 8; do
-    sleep 1
-    if read_pane 15 | grep -q "Redeem reset"; then
-      menu=yes
-      break
-    fi
-  done
-  if [ -z "$menu" ]; then
-    echo "codex-clear: /usage did not show 'Redeem reset'; read the pane" >&2
-    exit 1
-  fi
-  send "2"
-  count=""
-  for _ in 1 2 3 4 5 6 7 8; do
-    sleep 1
-    screen="$(read_pane 15)"
-    # "1 usage limit reset available." or "3 usage limit resets available."
-    count="$(grep -oE '[0-9]+ usage limit resets? available' <<<"$screen" | grep -oE '^[0-9]+' | tail -n 1)"
-    if [ -z "$count" ] && grep -qiE 'no usage limit resets?' <<<"$screen"; then
-      count=0
-    fi
-    if [ -n "$count" ]; then
-      break
-    fi
-  done
-  send $'\e'
-  sleep 1
-  send $'\e'
-  sleep 1
-  case "$(read_pane 20 | composer_line)" in
-    "" | "Ask Codex to do anything") ;;
-    *)
-      echo "codex-clear: left the reset screen but the composer is not empty; read the pane" >&2
-      exit 1
-      ;;
-  esac
-  if [ -z "$count" ]; then
-    echo "codex-clear: the reset screen showed no count; read the pane" >&2
-    exit 1
-  fi
-  echo "$count"
-  exit 0
-fi
 
 # Step 1: type /clear and see it in the composer.
 if ! type_command "/clear"; then

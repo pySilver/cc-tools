@@ -12,13 +12,12 @@ Everything in `SKILL.md` holds, except what follows.
 There is no agterm split and no mailbox. Each exchange with Codex is one `codex exec` thread that
 the planner resumes, so the argument keeps its context across turns:
 
-- Pick the seat with `skills/exec/scripts/reviewer-seat.py` as by day. Its `model` and `effort`
+- Pick the seat with `skills/exec/scripts/reviewer-seat.py make` as by day. Its `model` and `effort`
   go on the command line (`-m <model> -c model_reasoning_effort="<effort>"`); with the Opus seat,
   the reference's Opus subagent takes Codex's place.
 - The model check runs without `--seat`, since each `codex exec` call names the seat's model
   itself, and asks nothing: each row that differs goes in the plan's header beside the planning
-  line, with its current and recommended value, for the owner to read in the morning. So does
-  the picker's `unmeasured`.
+  line, with its current and recommended value, for the owner to read in the morning.
 - The first message of an exchange:
   `codex exec -C "$WORK_PATH" -s read-only --json -m <model> -c model_reasoning_effort="<effort>" - < RUN_DIR/msgs/NNN-claude-plan.md`,
   run in the background. Its JSON events name the thread (`thread.started`, `thread_id`); note it
