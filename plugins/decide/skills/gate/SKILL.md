@@ -5,7 +5,8 @@ description: >
   reaches them, so the user sees fewer and better questions. A judge checks
   whether a recorded ruling already answers it, whether a probe, a test or a
   rule can, or whether it is cheap and reversible enough for an agent to
-  decide; a question about users goes through the persona panel first; Jev
+  decide; a held question whose options each cost something, about users or
+  technical, goes through the persona panel first; Jev
   checks the card's framing; after the user answers, Jev decides whether the
   answer is a durable ruling, which is then written down. The judge starts in
   shadow mode: it logs its verdict beside the user's answer and decides
@@ -24,7 +25,7 @@ a question for the user
   -> judge: has the user already ruled?      yes -> decided: quote the ruling
   -> checkable by a probe, a test or a rule?  yes -> sent back: probe it, test it, follow the rule
   -> reversible and cheap?                    yes -> an agent decides, and says so
-  -> about what users see?                    yes -> persona panel (decide:panel), which makes the card
+  -> held, and each option costs something?   yes -> persona panel (decide:panel), which makes the card
   -> Jev: is the card framed for the user?    no  -> back to the card's author
   -> the user answers
   -> Jev: is the answer a durable ruling?     yes -> a ruling file; no -> this task only
@@ -71,11 +72,16 @@ and tell the user in one line with the reason. Only **held** goes on to step 3.
 
 ### 3. The card
 
-A question about what users would see or do (a shopper, a merchant, an operator) goes through the
-persona panel (`decide:panel`), which writes the card and runs the framing check. Any other
-question still goes out as a card in the panel's format (the question in user terms, the options,
-the recommendation and what it costs, the strongest dissent, "wrong if", the undo cost), and gets
-the same framing check through `jev`, the spec in `decide:panel`'s `references/messages.md`.
+A question the judge called **held** whose options each cost something goes through the persona
+panel (`decide:panel`), which writes the card and runs the framing check. That holds for a
+technical fork as much as for one users would see: the panel brings the people who run and build
+the system to a technical question, and its practice scout finds what teams at a similar scale do,
+so the card's recommendation is not the asking agent's view alone. In shadow mode the verdict only
+picks which card is made; the question still reaches the user either way, and the card never shows
+the verdict. Any other question still goes out as a card in the panel's format (the question in
+user terms, the options, the recommendation and what it costs, the strongest dissent, "wrong if",
+the undo cost), and gets the same framing check through `jev`, the spec in `decide:panel`'s
+`references/messages.md`.
 
 ### 4. Ask the user
 

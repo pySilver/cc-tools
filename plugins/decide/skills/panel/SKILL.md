@@ -3,15 +3,19 @@ name: panel
 description: >
   Run a persona panel on a question before it reaches the user, and turn the
   answers into a question card: what each option looks like to the people it
-  affects, a recommendation that says what it costs them, the strongest
-  dissent, what would flip it, and whether it can be undone. Each persona
-  answers twice, once as an Opus subagent and once as a Sol subagent the
+  affects, a recommendation that says what it costs them and what backs it,
+  the strongest dissent, what would flip it, whether it can be undone, and
+  what teams at a similar scale do. Each persona reads the project's profile
+  and answers twice, once as an Opus subagent and once as a Sol subagent the
   paired Codex spawns, so a split between the two model families shows as
-  uncertainty. Use before any question that needs judgment about users reaches
-  the user (a design fork, a size, a default, a trade-off between options a
-  shopper or merchant would notice), whenever a peer-planning run, a plan
-  interview or a question gate is about to ask one, and when the user says
-  "panel", "run the personas", "ask the personas" or "what would users say".
+  uncertainty; a practice scout searches how competitors and comparable teams
+  handle the same question, for the moderator only. Use before any question
+  whose options each cost something reaches the user, about users or
+  technical (a design fork, a size, a default, a scope, a trade-off between
+  consistency and cost), whenever a peer-planning run, a plan interview or a
+  question gate is about to ask one, and when the user says "panel", "run the
+  personas", "ask the personas", "what would users say" or "what do other
+  teams do".
   It also reviews any artifact as those people (a backlog item, a plan
   section, a doc, a PR body, product copy) and synthesizes what each would
   notice, how much it matters to them and where they split: use it when the
@@ -27,14 +31,33 @@ each from what they would actually see, and the user gets a card instead of a li
 
 ## When it runs, and when it does not
 
-- **It runs** on a question a user would notice the answer to: what shows first, how much a
-  penalty weighs, which default a shopper gets, what a merchant sees after a change.
+- **It runs** on a question whose options each cost something, so that no option is plainly
+  right: what shows first, how much a penalty weighs, which default a shopper gets, what a merchant
+  sees after a change, and technical forks too, such as how much of a fix to build now, whether to
+  measure at full scale first, or how fresh a copy of the data must be. A technical question brings
+  the people who run and build the system, never a shopper.
 - **It does not run** on a question the code, a test, a probe or an existing ruling can answer.
   Check the project's rulings first (in mybaze, `docs/rulings/`): a ruled question is quoted,
   never re-asked.
 - **It does not decide intent or taste.** "Do we want this at all" and "which looks right" stay
   the user's. The panel can still tell the user what each choice looks like to the people it
   affects.
+
+## The project profile
+
+`.personas/profile.md` at the root of the checkout says what the project is: the product, who uses
+it and where, its scale, the rules every answer works within, what a newcomer gets wrong, and the
+teams to compare with. Every persona reads it before its own file, and so do the practice scout and
+the moderator. Without it a persona judges a fifty-million-item catalog as if it held a thousand,
+and a shopper persona in a fashion catalog took a drawing for a normal product photo, which the
+owner answered with "There is no such thing in FASHION as ILLUSTRATION" (mybaze gate log,
+2026-11).
+
+Each project writes its own from `references/profile-template.md`; no user or built-in profile
+stands in for it. `scripts/cast.py` prints its path as `profile`, from the checkout or, like the
+cast, from the default branch when the checkout has none. When `profile` is null, the panel still
+runs and every card and review says "no project profile"; offer once to draft one from the
+project's own documents, for the user to finish and commit.
 
 ## The people
 
@@ -45,7 +68,8 @@ the first of three layers that has any persona file, the same order revmux reads
    merchant, an ops admin, the engineer on call and the CEO);
 2. `~/.config/personas/cast/`, the user's;
 3. the built-in cast in this skill's `cast/`: a person who uses the product, the engineer who runs
-   it and the owner who pays for it, generic enough for any repository.
+   it, the engineer who builds the next change on it and the owner who pays for it, generic enough
+   for any repository.
 
 The whole cast comes from one layer; files are never merged across layers, because a generic
 person beside a project's own shopper would be picked as if they were one of its users. Resolve it
@@ -59,7 +83,8 @@ and `source` names the branch and commit. `cast.py init` copies the cast that re
 A panel brings only the people the question affects, never the whole cast by default. Pick them
 before writing the brief: a persona is in when some option changes what that person sees, does or
 answers for, and the brief says in one line why each one is there. A question about the storefront order brings the shopper and the merchant; one
-about an alert brings the engineer on call; the CEO comes in when the options differ in cost to
+about an alert brings the engineer on call; a technical fork brings the engineer who runs the
+system and the one who builds the next change on it; the CEO comes in when the options differ in cost to
 the company or in how they would be defended to shoppers and merchants. Two is the floor: with one
 persona there is no second view to disagree. Add a question-specific persona in the brief when the
 question turns on someone the files do not cover, such as a shopper in a market whose language or
@@ -92,9 +117,9 @@ The brief is neutral: no recommendation, no option marked as the expected one, n
 a persona would not know. Both model families read the same brief, so any lean in it reaches both
 and the panel stops measuring anything.
 
-### 2. Each persona answers twice, independently
+### 2. Each persona answers twice, independently, and the scout searches
 
-Start both families at once, then end the turn; the answers wake you.
+Start both families and the scout at once, then end the turn; the answers wake you.
 
 - **Opus.** One subagent per persona, all in one message so they run in parallel:
   `subagent_type: "general-purpose"`, `model: "opus"`, `run_in_background: true`, with the
@@ -110,21 +135,34 @@ Start both families at once, then end the turn; the answers wake you.
   reviewer's, so a panel waits for the next clear boundary when it can, and otherwise the review
   that follows is read knowing Codex saw the answers.
 
+- **The practice scout.** One more Opus subagent in the same message, `subagent_type:
+  "general-purpose"`, `model: "opus"`, `run_in_background: true`, with the "Practice scout" prompt.
+  It searches how the profile's competitors and teams at a similar scale handle the question, and
+  writes `PANEL_DIR/practice.md`: each claim with its link and a quote, a guess about a competitor
+  labeled "inferred", and what it searched for and did not find. It runs on question panels only,
+  not on story reads or reviews.
+
+The personas never read `practice.md`, and the brief never quotes it: a persona that has read
+another team's choice can only repeat it, and its vote stops being a second view. Only the
+moderator and the challenger read it.
+
 If the paired Codex is unavailable, the panel runs on Opus alone and the card says so on its
 persona line: "one model family only; agreement between families unmeasured". It never runs Sol
 one-shot instead.
 
 ### 3. The moderator writes the card
 
-A fresh Opus subagent, with the "Moderator" prompt from `references/messages.md`, reads the brief
-and every answer and writes `PANEL_DIR/card.md` in the format below. It did not take part, so it
+A fresh Opus subagent, with the "Moderator" prompt from `references/messages.md`, reads the
+profile, the brief, every answer and the scout's `practice.md`, and writes `PANEL_DIR/card.md` in
+the format below. It did not take part, so it
 has no answer of its own to defend. A recommendation is never "the smaller change" on size alone;
 it says what the option costs a user.
 
 ### 4. The challenger
 
 Send the card to the paired Codex with the "Challenge" message: Codex, the other model family from
-the Opus moderator, argues why the recommendation is wrong. Hold the exchange under the "Pair
+the Opus moderator, argues why the recommendation is wrong, and opens the practice's links to check
+that each says what the card claims. Hold the exchange under the "Pair
 sessions" rules of `~/.agents/AGENTS.md`: each turn brings a refutation, a cite or a changed
 position, and a turn that only repeats the one before it ends the exchange. Update the card for
 every point you accept; the strongest point that survives is the card's "strongest dissent".
@@ -140,8 +178,10 @@ goes to the user with the check's result on it, never silently.
 ### 6. Ask the user
 
 Put the card to the user: in agterm with the `huddle` skill, the options carrying their "what you
-would see" text and the recommendation marked; elsewhere as plain text, which also reads on a
-phone. Record the answer in `PANEL_DIR/answer.md`. Whether the answer is a durable ruling is the
+would see" text, the recommendation marked with the reason that names what backs it, and the
+practice in the page's context with its links; elsewhere as plain text, which also reads on a
+phone. A card with "No clear pick" marks no option recommended: the badge appears only when the
+card says what backs it. Record the answer in `PANEL_DIR/answer.md`. Whether the answer is a durable ruling is the
 question gate's call, not the panel's.
 
 ## Reading stories
@@ -192,8 +232,8 @@ review informs whoever acts next, and a decision that follows from it still goes
    - **Where they agree**, and **where they split**, between personas or between the two answers
      of one persona, which means the panel is unsure there.
    - **What would change the read**: the fact that, if true, would move the verdict most.
-   - **The cast**: the layer and source it came from, and "one model family only" when Codex was
-     unavailable.
+   - **The cast**: the layer and source it came from, "one model family only" when Codex was
+     unavailable, and "no project profile" when there is none.
 
 The caller reports the review with the artifact it was about. Reviewing a backlog item, the
 `tracking:backlog` skill may offer to fold what the review changed into the item; the panel never
@@ -206,13 +246,18 @@ A card carries, in this order:
 1. **The question**, in user terms, one sentence.
 2. **Each option as what the people it affects would see**, a short paragraph each, from the
    evidence.
-3. **The recommendation**, and what it costs a user.
+3. **The recommendation**, what it costs a user, and what backs it: how many personas want it in
+   each model family, and whether the practice supports it. When the personas and the practice
+   split with no clear side, **No clear pick**, and what each side rests on.
 4. **The strongest dissent**: the best case against the recommendation that survived the
    challenge.
 5. **Wrong if**: the fact that, if true, would flip the recommendation.
 6. **Undo**: whether the choice can be reversed later, and what reversing costs.
-7. **The personas**, one line: what they said, with any split between personas or between the two
-   model families, and the layer and source the cast came from.
+7. **What teams like this one do**: the practice in two or three lines, each with its link,
+   inferred lines marked, or "no published practice found".
+8. **The personas**, one line: what they said, with any split between personas or between the two
+   model families, the layer and source the cast came from, and "no project profile" when there is
+   none.
 
 No internal units on the card: no scores, ticks, priors, levels or flags. When a number matters,
 say it as a person would meet it ("about one more size on the page").

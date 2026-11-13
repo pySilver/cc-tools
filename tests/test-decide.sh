@@ -3,7 +3,8 @@
 # in the git directory (never the work tree), refuses an unknown verdict and an answer to a
 # question it never logged, and reports both side by side. Then decide:panel's cast.py: the cast
 # resolves from one layer (project, then user, then built-in), a checkout older than its default
-# branch's cast reads that cast, init copies a cast down, and run-dir makes a folder git ignores.
+# branch's cast reads that cast, the project's profile comes from the checkout or the default branch
+# and never from a generic layer, init copies a cast down, and run-dir makes a folder git ignores.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -54,11 +55,13 @@ git init -q --bare "$PANEL/origin.git"
 git -C "$REPO" remote add origin "$PANEL/origin.git"
 git -C "$REPO" push -q origin main
 git -C "$REPO" remote set-head origin main
-if [ "$(layer_of "$REPO")" = "built-in 3" ]; then pass "with no project or user cast, the built-in cast of three answers"; else fail "built-in fallback: $(layer_of "$REPO")"; fi
+if [ "$(layer_of "$REPO")" = "built-in 4" ]; then pass "with no project or user cast, the built-in cast of four answers"; else fail "built-in fallback: $(layer_of "$REPO")"; fi
+profile_of() { cast --repo "$1" | "$PY" -c 'import json, sys; p = json.load(sys.stdin)["profile"]; print("none" if p is None else p["source"].split(" at ")[0])'; }
+if [ "$(profile_of "$REPO")" = "none" ]; then pass "a project with no profile gets none, never a generic one"; else fail "profile without one: $(profile_of "$REPO")"; fi
 
 mkdir -p "$HOME/.config/personas/cast"
 printf '# Index\n' >"$HOME/.config/personas/cast/README.md"
-if [ "$(layer_of "$REPO")" = "built-in 3" ]; then pass "an index with no persona file is not a cast"; else fail "an index alone counted as a cast"; fi
+if [ "$(layer_of "$REPO")" = "built-in 4" ]; then pass "an index with no persona file is not a cast"; else fail "an index alone counted as a cast"; fi
 printf '# Reader\n' >"$HOME/.config/personas/cast/reader.md"
 if [ "$(layer_of "$REPO")" = "user 1" ]; then pass "the user's cast replaces the built-in one whole"; else fail "user layer: $(layer_of "$REPO")"; fi
 
@@ -67,6 +70,8 @@ mkdir -p "$REPO/.personas/cast"
 printf '# Shopper\n' >"$REPO/.personas/cast/shopper.md"
 printf '# Merchant\n' >"$REPO/.personas/cast/merchant.md"
 if [ "$(layer_of "$REPO")" = "project 2" ]; then pass "the project's cast replaces the user's whole"; else fail "project layer: $(layer_of "$REPO")"; fi
+printf '# Profile\n' >"$REPO/.personas/profile.md"
+if [ "$(profile_of "$REPO")" = "checkout" ]; then pass "the checkout's profile is read, beside a cast from any layer"; else fail "checkout profile: $(profile_of "$REPO")"; fi
 
 # The cast lands on local main only; origin/HEAD still names a main without it.
 git -C "$REPO" add .personas
@@ -75,6 +80,12 @@ git -C "$REPO" worktree add -q "$PANEL/old" old
 source_of() { cast --repo "$1" | "$PY" -c 'import json, sys; c = json.load(sys.stdin); print(c["layer"], c["source"].split(" at ")[0], len(c["personas"]))'; }
 if [ "$(source_of "$PANEL/old")" = "project main 2" ] && [ ! -e "$PANEL/old/.personas" ]; then
   pass "a worktree older than the cast reads it from the local default branch before it is pushed"
+  profile=$(cast --repo "$PANEL/old" | "$PY" -c 'import json, sys; print(json.load(sys.stdin)["profile"]["path"])')
+  if [ "$(profile_of "$PANEL/old")" = "main" ] && grep -q '^# Profile$' "$profile"; then
+    pass "the same worktree reads the default branch's profile"
+  else
+    fail "stale worktree profile: $(profile_of "$PANEL/old")"
+  fi
 else
   fail "stale worktree, cast unpushed: $(source_of "$PANEL/old")"
 fi

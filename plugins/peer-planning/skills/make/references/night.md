@@ -41,8 +41,8 @@ question in the terminal.
 - **A question that would go to the owner** (a stalled point, a choice between surviving
   approaches, a story's wording) goes through `decide:gate`'s judge first. On *decided*, follow
   the ruling it quotes and cite it. On anything else, write the question into a section
-  `## Questions for the owner` near the top of the plan, as the panel's card when it is about
-  users (run `decide:panel`; at night its Sol personas run as separate
+  `## Questions for the owner` near the top of the plan, as the panel's card when its options
+  each cost something, about users or technical (run `decide:panel`; at night its Sol personas run as separate
   `codex exec -m gpt-6.1-sol -c model_reasoning_effort="high" -s read-only` calls with the persona
   prompt from its `references/messages.md`, their replies saved under the panel directory), and go
   on with the recommended option marked **pending the owner's answer** wherever the plan relies

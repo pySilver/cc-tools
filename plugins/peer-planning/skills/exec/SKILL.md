@@ -240,8 +240,8 @@ memory: finalize trusts it in place of a run it watched.
 
 Before any question that asks the user to rule (an approach, a size, a disagreement with Codex
 that stalled, a scope call), run the `decide:gate` skill on it. It checks whether a recorded
-ruling, a probe or a rule already answers it, sends a question about users through the persona
-panel, checks the card's framing, and records the user's answer as a ruling when it is one. While
+ruling, a probe or a rule already answers it, sends a held question whose options each cost
+something, about users or technical, through the persona panel, checks the card's framing, and records the user's answer as a ruling when it is one. While
 the gate is in shadow mode the question still reaches the user; only the judge's verdict is
 logged. Inside a run its files go in `RUN_DIR/gate/`. A typed value or a bare go-ahead on a step
 just described is not a ruling and skips the gate.

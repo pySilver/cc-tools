@@ -12,4 +12,10 @@ never see. It holds no system internals: the panel brief supplies the evidence.
 |---|---|
 | A person who uses the product | `user.md` |
 | The engineer who runs it in production | `operator.md` |
+| The engineer who builds the next change on it | `builder.md` |
 | The owner who pays for it and answers for it | `owner.md` |
+
+The cast knows nothing about the product. That comes from the project's own profile,
+`.personas/profile.md`, which every persona reads before its own file: what the product is, its
+scale, its rules and the teams it compares itself with. Each project writes its own, from
+`references/profile-template.md` in this skill; no profile is shipped.

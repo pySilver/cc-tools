@@ -6,7 +6,8 @@ Usage: cast.py [--repo DIR]
        cast.py run-dir SLUG [--repo DIR]
 
 With no command it prints the cast as JSON: the layer it came from, where in that layer (`source`),
-its directory, its index (README.md, or null) and each persona's stem and path. The cast comes from
+its directory, its index (README.md, or null), each persona's stem and path, and the project's
+profile (`profile`: its path and source, or null). The cast comes from
 the first of three layers that holds any persona file, a `*.md` other than README.md:
 
   project   .personas/cast/ in the checkout, or else on the repository's default branch
@@ -23,6 +24,12 @@ a session running in that worktree keeps the project's people without a rebase. 
 remote default branch, the newer one is read: work can land on either side first. The files
 are written once per commit under the repository's git directory (personas-cast/<sha>/), which is
 never committed and is shared by every worktree; `source` names the branch and commit.
+
+The profile, .personas/profile.md, says what the project is: the product, its scale, its rules and
+the teams it compares itself with. Every persona, the practice scout and the moderator read it first.
+It has one layer, the project's: a profile is about one project, so no user or built-in profile
+stands in for it. A checkout without one reads the default branch's, as for the cast, written under
+the git directory (personas-profile/<sha>.md); with neither, `profile` is null.
 
 `init` copies the cast that resolves into .personas/cast/ so the project has a local copy to edit.
 It refuses a checkout whose .personas/cast/ already holds any file, and one whose default branch
@@ -46,6 +53,7 @@ import sys
 from pathlib import Path
 
 PROJECT_CAST = Path(".personas") / "cast"
+PROJECT_PROFILE = Path(".personas") / "profile.md"
 RUNS = Path(".personas") / "runs"
 BUILT_IN = Path(__file__).resolve().parent.parent / "cast"
 
@@ -136,6 +144,47 @@ def default_branch_cast(root: Path) -> tuple[str, Path] | None:
     return None
 
 
+def git_dir_file(root: Path, folder: str, name: str, body: bytes) -> Path:
+    """Write body once to <git common dir>/<folder>/<name> and return the path.
+
+    Two sessions may write the same commit's file at once: each stages under its own name and the
+    first rename wins; the copies are identical, so the loser's is dropped.
+    """
+    common = Path(git(root, "rev-parse", "--git-common-dir"))
+    target = (common if common.is_absolute() else root / common).resolve() / folder / name
+    if not target.is_file():
+        target.parent.mkdir(parents=True, exist_ok=True)
+        staging = target.with_name(f"{name}.{os.getpid()}.partial")
+        staging.write_bytes(body)
+        try:
+            staging.rename(target)
+        except OSError:
+            if not target.is_file():
+                raise
+            staging.unlink()
+    return target
+
+
+def profile(root: Path) -> dict[str, str] | None:
+    """The project's profile: the checkout's, else the default branch's, else None."""
+    local = root / PROJECT_PROFILE
+    if local.is_file():
+        return {"source": "checkout", "path": str(local)}
+    for ref in default_refs(root):
+        sha = commit_of(root, ref)
+        label = ref.removeprefix("refs/heads/").removeprefix("refs/remotes/")
+        if git(root, "cat-file", "-t", f"{sha}:{PROJECT_PROFILE.as_posix()}") != "blob":
+            continue
+        body = subprocess.run(
+            ["git", "-C", str(root), "show", f"{sha}:{PROJECT_PROFILE.as_posix()}"], capture_output=True
+        )
+        if body.returncode:
+            fail(f"could not read {PROJECT_PROFILE} at {label} ({sha[:9]}): {body.stderr.decode().strip()}")
+        path = git_dir_file(root, "personas-profile", f"{sha}.md", body.stdout)
+        return {"source": f"{label} at {sha[:9]}", "path": str(path)}
+    return None
+
+
 def resolve(root: Path) -> dict[str, object]:
     candidates: list[tuple[str, str, Path]] = [("project", "checkout", root / PROJECT_CAST)]
     if not personas(root / PROJECT_CAST):
@@ -156,6 +205,7 @@ def resolve(root: Path) -> dict[str, object]:
                 "dir": str(directory),
                 "index": str(index) if index.is_file() else None,
                 "personas": [{"stem": p.stem, "path": str(p)} for p in found_personas],
+                "profile": profile(root),
             }
     fail(f"no persona files in any layer; the built-in cast at {BUILT_IN} is missing")
     raise AssertionError
