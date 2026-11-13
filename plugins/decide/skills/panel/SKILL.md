@@ -57,7 +57,7 @@ owner answered with "There is no such thing in FASHION as ILLUSTRATION" (mybaze 
 
 Each project writes its own from `references/profile-template.md`; no user or built-in profile
 stands in for it. `scripts/cast.py` prints its path as `profile`, from the checkout or, like the
-cast, from the default branch when the checkout has none. When `profile` is null, the panel still
+cast, from the default branch when the checkout has none or holds only an unchanged older copy. When `profile` is null, the panel still
 runs and every card and review says "no project profile"; offer once to draft one from the
 project's own documents, for the user to finish and commit.
 
@@ -79,7 +79,9 @@ before every panel with `python3 ${CLAUDE_SKILL_DIR}/scripts/cast.py`, which pri
 its source, the index and each persona's path as JSON. A worktree branched before the project's
 cast landed has none of its own; the script then reads the default branch's cast, from whichever
 of the local and remote branch is newer, so the panel keeps the project's people without a rebase,
-and `source` names the branch and commit. `cast.py init` copies the cast that resolves into
+and `source` names the branch and commit. The same holds for a worktree whose cast is an older copy
+it never edited: a persona added on the default branch reaches it without a merge, while a branch
+that edits its cast keeps its own. `cast.py init` copies the cast that resolves into
 `.personas/cast/` when the user asks to set up personas for a project.
 
 A panel brings only the people the question affects, never the whole cast by default. Pick them

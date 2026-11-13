@@ -19,7 +19,9 @@ projects, so a merge would set a generic "person who uses the product" beside a 
 shopper and the panel would pick from both.
 
 A checkout with no cast of its own may still belong to a project that has one: a worktree branched
-before the cast landed, or moved. Its panel reads the default branch's cast, never a generic one, so
+before the cast landed, or moved. A checkout whose cast is an unchanged older copy (the branch never
+edited it, and the default branch has moved on) reads the default branch's too; a branch that edits
+its cast keeps its own. Its panel reads the default branch's cast, never a generic one, so
 a session running in that worktree keeps the project's people without a rebase. Of the local and
 remote default branch, the newer one is read: work can land on either side first. The files
 are written once per commit under the repository's git directory (personas-cast/<sha>/), which is
@@ -141,8 +143,25 @@ def default_branch_cast(root: Path) -> tuple[str, Path] | None:
                 if not target.is_dir():
                     raise
                 shutil.rmtree(staging)
-        return f"{label} at {sha[:9]}", target
+        return f"{label} at {sha[:9]}", target, ref
     return None
+
+
+def follows_default(root: Path, ref: str, path: str) -> bool:
+    """Whether this checkout left path as the default branch had it and that branch has moved on.
+
+    True when the checkout neither committed a change to path since its merge base with ref nor
+    holds one uncommitted, and ref's version differs from HEAD's: the checkout's copy is then only
+    an older version of the default branch's. A branch that edits path keeps its own.
+    """
+    base = git(root, "merge-base", "HEAD", ref)
+    if not base:
+        return False
+    committed = subprocess.run(["git", "-C", str(root), "diff", "--quiet", base, "HEAD", "--", path]).returncode
+    pending = git(root, "status", "--porcelain", "--untracked-files=all", "--", path)
+    if committed or pending:
+        return False
+    return git(root, "rev-parse", f"HEAD:{path}") != git(root, "rev-parse", f"{ref}:{path}")
 
 
 def git_dir_file(root: Path, folder: str, name: str, body: bytes) -> Path:
@@ -167,15 +186,19 @@ def git_dir_file(root: Path, folder: str, name: str, body: bytes) -> Path:
 
 
 def profile(root: Path) -> dict[str, str] | None:
-    """The project's profile: the checkout's, else the default branch's, else None."""
+    """The project's profile: the checkout's, else the default branch's, else None.
+
+    A checkout whose profile is only an older copy of the default branch's reads the default
+    branch's, so an edit to the profile reaches every worktree without a merge.
+    """
     local = root / PROJECT_PROFILE
-    if local.is_file():
-        return {"source": "checkout", "path": str(local)}
     for ref in default_refs(root):
         sha = commit_of(root, ref)
         label = ref.removeprefix("refs/heads/").removeprefix("refs/remotes/")
         if git(root, "cat-file", "-t", f"{sha}:{PROJECT_PROFILE.as_posix()}") != "blob":
             continue
+        if local.is_file() and not follows_default(root, ref, PROJECT_PROFILE.as_posix()):
+            break
         body = subprocess.run(
             ["git", "-C", str(root), "show", f"{sha}:{PROJECT_PROFILE.as_posix()}"], capture_output=True
         )
@@ -186,15 +209,20 @@ def profile(root: Path) -> dict[str, str] | None:
         blob = git(root, "rev-parse", f"{sha}:{PROJECT_PROFILE.as_posix()}")
         path = git_dir_file(root, "personas-profile", f"{blob}.md", body.stdout)
         return {"source": f"{label} at {sha[:9]}", "path": str(path)}
+    if local.is_file():
+        return {"source": "checkout", "path": str(local)}
     return None
 
 
 def resolve(root: Path) -> dict[str, object]:
-    candidates: list[tuple[str, str, Path]] = [("project", "checkout", root / PROJECT_CAST)]
-    if not personas(root / PROJECT_CAST):
-        found = default_branch_cast(root)
-        if found:
-            candidates.append(("project", found[0], found[1]))
+    # A checkout whose cast is only an older copy of the default branch's reads the default
+    # branch's, so a new persona reaches every worktree without a merge.
+    candidates: list[tuple[str, str, Path]] = []
+    found = default_branch_cast(root)
+    local = bool(personas(root / PROJECT_CAST))
+    if found and (not local or follows_default(root, found[2], PROJECT_CAST.as_posix())):
+        candidates.append(("project", found[0], found[1]))
+    candidates.append(("project", "checkout", root / PROJECT_CAST))
     candidates += [
         ("user", "~/.config/personas/cast", Path.home() / ".config" / "personas" / "cast"),
         ("built-in", "decide:panel", BUILT_IN),

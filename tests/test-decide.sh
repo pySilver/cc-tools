@@ -123,6 +123,29 @@ if [ "$(status_of cast init --repo "$PANEL/old")" = 1 ] && grep -q 'rebase onto 
 else
   fail "init in a stale worktree: $refusal"
 fi
+# A worktree branched after the cast landed holds its own copy; the remote has a newer shopper.
+git -C "$REPO" worktree add -q -b newer "$PANEL/newer" trunk
+newer_shopper=$(cast --repo "$PANEL/newer" | "$PY" -c 'import json, sys; print([p["path"] for p in json.load(sys.stdin)["personas"] if p["stem"] == "shopper"][0])')
+if [ "$(source_of "$PANEL/newer")" = "project origin/trunk 2" ] && grep -q 'edited' "$newer_shopper" && [ "$(profile_of "$PANEL/newer")" = "checkout" ]; then
+  pass "a worktree holding an unchanged older cast reads the default branch's newer one; an unchanged profile reads its own"
+else
+  fail "older copy: $(source_of "$PANEL/newer"), profile $(profile_of "$PANEL/newer")"
+fi
+printf '# Shopper, this branch\n' >"$PANEL/newer/.personas/cast/shopper.md"
+if [ "$(source_of "$PANEL/newer")" = "project checkout 2" ]; then pass "a branch that edits its cast keeps its own"; else fail "edited cast: $(source_of "$PANEL/newer")"; fi
+git -C "$PANEL/newer" checkout -q -- .personas
+printf '# Profile, with versions\n' >"$PANEL/other/.personas/profile.md"
+git -C "$PANEL/other" add .personas
+commit "$PANEL/other" "profile versions"
+git -C "$PANEL/other" push -q origin trunk
+git -C "$REPO" fetch -q origin
+newer_profile=$(cast --repo "$PANEL/newer" | "$PY" -c 'import json, sys; print(json.load(sys.stdin)["profile"]["path"])')
+if [ "$(profile_of "$PANEL/newer")" = "origin/trunk" ] && grep -q 'with versions' "$newer_profile" && [ -z "$(git -C "$PANEL/newer" status --porcelain --untracked-files=all)" ]; then
+  pass "an edit to the profile on the default branch reaches a worktree without a merge, and leaves it clean"
+else
+  fail "newer profile: $(profile_of "$PANEL/newer")"
+fi
+
 if [ "$(status_of cast --repo "$PANEL/no-such-dir")" = 1 ]; then pass "a --repo that does not exist is refused"; else fail "a missing --repo was accepted"; fi
 
 FRESH=$PANEL/fresh
