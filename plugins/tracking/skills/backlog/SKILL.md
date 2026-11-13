@@ -24,6 +24,10 @@ never gates anything and never reaches a contributor.
 The directory path is fixed, so every invocation in a repo reads and writes one predictable store. There
 is no index file: the directory listing is the index, and a `git rm` is the only bookkeeping.
 
+**Asking the user.** Every question here is asked the way the user's own rules say. Inside agterm those
+rules may send a choice to a huddle page: follow them. Where no rule says, use AskUserQuestion. The
+options and the recommendation hold in either form.
+
 **Git only.** The lifecycle is expressed in Git — `git rm` to close an item, branch detection before
 writing, staging and committing the file. Outside a Git repository, say so plainly and stop; do not
 improvise an equivalent in another VCS.
@@ -131,7 +135,7 @@ nearest name.
 3. Report every item, one line each — `yes` first, then `later`, then `no`, oldest `added` first within
    each group. Include `where` for the items that have one. Do not editorialize; the item already carries
    its reasoning.
-4. Offer concrete actions with **AskUserQuestion**, never prose, with a recommendation first:
+4. Offer concrete actions as a question, never prose, with a recommendation first:
    - **fix a named item now** — name the specific item in the option label, not "fix something";
    - **drop a named item** — a `no` whose rationale has stopped earning its place;
    - **leave it** — report only, nothing changes.
@@ -178,7 +182,7 @@ When the files are written, read `git diff --cached --name-only` before offering
 been staged yet at that point, so anything it lists is pre-existing — including another backlog file from
 an earlier run. If it lists anything at all, do not commit: report what is staged and let the user resolve
 it, because a plain `git commit` would sweep it in alongside the item. With an empty index, offer the next
-step with **AskUserQuestion**, staging the exact paths this invocation created or edited and not the
+step as a question, staging the exact paths this invocation created or edited and not the
 directory — an item bundled with the run's other changes violates the rule below. Never commit without that
 answer. Offer commit and push together: a backlog item is notes with no code in it, and unpushed it stays
 invisible from every other machine, so the push is part of filing rather than an upsell.

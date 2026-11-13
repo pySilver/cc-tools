@@ -36,11 +36,18 @@ surfaces mid-round. On a preflight failure, end the phase with that reason.
 
 ## Step 2: hand the round to the skill
 
-Ask the skill for a round on that profile over `git diff DEFAULT_BRANCH...HEAD`, launched from the
-main checkout with `--workdir WORK_PATH` so the round's archive stays with the main checkout. Give
-it the task id: the branch name with every `/` replaced by `-`. The skill opens the round, numbers
-it after the last one that ran, and writes `scope` and `goal`. Never open or launch a round by
-hand.
+Ask the skill for a round on that profile over `git diff DEFAULT_BRANCH...HEAD`, launched from
+WORK_PATH, so the task's rounds sit in WORK_PATH's `.revmux/tasks`. Give it the task id: the
+branch name with every `/` replaced by `-`. The skill opens the round, numbers it after the last
+one that ran, and writes `scope` and `goal`. Never open or launch a round by hand.
+
+The rounds stay in the worktree when WORK_PATH is one. A session Claude Code isolated in a
+worktree cannot write into the main checkout: in the worktree sessions up to 2026-11-13 it refused
+71 writes into the main checkout's `.revmux/tasks`, and the round stopped or went somewhere else.
+The worktree's rounds are not lost when the worktree goes: `git:wrap-up` copies every finished
+round of the branch into the workflow ledger, outside git, before it removes anything. The revmux
+skill's note that a worktree's rounds go with the worktree therefore does not apply here; leave it
+out of your report.
 
 Tell the skill three things it cannot infer:
 - Write no `profile.md` into the round. `.revmux/profile.md` is the project's layer and reaches
