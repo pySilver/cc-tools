@@ -75,7 +75,7 @@ and tell the user in one line with the reason. Only **held** goes on to step 3.
 A question the judge called **held** whose options each cost something goes through the persona
 panel (`decide:panel`), which writes the card and runs the framing check. That holds for a
 technical fork as much as for one users would see: the panel brings the people who run and build
-the system to a technical question, and its practice scout finds what teams at a similar scale do,
+the system to a technical question, and its practice scout checks the facts an option turns on,
 so the card's recommendation is not the asking agent's view alone. In shadow mode the verdict only
 picks which card is made; the question still reaches the user either way, and the card never shows
 the verdict. Any other question still goes out as a card in the panel's format (the question in

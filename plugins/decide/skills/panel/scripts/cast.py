@@ -29,7 +29,8 @@ The profile, .personas/profile.md, says what the project is: the product, its sc
 the teams it compares itself with. Every persona, the practice scout and the moderator read it first.
 It has one layer, the project's: a profile is about one project, so no user or built-in profile
 stands in for it. A checkout without one reads the default branch's, as for the cast, written under
-the git directory (personas-profile/<sha>.md); with neither, `profile` is null.
+the git directory (personas-profile/<blob id>.md, one file per version of the profile); with
+neither, `profile` is null.
 
 `init` copies the cast that resolves into .personas/cast/ so the project has a local copy to edit.
 It refuses a checkout whose .personas/cast/ already holds any file, and one whose default branch
@@ -180,7 +181,10 @@ def profile(root: Path) -> dict[str, str] | None:
         )
         if body.returncode:
             fail(f"could not read {PROJECT_PROFILE} at {label} ({sha[:9]}): {body.stderr.decode().strip()}")
-        path = git_dir_file(root, "personas-profile", f"{sha}.md", body.stdout)
+        # Named by the file's own blob id, so every commit that leaves the profile unchanged reuses
+        # one copy instead of adding another.
+        blob = git(root, "rev-parse", f"{sha}:{PROJECT_PROFILE.as_posix()}")
+        path = git_dir_file(root, "personas-profile", f"{blob}.md", body.stdout)
         return {"source": f"{label} at {sha[:9]}", "path": str(path)}
     return None
 

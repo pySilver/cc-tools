@@ -115,6 +115,8 @@ if [ "$(source_of "$PANEL/old")" = "project origin/trunk 2" ] && grep -q 'edited
 else
   fail "local behind remote: $(source_of "$PANEL/old"), $(head -1 "$shopper")"
 fi
+copies=$(find "$REPO/.git/personas-profile" -name '*.md' | wc -l | tr -d ' ')
+if [ "$copies" = 1 ]; then pass "commits that leave the profile unchanged share one copy of it"; else fail "profile copies: $copies"; fi
 refusal=$(cast init --repo "$PANEL/old" 2>&1 || true)
 if [ "$(status_of cast init --repo "$PANEL/old")" = 1 ] && grep -q 'rebase onto it' <<<"$refusal"; then
   pass "init refuses a worktree whose default branch already has a cast"

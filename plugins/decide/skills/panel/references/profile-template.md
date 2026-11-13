@@ -32,6 +32,15 @@ it: how fresh data must be, what may be eventually consistent, what is never bui
 a second write path), what the hardware is.
 -->
 
+## Tools and versions
+
+<!--
+The tools an answer may turn on, each with the version production runs and where that version is
+pinned: the database, the queue or stream, the search engine, the change-data capture, the
+framework. The practice scout checks a tool's documented behavior at this version; without it, a
+search finds the latest documentation, which may describe a different tool.
+-->
+
 ## What a newcomer gets wrong here
 
 <!--
@@ -42,7 +51,8 @@ every product photo is a professional photo of the real item, never an illustrat
 ## Teams to compare with
 
 <!--
-Who the practice scout looks at, and where their practice is published:
-- Competitors, by name, and what of theirs a person can observe (pages, public APIs, help docs).
-- Teams at a similar scale or with the same problem, by name, and their engineering blogs or talks.
+Competitors by name, and what of theirs a person can observe: pages, public APIs, help documents.
+The practice scout opens these only for a fact about what outside people see. Competitors rarely
+publish how they build things, so a technical fact is checked against the tool's documentation
+or a published postmortem instead.
 -->

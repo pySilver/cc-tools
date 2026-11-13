@@ -74,11 +74,13 @@ Read the three values first, each with its own command:
 - `git rev-parse --show-toplevel`, stored as TOPLEVEL
 - `date -u +%Y-%m-%dT%H:%M:%SZ`, stored as STARTED
 
-Then write every value into the commands as literal text, never as a shell
-variable or a `$(...)`:
-- `mkdir LOCK`
+Then write every value into the commands as literal text in single quotes,
+never as a shell variable or a `$(...)`. The quotes keep a path with a space
+whole, and passing the lines as `%s` arguments keeps a `%` in a branch name from
+being read as a format:
+- `mkdir 'LOCK'`
 - On success, write the owner file with Bash, one line each:
-  `printf 'branch=CURRENT_BRANCH\nworktree=TOPLEVEL\nstarted=STARTED\n' > LOCK/owner`
+  `printf '%s\n' 'branch=CURRENT_BRANCH' 'worktree=TOPLEVEL' 'started=STARTED' > 'LOCK/owner'`
 
 Use Bash for the owner file, not the Write tool. In a session Claude Code
 isolated in a worktree, LOCK is inside the main checkout's `.git`, and Claude
@@ -107,7 +109,7 @@ From here on, every stop releases the lock first: an aborted rebase, the
 0-ahead stop, a wrong commit count, a failing suite, a diverged or moved default
 branch, a rejected or failed push. Step 12 releases it after any landing, and
 "Do nothing" in step 11 releases it too, with LOCK as literal text:
-- `rm -f LOCK/owner && rmdir LOCK`
+- `rm -f 'LOCK/owner' && rmdir 'LOCK'`
 
 ## 4. Fetch Latest Changes
 
@@ -357,8 +359,13 @@ skill and run each command in a new agterm session rooted at WORKTREE_PATH,
 which the guard does not reach: `agtermctl session new --cwd WORKTREE_PATH
 --command … --wait`, as its "Launching a program in a session" says. Read the
 output back with `agtermctl session text`, then close that session. Write the
-path and the session id as literal text. The status check decides the rest
-exactly as above. Outside agterm, the status is unknown: do not offer the
+path and the session id as literal text. Run the status check there as
+`git -C WORKTREE_PATH status --porcelain --branch`: its first line, `## ` and
+the branch, shows that the output arrived, because a command that ends within a
+moment of its session's creation can lose its output. Without that line the
+status is unknown, which is never read as clean: take the outside-agterm path
+below. With it, the lines after it decide the rest exactly as above. Outside
+agterm, the status is unknown: do not offer the
 fast-forward, report both commands for the user to run in WORKTREE_PATH, and
 say in the report that the check did not run.
 

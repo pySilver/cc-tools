@@ -5,11 +5,13 @@ description: >
   answers into a question card: what each option looks like to the people it
   affects, a recommendation that says what it costs them and what backs it,
   the strongest dissent, what would flip it, whether it can be undone, and
-  what teams at a similar scale do. Each persona reads the project's profile
+  which of the facts it rests on a search confirmed. Each persona reads the project's profile
   and answers twice, once as an Opus subagent and once as a Sol subagent the
   paired Codex spawns, so a split between the two model families shows as
-  uncertainty; a practice scout searches how competitors and comparable teams
-  handle the same question, for the moderator only. Use before any question
+  uncertainty; when an option turns on a fact a source outside the project
+  can settle (a tool's documented behavior, a published postmortem, a
+  competitor's public page), a practice scout checks it on the web, for the
+  moderator only. Use before any question
   whose options each cost something reaches the user, about users or
   technical (a design fork, a size, a default, a scope, a trade-off between
   consistency and cost), whenever a peer-planning run, a plan interview or a
@@ -46,8 +48,8 @@ each from what they would actually see, and the user gets a card instead of a li
 ## The project profile
 
 `.personas/profile.md` at the root of the checkout says what the project is: the product, who uses
-it and where, its scale, the rules every answer works within, what a newcomer gets wrong, and the
-teams to compare with. Every persona reads it before its own file, and so do the practice scout and
+it and where, its scale, the rules every answer works within, the tools and versions it runs,
+what a newcomer gets wrong, and the teams to compare with. Every persona reads it before its own file, and so do the practice scout and
 the moderator. Without it a persona judges a fifty-million-item catalog as if it held a thousand,
 and a shopper persona in a fashion catalog took a drawing for a normal product photo, which the
 owner answered with "There is no such thing in FASHION as ILLUSTRATION" (mybaze gate log,
@@ -113,6 +115,15 @@ Write `PANEL_DIR/brief.md` before anyone answers. It holds:
 - **The personas taking part**, as file paths, each with one line on why the question affects
   them, plus any question-specific persona in full.
 
+Then write `PANEL_DIR/facts.md`, which no persona reads: each fact an option turns on that a source
+outside the project can confirm or refute, with where it would be published. Such a fact is a
+tool's documented behavior or limit at the version the profile names (a replication slot's
+retention, a stream's delivery guarantee, a search engine's partial-update rule), a published
+postmortem of the same design, a change after the model's training, or, for a question about what
+outside people see, a competitor's or a standard's public page. Write "none" when the question
+turns on taste, size, scope, approval or a product fact only the project holds: no search settles
+those, and most held questions are of that kind.
+
 The brief is neutral: no recommendation, no option marked as the expected one, no internal names
 a persona would not know. Both model families read the same brief, so any lean in it reaches both
 and the panel stops measuring anything.
@@ -135,16 +146,24 @@ Start both families and the scout at once, then end the turn; the answers wake y
   reviewer's, so a panel waits for the next clear boundary when it can, and otherwise the review
   that follows is read knowing Codex saw the answers.
 
-- **The practice scout.** One more Opus subagent in the same message, `subagent_type:
-  "general-purpose"`, `model: "opus"`, `run_in_background: true`, with the "Practice scout" prompt.
-  It searches how the profile's competitors and teams at a similar scale handle the question, and
-  writes `PANEL_DIR/practice.md`: each claim with its link and a quote, a guess about a competitor
-  labeled "inferred", and what it searched for and did not find. It runs on question panels only,
-  not on story reads or reviews.
+- **The practice scout**, only when `facts.md` names at least one fact. One more Opus subagent
+  in the same message, `subagent_type: "general-purpose"`, `model: "opus"`,
+  `run_in_background: true`, with the "Practice scout" prompt. It checks each named fact on the
+  web and writes `PANEL_DIR/practice.md`: each fact confirmed, contradicted or not found, with the
+  quoted sentence, its link, date and the version it applies to. It never reports what a team
+  "probably" does and never states a belief of its own as a finding: the personas who run and build
+  the system already bring what a capable model knows, in two model families. Without a working web
+  search, it writes "not searched" and why. It runs on question panels only, not on story reads or
+  reviews.
 
-The personas never read `practice.md`, and the brief never quotes it: a persona that has read
-another team's choice can only repeat it, and its vote stops being a second view. Only the
-moderator and the challenger read it.
+  A competitor rarely publishes how it builds things, so a search for "what teams like ours do"
+  returns little, and what it does return comes from much larger companies whose answer fits their
+  size. On a mybaze outbox question (2026-11-13) a review found one competitor engineering blog, its
+  newest post from 2021. So the scout checks named facts, not practice in general.
+
+The personas never read `facts.md` or `practice.md`, and the brief never quotes them: a persona
+that has read another team's choice can only repeat it, and its vote stops being a second view.
+Only the moderator and the challenger read them.
 
 If the paired Codex is unavailable, the panel runs on Opus alone and the card says so on its
 persona line: "one model family only; agreement between families unmeasured". It never runs Sol
@@ -153,7 +172,7 @@ one-shot instead.
 ### 3. The moderator writes the card
 
 A fresh Opus subagent, with the "Moderator" prompt from `references/messages.md`, reads the
-profile, the brief, every answer and the scout's `practice.md`, and writes `PANEL_DIR/card.md` in
+profile, the brief, every answer, `facts.md` and the scout's `practice.md`, and writes `PANEL_DIR/card.md` in
 the format below. It did not take part, so it
 has no answer of its own to defend. A recommendation is never "the smaller change" on size alone;
 it says what the option costs a user.
@@ -161,8 +180,10 @@ it says what the option costs a user.
 ### 4. The challenger
 
 Send the card to the paired Codex with the "Challenge" message: Codex, the other model family from
-the Opus moderator, argues why the recommendation is wrong, and opens the practice's links to check
-that each says what the card claims. Hold the exchange under the "Pair
+the Opus moderator, argues why the recommendation is wrong. Where it can open web pages, it also
+checks that each link in `practice.md` says what the card claims; where it cannot (Codex's sandbox
+may have no network), it says so, and the card's "What was checked" line adds "links not checked
+again". Hold the exchange under the "Pair
 sessions" rules of `~/.agents/AGENTS.md`: each turn brings a refutation, a cite or a changed
 position, and a turn that only repeats the one before it ends the exchange. Update the card for
 every point you accept; the strongest point that survives is the card's "strongest dissent".
@@ -179,7 +200,7 @@ goes to the user with the check's result on it, never silently.
 
 Put the card to the user: in agterm with the `huddle` skill, the options carrying their "what you
 would see" text, the recommendation marked with the reason that names what backs it, and the
-practice in the page's context with its links; elsewhere as plain text, which also reads on a
+checked facts in the page's context with their links; elsewhere as plain text, which also reads on a
 phone. A card with "No clear pick" marks no option recommended: the badge appears only when the
 card says what backs it. Record the answer in `PANEL_DIR/answer.md`. Whether the answer is a durable ruling is the
 question gate's call, not the panel's.
@@ -247,14 +268,16 @@ A card carries, in this order:
 2. **Each option as what the people it affects would see**, a short paragraph each, from the
    evidence.
 3. **The recommendation**, what it costs a user, and what backs it: how many personas want it in
-   each model family, and whether the practice supports it. When the personas and the practice
-   split with no clear side, **No clear pick**, and what each side rests on.
+   each model family. A checked fact never earns the badge by itself: a contradicted fact can rule
+   an option out, and a confirmed one only supports a persona's reason. When the personas split
+   with no clear side, **No clear pick**, and what each side rests on.
 4. **The strongest dissent**: the best case against the recommendation that survived the
    challenge.
 5. **Wrong if**: the fact that, if true, would flip the recommendation.
 6. **Undo**: whether the choice can be reversed later, and what reversing costs.
-7. **What teams like this one do**: the practice in two or three lines, each with its link,
-   inferred lines marked, or "no published practice found".
+7. **What was checked**: each fact the recommendation rests on, marked confirmed or contradicted
+   with its link, or not found; then, marked "known, not checked", what the recommendation rests on
+   that only the answers assert. Or "no fact needed a search", or "practice not searched" and why.
 8. **The personas**, one line: what they said, with any split between personas or between the two
    model families, the layer and source the cast came from, and "no project profile" when there is
    none.

@@ -29,7 +29,11 @@ in a new agterm session rooted at MAIN, which the guard does not reach: `agtermc
 output back with `agtermctl session text` and close that session. Write MAIN and this session's id
 as literal values, not variables: a variable in a command that names git gets it refused too. The
 ticks from step 4 still decide what runs, and each result is read as if the command had run here:
-a refusal or an error stops the wrap-up exactly where this skill says it does.
+a refusal or an error stops the wrap-up exactly where this skill says it does. A command that ends
+within a moment of its session's creation can lose its output, so empty output is never read as
+success: check the effect from this session, which reads the shared refs without touching MAIN
+(`git log -1 origin/DEFAULT_BRANCH` after the archive push, `git worktree list` after the removal,
+`git branch --list BRANCH` after the delete), and treat an effect that is missing as a failure.
 
 Outside agterm, stop before the refused step, report what ran, and tell the user to run
 `/git:wrap-up BRANCH` from the main checkout. Steps 1 to 5 run again there, and step 5 copies
