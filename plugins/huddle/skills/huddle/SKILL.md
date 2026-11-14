@@ -39,10 +39,11 @@ Each option is `Label|subtitle`; a leading `*` marks it recommended, and a third
 (`*Label|subtitle|why`). `--multi` for multi-select, `--context "markdown"` for a paragraph under the
 question, `--title` for the topic line above it.
 
-## Normal: a JSON spec on stdin
+## Normal: a JSON spec in a file
 
-```bash
-huddle - <<'JSON'
+Write the spec with your file-writing tool, to an absolute path in a scratch directory:
+
+```json
 {
   "title": "Session storage",
   "prompt": "Where should sessions live?",
@@ -54,11 +55,18 @@ huddle - <<'JSON'
     {"id": "pg", "label": "Postgres table", "subtitle": "One table, expiry index"}
   ]
 }
-JSON
 ```
 
-A spec in a file works the same way (`huddle spec.json`); relative paths inside it (images, `file` blocks)
-then resolve beside the file instead of the working directory.
+```bash
+huddle /tmp/session-storage.json
+```
+
+Relative paths inside the spec (images, `file` blocks) resolve beside the spec file.
+
+`huddle -` reads the same spec from stdin and resolves those paths from the working directory. Keep it
+for a terminal. From an agent it needs a heredoc, and in a Claude Code worktree session the Bash guard
+reads a heredoc body as shell and refuses a `{` followed by a quote, which every spec holds: 16 of 17
+`huddle - <<'JSON'` calls were refused in the author's worktree sessions (Claude Code 2.1.319 to 2.1.322).
 
 ## Write the question first
 
@@ -124,8 +132,8 @@ from the file. Point at the file instead and `huddle` reads it when it builds th
 - `lines` is `"40-62"`, `"40"` or `[40, 62]`; omit it for the whole file. A `code` block from a file gets its
   path and range as its title, numbered lines (so a note can say "line 47"), and its extension as `lang`;
   a `title`, `start` or `lang` you set yourself wins.
-- For a diff, write it to a file in the same Bash call:
-  `git diff main -- src/session > "$TMPDIR/s.patch" && huddle - <<'JSON' …`.
+- For a diff, write it to a file first (`git diff main -- src/session > /tmp/s.patch`), then name that
+  file in the spec.
 - A missing file or a range past its end is an error (exit 1): the user is deciding on that code, so a page
   without it would mislead. So is a whole file of more than 300 lines as `code` — name the lines the question
   is about.

@@ -1,6 +1,9 @@
 # Messages to Codex while planning
 
-Send every message through `mailbox-chat.py say --stdin` with a quoted heredoc. The script adds
+Send every message through `mailbox-chat.py say --stdin`. A quoted heredoc carries it, unless the
+text uses the word `git` (`git diff`, `git -C`): in a worktree session Claude Code's Bash guard
+refuses a heredoc that feeds a program that word. Write such a message to `RUN_DIR/say.txt` with
+your file-writing tool and send it with `say --stdin < RUN_DIR/say.txt`. The script adds
 the `[peer chat]` label and a closing line telling Codex how to reply, so write neither, and leave
 "reply by" instructions out of the message. Keep each message one paragraph. The user reads both panes, so a message has to make sense on its own.
 

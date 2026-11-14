@@ -130,9 +130,29 @@ The brief is neutral: no recommendation, no option marked as the expected one, n
 a persona would not know. Both model families read the same brief, so any lean in it reaches both
 and the panel stops measuring anything.
 
+Writing for a persona turns a qualified fact into a plain one, so two kinds of sentence are
+checked as they are written. A sentence with "never", "nothing", "always", "the same" or "cannot"
+gets its counterexample looked for first. An example table comes from the project's own functions
+or its data model: a formula copied into a one-off script once gave a page more distinct sizes
+than offers, which one size per offer row rules out.
+
+**The brief is checked before any persona reads it.** Send the paired Codex the "Brief check"
+message from `references/messages.md` and wait for its reply: which sentences of `brief.md` are
+false against the code, the project's rulings and the corrections already accepted in this run.
+Fix the brief for every point that holds. The challenge in step 4 reads the card, not the brief,
+so it comes after the answers. In a read of 29 mybaze panels (2026-11-12 and 13), 20 briefs held a
+false sentence that the personas read, none of those briefs was checked before they answered, and
+11 of the errors reached the owner's page. Without Codex, a fresh Opus subagent checks the brief
+with the same message, and the card says so.
+
+A brief fixed after the personas answered means they answer again. When the fix touches a sentence
+an answer gives as its reason, run step 2 again on the fixed brief, or the card names the answers
+that rest on the false sentence.
+
 ### 2. Each persona answers twice, independently, and the scout searches
 
-Start both families and the scout at once, then end the turn; the answers wake you.
+After the brief check, start both families and the scout at once, then end the turn; the answers
+wake you.
 
 - **Opus.** One subagent per persona, all in one message so they run in parallel:
   `subagent_type: "general-purpose"`, `model: "opus"`, `run_in_background: true`, with the
@@ -204,7 +224,15 @@ Put the card to the user: in agterm with the `huddle` skill, the options carryin
 would see" text, the recommendation marked with the reason that names what backs it, and the
 checked facts in the page's context with their links; elsewhere as plain text, which also reads on a
 phone. A card with "No clear pick" marks no option recommended: the badge appears only when the
-card says what backs it. Record the answer in `PANEL_DIR/answer.md`. Whether the answer is a durable ruling is the
+card says what backs it. No option is preselected.
+
+The page opens with the panel's answers, above the case: a table with one row per persona (who
+they are, why the question affects them, what each model family picked) and one line on where they
+agree and where they split. The full card goes below. A card placed as the second block under a
+five-step case was not seen: the owner typed "Consult this with personas first" on a page that
+held it (mybaze, 2026-11-12).
+
+Record the answer in `PANEL_DIR/answer.md`. Whether the answer is a durable ruling is the
 question gate's call, not the panel's.
 
 ## Reading stories
@@ -286,3 +314,11 @@ A card carries, in this order:
 
 No internal units on the card: no scores, ticks, priors, levels or flags. When a number matters,
 say it as a person would meet it ("about one more size on the page").
+
+The user is not in the cast, and still pays for every page. An option that asks for another round
+(test again, measure once more) names the miss it aims at and why a change can reach that miss,
+and its cost says that the user reads one more page; "it varies from run to run" is not a cause.
+When every option ends with nobody worse off than today, there is no question: the card
+recommends the option that ships and lists the misses for a later fix. One mybaze question went to
+the owner four times in about two hours (2026-11-11); the fourth card recommended a fifth test for
+a miss the session itself had called ordinary variation.

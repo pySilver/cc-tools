@@ -273,6 +273,14 @@ approves the stories, put the flagged ones first, each with the persona answers 
 quoted beside it; the others follow as already read. A
 flag is a reason to look, not a verdict: the user may keep a flagged story as written.
 
+The approval page preselects no story (no `default: true` in a huddle spec) and marks none
+recommended. A page whose every story is already ticked is approved with one key, and that answer
+measures nothing: after one such page the user wrote "I was sleepy when approved" and asked for a
+check before anything was built (mybaze, 2026-11-12). Open the page with what the user gets in plain words and one
+example of what they would see, say which stories are the core and which guard a rare case, and
+say what was decided without them. When the user calls an approval sleepy or unsure, it is
+withdrawn: ask again before anything is built.
+
 ## Step 2.5: Codex reads the draft
 
 Send the draft-read request. Codex checks that the plan says what was settled, not the decisions

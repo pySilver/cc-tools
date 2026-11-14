@@ -1,9 +1,13 @@
 # Messages to Codex
 
-The conversation happens in chat. Send every message through `mailbox-chat.py say --stdin` with
-a quoted heredoc. The script adds the `[peer chat]` label and a closing line telling Codex how to
-reply, so write neither, and leave "reply by" instructions out of the message. Keep each message
-one paragraph. The user reads both panes, so a
+The conversation happens in chat. Send every message through `mailbox-chat.py say --stdin`. A
+quoted heredoc carries it, unless the text uses the word `git` (`git diff`, `git -C`): in a
+worktree session Claude Code's Bash guard refuses a heredoc that feeds a program that word. Write
+such a message to `RUN_DIR/say.txt` with your file-writing tool and send it with
+`say --stdin < RUN_DIR/say.txt`. The review request and the mismatch message below always name
+git, so they go from the file from the first task. The script adds the `[peer chat]` label and a
+closing line telling Codex how to reply, so write neither, and leave "reply by" instructions out
+of the message. Keep each message one paragraph. The user reads both panes, so a
 message has to make sense on its own.
 
 **A file carries what a paragraph cannot.** When a message needs code, a diff or more than a
@@ -67,7 +71,9 @@ Agreed approach for Task TASK_NUMBER: FINAL_APPROACH_OR_FILE. If this is what we
 
 ## Asking for the review
 
-`REPORT_PATH` is the implementer's own report file. Send:
+`REPORT_PATH` is the implementer's own report file. Send it from `RUN_DIR/say.txt`, never as a
+heredoc: it names `git -C`, and four runs on 2026-11-08 and 09 each lost their first review
+request to the guard before they changed to the file. Send:
 
 ```
 Task TASK_NUMBER of PLAN_FILE_PATH ("TASK_TITLE") is implemented in WORK_PATH and not yet committed. The work happens there, not necessarily in the directory you were started in: run every command there, git -C WORK_PATH status and git -C WORK_PATH diff show the change, and open files by that path. APPROACH_NOTE The implementer's report is in REPORT_PATH. Check the task's outcome. Does the change deliver the approach, every "Done when" item and the plan's Decisions? For a task whose approach was not discussed, judge the APPROACH the report states; it is not settled. Does the evidence exercise what it claims? Read the tests, fixtures and producers it relies on. Raise any correctness defect you see on the way. An existing caller or inverse operation that this change leaves inconsistent with the new behavior is a MUST-FIX. Do not sweep the diff for general rule, architecture or style issues: the branch review covers those. Open your reply with LGTM, or with MUST-FIX: N followed by N numbered items, each with file, symbol and why. End with Changed: and every path that git -C WORK_PATH status --short lists, so I can check we read the same tree. FILE_OFFER Read-only, as before.

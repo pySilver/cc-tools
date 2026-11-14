@@ -14,6 +14,21 @@ sending:
 - `PROFILE_NOTE`: with a profile, "Project profile: PROFILE_PATH. " (with the trailing space).
   With none, nothing.
 
+## Brief check
+
+The mailbox message to the paired Codex, sent before any persona starts. Without Codex, the prompt
+of a fresh Opus subagent. `REPO_PATH` is the absolute path of the checkout.
+
+```
+A persona panel is about to read PANEL_DIR/brief.md. Do not answer its question. Check the brief
+before anyone reads it: which of its sentences are false, or true only with a condition the brief
+leaves out, against the code in REPO_PATH, the project's rulings and what we already corrected in
+this run? Look hardest at a sentence with "never", "nothing", "always", "the same" or "cannot",
+and at every example table: could the project's own functions or data model produce those rows?
+You are read-only. Reply with the false sentences, each quoted, with the cite (path and symbol) or
+the concrete case that refutes it, or with "brief holds" when you find none.
+```
+
 ## Opus persona
 
 The prompt of one Opus persona subagent.
@@ -217,7 +232,11 @@ it. In this order:
 3. The recommendation, what it costs a user, and what backs it: how many personas want it in each
    model family. Never recommend an option for being the smaller change, or an option a
    contradicted fact rules out; say what each costs the people it affects. When the personas split
-   with no clear side, write "No clear pick" instead, and say what each side rests on.
+   with no clear side, write "No clear pick" instead, and say what each side rests on. The owner
+   is not in the cast and reads every card: an option that asks for another round (test again,
+   measure once more) names the miss it aims at and why a change can reach it, and its cost says
+   the owner reads one more page. When every option ends with nobody worse off than today,
+   recommend the option that ships and list the misses for a later fix.
 4. The strongest dissent: the best case against your recommendation, from the answers or a checked
    fact.
 5. Wrong if: the fact that, if true, would flip the recommendation.
