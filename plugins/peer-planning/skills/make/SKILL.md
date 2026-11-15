@@ -128,6 +128,13 @@ provenance they have: a `later` brings its open question, and a `no` an earlier 
 work, which takes new evidence or the user's word to reopen. A `worth:` field is a triage call, not
 an owner ruling, unless the item says the user ruled.
 
+Read the user's recorded rulings before you take a position, where the project's root agent
+document says they live. Search them two ways: by the area the request names, and by the
+mechanism each option uses (`regex`, `list`, `table`, `keyword`, a tool's name). A ruling filed
+under another area binds the option the same way. On 2026-11-12 two mybaze planning sessions
+offered the user phrase lists for colors. Both read only the `taxonomy` rulings, and two
+`classification` rulings had already refused such lists.
+
 ## Step 1: settle the intent
 
 When the ask is missing who it serves, why, what success looks like or the binding constraint,
