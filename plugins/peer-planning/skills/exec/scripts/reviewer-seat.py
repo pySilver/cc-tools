@@ -51,7 +51,7 @@ def fail(message: str) -> NoReturn:
 
 
 def seats() -> dict[str, tuple[str, str]]:
-    """The seats from models.toml, as {"make": ("gpt-6.1-sol", "xhigh"), ...}."""
+    """The seats from models.toml, as {"make": ("gpt-6.2-sol", "high"), ...}."""
     try:
         table = tomllib.loads(MODELS.read_text(encoding="utf-8"))
     except (OSError, tomllib.TOMLDecodeError) as error:
@@ -65,7 +65,7 @@ def seats() -> dict[str, tuple[str, str]]:
 
 
 def pane_model() -> str:
-    """The model and effort Codex's status line shows, as "gpt-6.1-sol high", or ""."""
+    """The model and effort Codex's status line shows, as "gpt-6.2-sol high", or ""."""
     target = os.environ.get("AGTERM_SESSION_ID", "")
     if not target:
         return ""
@@ -74,7 +74,7 @@ def pane_model() -> str:
         ["agtermctl", "session", "text", "--target", target, "--pane", "right", "--lines", "15", *socket],
         capture_output=True, text=True,
     )
-    # The status line reads "GPT-6.1-Sol high · ~/path · Context 2% used · weekly 48% left".
+    # The status line reads "GPT-6.2-Sol high · ~/path · Context 2% used · weekly 48% left".
     for line in reversed(done.stdout.splitlines()):
         match = re.match(r"\s*(GPT-[\w.\-]+)\s+(\w+)\s+·", line)
         if match:
@@ -83,7 +83,7 @@ def pane_model() -> str:
 
 
 def configured_default() -> str:
-    """The model and effort a cleared Codex starts on, from config.toml, as "gpt-6-astra high", or ""."""
+    """The model and effort a cleared Codex starts on, from config.toml, as "gpt-6.2-astra high", or ""."""
     path = CODEX_HOME / "config.toml"
     try:
         config = tomllib.loads(path.read_text(encoding="utf-8"))

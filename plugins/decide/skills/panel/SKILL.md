@@ -160,7 +160,7 @@ wake you.
   `PANEL_DIR/answers/<persona>.opus.md`.
 - **Sol.** One mailbox message to the paired Codex (the `mailbox-chat` skill), the "Sol panel"
   message from `references/messages.md`. Codex spawns one `persona` subagent per persona (the
-  agent defined in `~/.codex/agents/persona.toml`: `gpt-6.1-sol` at high, read-only), saves each
+  agent defined in `~/.codex/agents/persona.toml`: `gpt-6.2-sol` at high, read-only), saves each
   reply verbatim to `PANEL_DIR/answers/<persona>.sol.md`, and replies with the paths. Codex caps
   the agents open at once (four including itself on Codex 0.167, so three persona slots), so the
   message asks for batches no larger than its free slots. The

@@ -270,8 +270,8 @@ else
 fi
 
 register thread-old $$
-FAKE_REREGISTER=1 codex_clear --model gpt-6.1-sol --reasoning xhigh
-expected=$'/clear|\n|/model gpt-6.1-sol --reasoning=xhigh|\n|Answer with the single word READY.|\n|'
+FAKE_REREGISTER=1 codex_clear --model gpt-6.2-sol --reasoning high
+expected=$'/clear|\n|/model gpt-6.2-sol --reasoning=high|\n|Answer with the single word READY.|\n|'
 if [ "$code" = 0 ] && [ "$(tr '\0' '|' <"$CC/state/typed")" = "$expected" ]; then
   pass "codex-clear --model types the switch between /clear and READY and waits for its confirmation"
 else
@@ -279,7 +279,7 @@ else
 fi
 
 set +e
-code_out=$(bash "$SCRIPTS/codex-clear.sh" --model gpt-6.1-sol 2>&1)
+code_out=$(bash "$SCRIPTS/codex-clear.sh" --model gpt-6.2-sol 2>&1)
 code=$?
 set -e
 if [ "$code" = 2 ]; then
@@ -302,8 +302,8 @@ check_seat() {
   got=$(seat "$@" 2>&1) || true
   if [ "$got" = "$want" ]; then pass "reviewer-seat: $label"; else fail "reviewer-seat: $label: got '$got'"; fi
 }
-check_seat "codex gpt-6.1-sol xhigh" "make's seat is Sol at xhigh" make
-check_seat "codex gpt-6.1-sol high" "exec's seat is Sol at high" exec
+check_seat "codex gpt-6.2-sol high" "make's seat is Sol 6.2 at high" make
+check_seat "codex gpt-6.2-sol high" "exec's seat is Sol 6.2 at high" exec
 check_seat "opus opus high" "with Codex down, the seat is an Opus subagent" exec --codex-down "no answer"
 for bad in "" "plan" "--keep"; do
   if CODEX_HOME=$seat_home py "$SCRIPTS/reviewer-seat.py" ${bad:+"$bad"} >/dev/null 2>&1; then
@@ -314,7 +314,7 @@ for bad in "" "plan" "--keep"; do
 done
 # The clear after a switch: the pane runs the seat, and a /clear would return it to config.toml's
 # default. The pane's status line comes from the fake agtermctl.
-printf 'model = "gpt-6-astra"\nmodel_reasoning_effort = "high"\n' >"$seat_home/config.toml"
+printf 'model = "gpt-6.2-astra"\nmodel_reasoning_effort = "high"\n' >"$seat_home/config.toml"
 seat_clear() {
   local status=$1
   shift
@@ -329,23 +329,23 @@ check_clear() {
   got=$(seat_clear "$@" 2>&1) || true
   if [ "$got" = "$want" ]; then pass "reviewer-seat: $label"; else fail "reviewer-seat: $label: got '$got'"; fi
 }
-sol_xhigh_status="GPT-6.1-Sol xhigh · ~/p · Context 2% used · weekly 12% left"
-sol_high_status="GPT-6.1-Sol high · ~/p · Context 2% used · weekly 12% left"
-astra_status="GPT-6-Astra high · ~/p · Context 2% used · weekly 48% left"
-check_clear "True |--model gpt-6.1-sol --reasoning high|" \
+sol_medium_status="GPT-6.2-Sol medium · ~/p · Context 2% used · weekly 12% left"
+sol_high_status="GPT-6.2-Sol high · ~/p · Context 2% used · weekly 12% left"
+astra_status="GPT-6.2-Astra high · ~/p · Context 2% used · weekly 48% left"
+check_clear "True |--model gpt-6.2-sol --reasoning high|" \
   "a pane on the configured Astra moving to exec's seat is a switch, and the clear carries it" \
   "$astra_status" exec
-check_clear "True |--model gpt-6.1-sol --reasoning high|" \
-  "a pane left on make's seat moves to exec's seat at exec's setup clear" "$sol_xhigh_status" exec
-check_clear "False |--model gpt-6.1-sol --reasoning high|" \
+check_clear "True |--model gpt-6.2-sol --reasoning high|" \
+  "a pane on the seat's model at another effort is a switch" "$sol_medium_status" exec
+check_clear "False |--model gpt-6.2-sol --reasoning high|" \
   "a pane already on exec's seat is no switch, but every clear still re-applies it" "$sol_high_status" exec
-check_clear "False |--model gpt-6.1-sol --reasoning xhigh|" \
-  "a pane already on make's seat is no switch" "$sol_xhigh_status" make
+check_clear "False |--model gpt-6.2-sol --reasoning high|" \
+  "a pane left on make's seat is already on exec's: the two seats are the same" "$sol_high_status" make
 check_clear "False ||" "the Opus seat carries nothing to a clear" "$astra_status" exec --codex-down "no answer"
-printf 'model = "gpt-6.1-sol"\nmodel_reasoning_effort = "high"\n' >"$seat_home/config.toml"
+printf 'model = "gpt-6.2-sol"\nmodel_reasoning_effort = "high"\n' >"$seat_home/config.toml"
 check_clear "False ||" "exec's seat on a pane whose default is that seat needs a plain clear" "$sol_high_status" exec
 rm "$seat_home/config.toml"
-check_clear "False |--model gpt-6.1-sol --reasoning high|" \
+check_clear "False |--model gpt-6.2-sol --reasoning high|" \
   "with no configured default, every clear carries the seat" "$sol_high_status" exec
 printf 'model = \n' >"$seat_home/config.toml"
 set +e
@@ -360,22 +360,22 @@ else
 fi
 rm "$seat_home/config.toml"
 
-check_seat "kept gpt-6-astra high" "a model the owner kept holds the seat" exec --keep "gpt-6-astra high"
+check_seat "kept gpt-6.2-astra high" "a model the owner kept holds the seat" exec --keep "gpt-6.2-astra high"
 check_seat "opus opus high" "Codex down replaces a kept model with the Opus seat" \
-  exec --keep "gpt-6-astra high" --codex-down "no answer"
-for bad in "gpt-6.1-sol" "unknown unknown"; do
+  exec --keep "gpt-6.2-astra high" --codex-down "no answer"
+for bad in "gpt-6.2-sol" "unknown unknown"; do
   if CODEX_HOME=$seat_home py "$SCRIPTS/reviewer-seat.py" exec --keep "$bad" >/dev/null 2>&1; then
     fail "reviewer-seat refuses --keep '$bad'"
   else
     pass "reviewer-seat refuses --keep '$bad'"
   fi
 done
-printf 'model = "gpt-6-astra"\nmodel_reasoning_effort = "high"\n' >"$seat_home/config.toml"
+printf 'model = "gpt-6.2-astra"\nmodel_reasoning_effort = "high"\n' >"$seat_home/config.toml"
 check_clear "False ||" "a kept model that is the configured default needs a plain clear" \
-  "$astra_status" exec --keep "gpt-6-astra high"
-check_clear "False |--model gpt-6.1-sol --reasoning xhigh|" \
+  "$astra_status" exec --keep "gpt-6.2-astra high"
+check_clear "False |--model gpt-6.2-sol --reasoning medium|" \
   "a kept model on its pane is no switch, and every clear puts it back" \
-  "$sol_xhigh_status" exec --keep "gpt-6.1-sol xhigh"
+  "$sol_medium_status" exec --keep "gpt-6.2-sol medium"
 
 # ---- model-check.py ----
 # A fake config dir holds this session's transcript and the agent definitions; the project has
@@ -418,28 +418,28 @@ check_model "True session=claude-opus-5-5 high closer/closer=sonnet high!" \
   "the project's definition comes before the user's" exec --agent closer=closer
 check_model "True session=claude-opus-5-5 high executor/worker=unknown unknown!" \
   "a definition that exists nowhere is a row that differs, not an exit" exec --agent executor=worker
-printf '%s' '{"seat":"codex","model":"gpt-6.1-sol","effort":"high","reason":"the exec seat in models.toml","pane_model":"gpt-6-astra high"}' >"$MC/seat.json"
-check_model "True session=claude-opus-5-5 high codex=gpt-6-astra high!" \
+printf '%s' '{"seat":"codex","model":"gpt-6.2-sol","effort":"high","reason":"the exec seat in models.toml","pane_model":"gpt-6.2-astra high"}' >"$MC/seat.json"
+check_model "True session=claude-opus-5-5 high codex=gpt-6.2-astra high!" \
   "a pane on another model than the seat differs" exec --seat "$MC/seat.json"
 # shellcheck disable=SC2016 # the backticks are the text under test
-printf -- '- `MODEL ACCEPTED codex gpt-6-astra high`\n' >"$MC/progress-codex.md"
-check_model "False session=claude-opus-5-5 high codex=gpt-6-astra high" \
+printf -- '- `MODEL ACCEPTED codex gpt-6.2-astra high`\n' >"$MC/progress-codex.md"
+check_model "False session=claude-opus-5-5 high codex=gpt-6.2-astra high" \
   "a pane model the owner kept, written as a list item in backticks, matches" \
   exec --seat "$MC/seat.json" --accepted "$MC/progress-codex.md"
-printf '%s' '{"seat":"codex","model":"gpt-6.1-sol","effort":"high","reason":"the exec seat in models.toml","pane_model":""}' >"$MC/blind.json"
+printf '%s' '{"seat":"codex","model":"gpt-6.2-sol","effort":"high","reason":"the exec seat in models.toml","pane_model":""}' >"$MC/blind.json"
 check_model "True session=claude-opus-5-5 high codex=unknown unknown!" \
   "a pane whose status line was not read differs as unknown" exec --seat "$MC/blind.json"
 transcript "$fable"
-printf '%s' '{"seat":"codex","model":"gpt-6.1-sol","effort":"xhigh","reason":"the make seat in models.toml","pane_model":"gpt-6.1-sol xhigh"}' >"$MC/make-seat.json"
-check_model "False session=claude-fable-5-2 high codex=gpt-6.1-sol xhigh" \
+printf '%s' '{"seat":"codex","model":"gpt-6.2-sol","effort":"high","reason":"the make seat in models.toml","pane_model":"gpt-6.2-sol high"}' >"$MC/make-seat.json"
+check_model "False session=claude-fable-5-2 high codex=gpt-6.2-sol high" \
   "a pane on make's seat matches in make" make --seat "$MC/make-seat.json"
 transcript "$opus"
 # The picker's own output for a kept model, apostrophes and all, goes through the file unharmed.
-CODEX_HOME=$seat_home py "$SCRIPTS/reviewer-seat.py" exec --keep "gpt-6.1-sol xhigh" >"$MC/kept.json"
+CODEX_HOME=$seat_home py "$SCRIPTS/reviewer-seat.py" exec --keep "gpt-6.2-sol medium" >"$MC/kept.json"
 check_model "True session=claude-opus-5-5 high codex=unknown unknown!" \
   "the picker's kept-seat JSON reads from its file" exec --seat "$MC/kept.json"
-printf '%s' '{"seat":"kept","model":"gpt-6.1-sol","effort":"xhigh","reason":"kept","pane_model":"gpt-6.1-sol xhigh"}' >"$MC/kept-pane.json"
-check_model "False session=claude-opus-5-5 high codex=gpt-6.1-sol xhigh" \
+printf '%s' '{"seat":"kept","model":"gpt-6.2-sol","effort":"medium","reason":"kept","pane_model":"gpt-6.2-sol medium"}' >"$MC/kept-pane.json"
+check_model "False session=claude-opus-5-5 high codex=gpt-6.2-sol medium" \
   "a pane on the model the owner kept matches" exec --seat "$MC/kept-pane.json"
 printf '%s' '{"seat":"opus","model":"opus","effort":"high"}' >"$MC/opus.json"
 check_model "False session=claude-opus-5-5 high" "the Opus seat has no pane row" exec --seat "$MC/opus.json"

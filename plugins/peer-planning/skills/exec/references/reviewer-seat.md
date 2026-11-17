@@ -6,15 +6,17 @@ skills read:
 
 | Seat | Model | When |
 |---|---|---|
-| `codex` in `make` | `gpt-6.1-sol`, reasoning `xhigh` (`[seat.make]`) | the default while a plan is argued and checked |
-| `codex` in `exec` | `gpt-6.1-sol`, reasoning `high` (`[seat.exec]`) | the default while tasks are reviewed |
+| `codex` in `make` | `gpt-6.2-sol`, reasoning `high` (`[seat.make]`) | the default while a plan is argued and checked |
+| `codex` in `exec` | `gpt-6.2-sol`, reasoning `high` (`[seat.exec]`) | the default while tasks are reviewed |
 | `opus` | an Opus subagent at high effort | Codex is unavailable |
 | `kept` | the model Codex's pane ran at setup | the owner chose to keep it for the run, at the model check |
 
 The owner ruled the two Codex seats on 2026-11-12, in place of `gpt-6-astra` at high for both:
 Sol is faster and cheaper and still a strong model, and the branch review's revmux rounds catch
 what a task review at `high` missed. The weekly-use rule that moved the seat from Astra to Sol at
-80% went with it, since no cheaper Codex seat is left to move to.
+80% went with it, since no cheaper Codex seat is left to move to. On 2026-11-17 the owner moved
+both seats to `gpt-6.2-sol` at `high` and ruled out `xhigh` everywhere, so the two seats are the
+same today and a move from one to the other changes nothing in the pane.
 
 `scripts/reviewer-seat.py make|exec` picks the seat and prints one JSON object: `skill`, `seat`,
 `model`, `effort`, `reason`, `pane_model` (what Codex's status line shows), `pane_default` (the
@@ -82,7 +84,7 @@ Codex is unavailable when one of these holds, and only then:
 - a message gets no answer at all and the pane shows a Codex error (a usage-limit banner, a
   crashed CLI, a network error) rather than a turn in progress.
 
-A slow answer is not one of them: Codex at `xhigh` can think for many minutes. Run the picker
+A slow answer is not one of them: Codex can think for many minutes on a hard turn. Run the picker
 with `--codex-down "<the evidence, in a few words>"`, log `reviewer.switch` with `to=opus`, and
 tell the user in one line.
 

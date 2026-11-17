@@ -42,15 +42,15 @@ source = "~/.claude/rules/subagent-models.md, second opinions"
 # skill's own seat, and the Opus subagent takes over when Codex is unavailable.
 [seat.make]
 # Codex arguing and checking the plan.
-model = "gpt-6.1-sol"
-effort = "xhigh"
-source = "owner ruling, 2026-11-12: faster and cheaper than gpt-6-astra, still smart"
+model = "gpt-6.2-sol"
+effort = "high"
+source = "owner ruling, 2026-11-17: the newest Sol, and no xhigh anywhere"
 
 [seat.exec]
 # Codex reviewing each task; the branch review's revmux rounds catch what a task review missed.
-model = "gpt-6.1-sol"
+model = "gpt-6.2-sol"
 effort = "high"
-source = "owner ruling, 2026-11-12: faster and cheaper than gpt-6-astra, revmux catches the rest"
+source = "owner ruling, 2026-11-17: the newest Sol at high; revmux catches the rest"
 
 [seat.opus]
 model = "opus"

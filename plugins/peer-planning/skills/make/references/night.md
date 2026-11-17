@@ -43,7 +43,7 @@ question in the terminal.
   the ruling it quotes and cite it. On anything else, write the question into a section
   `## Questions for the owner` near the top of the plan, as the panel's card when its options
   each cost something, about users or technical (run `decide:panel`; at night its Sol personas run as separate
-  `codex exec -m gpt-6.1-sol -c model_reasoning_effort="high" -s read-only` calls with the persona
+  `codex exec -m gpt-6.2-sol -c model_reasoning_effort="high" -s read-only` calls with the persona
   prompt from its `references/messages.md`, their replies saved under the panel directory), and go
   on with the recommended option marked **pending the owner's answer** wherever the plan relies
   on it. Tasks that depend on an open question say so in their first line.
