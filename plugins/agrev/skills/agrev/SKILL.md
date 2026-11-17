@@ -27,6 +27,10 @@ It starts plannotator, shows it in a session named "<file> review" right after t
 the user there; the chat is one click away and never covered. `--no-follow` opens it without
 switching; `--here` lays it over the current session instead, when the user asks for that.
 
+In a session attached from another Mac and presented there, `open` says the page is "over this
+session, on the Mac presenting it": it covers the chat on that Mac, served over Tailscale, and
+no review session is made. Tell the user ⇧⌘J hides and shows it.
+
 Then wait for the decision, with `run_in_background: true`:
 
 ```bash

@@ -257,7 +257,9 @@ What I changed from the upstream skill, mostly to make it hold up as a daily too
 
 **agrev** — reading a plan as raw markdown in a terminal, or as a diff, is the wrong place to mark it up. agrev opens the document rendered in plannotator, in an agterm session of its own right after the agent's, so the chat stays one click away. You comment on phrases, mark text for deletion, attach images, and press Send Feedback or Approve. The agent gets every annotation at once, edits the document itself, and opens the next round with its replies pinned to the phrases they answer; plannotator shows what changed since the last round. `scripts/review.py` does everything that touches plannotator and agterm: it records plannotator's URL instead of opening a browser, shows the page in agterm, and puts a small proxy in front of plannotator that keeps its cookies between reviews, because an agterm overlay starts with empty storage and every review would otherwise open on the onboarding dialogs. It also strips the agent's own pinned comments from the feedback plannotator exports, so they are not read back as yours.
 
-> **Needs agterm, plannotator and Python 3** (standard library only). `review.py open` names the plannotator install command when it is missing. Each round's log, result and comments stay in `~/.cache/agrev/runs/`.
+In a session attached from another Mac (`zmx attach`), Claude runs on that other Mac and so does agrev. When the Mac you are looking at presents the session, the page opens over the chat instead of in a session of its own, served from the other Mac over Tailscale by its MagicDNS name; ⇧⌘J hides and shows it.
+
+> **Needs agterm, plannotator and Python 3** (standard library only), and for an attached session Tailscale with MagicDNS on both Macs. `review.py open` names the plannotator install command when it is missing. Each round's log, result and comments stay in `~/.cache/agrev/runs/`.
 
 ### peer-planning
 

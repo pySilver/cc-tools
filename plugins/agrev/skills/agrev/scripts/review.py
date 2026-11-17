@@ -16,8 +16,12 @@ history and "Show changes", Approve / Send / Close. This wrapper adds three thin
 - Cookies. plannotator keeps its settings and first-run flags in cookies, and an agterm overlay
   starts with empty storage every time, so each review would open on the onboarding dialogs. A
   small proxy in front of plannotator hands the page the cookies saved from earlier reviews and
-  saves whatever the page sets. Everything else passes through untouched; plannotator checks no
-  Host or Origin, so nothing is rewritten.
+  saves whatever the page sets. plannotator refuses a request whose Origin is not its own (403,
+  0.28.66), and the page's origin is the proxy's, so the proxy makes the same check against its own
+  origin and passes plannotator's on. Everything else passes through untouched.
+- Another Mac. A session attached from here and presented on another Mac shows only pages opened
+  over itself, drawn on that Mac. The proxy then listens on this Mac's tailnet address and the page
+  opens over the caller's session by this Mac's MagicDNS name.
 - The agent's voice. Comments the agent posts through plannotator's external-annotations API
   appear live in the page, pinned to a phrase, tagged with their source.
 
@@ -29,12 +33,14 @@ import argparse
 import datetime as dt
 import hashlib
 import http.client
+import ipaddress
 import json
 import os
 import random
 import re
 import shutil
 import signal
+import socket
 import string
 import subprocess
 import sys
@@ -149,6 +155,47 @@ def review_session(path: Path, wid: "str | None", caller: str) -> str:
     return sid
 
 
+def presented_elsewhere(sid: str, wid: "str | None") -> bool:
+    """Whether a page opened over this session goes to another Mac.
+
+    agterm hands a session-wide page to the Mac presenting a session attached from here when every
+    pane of it follows that Mac; otherwise the page stays on this Mac.
+    """
+    for s in sessions(wid):
+        if s["id"].lower() == sid.lower():
+            leads = [x.get("lead") for x in s.get("surfaces") or [] if x.get("kind") in ("left", "right")]
+            return bool((s.get("presenters") or {}).get("presenter")) and bool(leads) and all(l == "follower" for l in leads)
+    return False
+
+
+TAILNET = ipaddress.ip_network("100.64.0.0/10")
+MAGICDNS = "100.100.100.100"
+
+
+def tailnet_address() -> "tuple[str, str]":
+    """This Mac's tailnet IPv4 and the bare MagicDNS name another Mac reaches it by.
+
+    The page is drawn on the presenting Mac, so a loopback URL would name that Mac, and agterm refuses
+    one. The bare name is what macOS App Transport Security lets a page reach over plain http; the
+    100.x address itself is refused there.
+    """
+    probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        probe.connect((MAGICDNS, 53))  # picks the route; a UDP connect sends nothing
+        ip = probe.getsockname()[0]
+    except OSError as exc:
+        raise Fail(f"no tailnet route from this Mac ({exc}); the Mac presenting this session cannot reach the page") from exc
+    finally:
+        probe.close()
+    if ipaddress.ip_address(ip) not in TAILNET:
+        raise Fail(f"this Mac's route to {MAGICDNS} leaves from {ip}, not a tailnet address; is Tailscale up?")
+    try:
+        name = socket.gethostbyaddr(ip)[0].split(".")[0]
+    except OSError as exc:
+        raise Fail(f"MagicDNS gives no name for {ip} ({exc}); the presenting Mac needs one to load the page") from exc
+    return ip, name
+
+
 def shown_url(sid: str, wid: "str | None") -> "str | None":
     for s in sessions(wid):
         if s["id"].lower() == sid.lower():
@@ -191,9 +238,11 @@ def cookie_script(saved: "dict[str, str]") -> bytes:
 
 def make_proxy(upstream: str):
     up = urllib.parse.urlparse(upstream)
+    up_origin = f"{up.scheme}://{up.netloc}"
 
     class Proxy(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.0"  # one response per connection; streams end when upstream does
+        page_origin = ""               # the origin the page is served from, set once the port is known
 
         def log_message(self, fmt, *args):
             pass
@@ -214,11 +263,17 @@ def make_proxy(upstream: str):
         def _forward(self) -> None:
             if self.command == "POST" and self.path == COOKIE_PATH:
                 return self._cookies_post()
+            origin = self.headers.get("Origin")
+            if origin and origin != self.page_origin:
+                self.send_error(403, "cross-origin request refused")
+                return
             body = None
             if self.headers.get("Content-Length"):
                 body = self.rfile.read(int(self.headers["Content-Length"]))
-            headers = {k: v for k, v in self.headers.items() if k.lower() not in _HOP}
+            headers = {k: v for k, v in self.headers.items() if k.lower() not in _HOP | {"origin"}}
             headers["Host"] = up.netloc
+            if origin:
+                headers["Origin"] = up_origin
             headers["Accept-Encoding"] = "identity"
             conn = http.client.HTTPConnection(up.hostname, up.port, timeout=3600)
             try:
@@ -269,7 +324,9 @@ def serve_proxy(run: Path) -> None:
     """Runs detached for one review; exits when plannotator does."""
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
     meta = read_json(run / "meta.json")
-    httpd = ThreadingHTTPServer(("127.0.0.1", 0), make_proxy(meta["upstream"]))
+    handler = make_proxy(meta["upstream"])
+    httpd = ThreadingHTTPServer((meta.get("bind") or "127.0.0.1", 0), handler)
+    handler.page_origin = f"http://{meta.get('host') or '127.0.0.1'}:{httpd.server_address[1]}"
     httpd.daemon_threads = True
     write_atomic(run / "proxy.json", json.dumps({"pid": os.getpid(), "port": httpd.server_address[1]}).encode())
 
@@ -397,8 +454,13 @@ def cmd_open(ns) -> int:
             raise Fail(f"plannotator did not start; see {run / 'plannotator.log'}")
         time.sleep(0.1)
     upstream = (run / "ready").read_text().strip()
+    wid = os.environ.get("AGTERM_WINDOW_ID")
+    # A session another Mac presents shows only pages opened over itself, and only on that Mac: a
+    # review session made here would stay here, unseen, and a loopback URL would name the other Mac.
+    remote = presented_elsewhere(caller, wid)
+    bind, host = tailnet_address() if remote else ("127.0.0.1", "127.0.0.1")
     meta = {"file": str(path), "display": display_path(path), "upstream": upstream,
-            "plannotator_pid": proc.pid, "run": str(run), "opened": now()}
+            "plannotator_pid": proc.pid, "run": str(run), "opened": now(), "bind": bind, "host": host, "remote": remote}
     write_atomic(run / "meta.json", json.dumps(meta, indent=1).encode())
     write_atomic(doc_dir(path) / "current.json", json.dumps({"run": run.name}).encode())
 
@@ -415,17 +477,17 @@ def cmd_open(ns) -> int:
         post_comments(upstream, comments)
         remember_comments(run, comments)
 
-    wid = os.environ.get("AGTERM_WINDOW_ID")
-    target = caller if ns.here else review_session(path, wid, caller)
+    target = caller if ns.here or remote else review_session(path, wid, caller)
     if shown_url(target, wid) is not None:
         agtermctl("session", "overlay", "close", "--target", target, *(["--window", wid] if wid else []))
-    agtermctl("session", "overlay", "open", "--url", f"http://127.0.0.1:{port}/", "--js", "--target", target,
+    agtermctl("session", "overlay", "open", "--url", f"http://{host}:{port}/", "--js", "--target", target,
               *(["--window", wid] if wid else []))
     meta["session"] = target
     write_atomic(run / "meta.json", json.dumps(meta, indent=1).encode())
-    if not ns.no_follow:
+    if not ns.no_follow and not remote:
         agtermctl("session", "select", "--target", target, *(["--window", wid] if wid else []))
-    where = "over this session" if ns.here else f'in the session "{path.name} review", right after this one'
+    where = ("over this session, on the Mac presenting it" if remote else "over this session" if ns.here
+             else f'in the session "{path.name} review", right after this one')
     print(f"agrev: {meta['display']} is open in plannotator {where}"
           + (f", with {len(comments)} comment(s) from you pinned in it." if comments else "."))
     print(f"Now run in the background: {Path(__file__).resolve()} wait {path}")
@@ -542,6 +604,12 @@ def cmd_close(ns) -> int:
     for pid in (meta.get("plannotator_pid"), (read_json(run / "proxy.json") if (run / "proxy.json").exists() else {}).get("pid")):
         if alive(pid):
             os.kill(pid, signal.SIGTERM)
+    if meta.get("remote") and meta.get("session"):
+        try:
+            if shown_url(meta["session"], os.environ.get("AGTERM_WINDOW_ID")) is not None:
+                agtermctl("session", "overlay", "close", "--target", meta["session"])
+        except Fail:
+            pass
     place = doc_dir(path) / "placement.json"
     if place.exists():
         sid = read_json(place).get("session", "")
