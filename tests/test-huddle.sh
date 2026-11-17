@@ -70,6 +70,52 @@ if "$PY" -I -B "$B" render "$WORK/carried.json" -o "$WORK/carried.html" >/dev/nu
 printf '{"questions": [{"id": "a", "prompt": "First?", "context": "QCTX-MARKER-ONE", "options": ["Yes", "No"]}, {"id": "b", "prompt": "Second?", "body": "QCTX-MARKER-TWO", "options": ["Yes", "No"]}]}' > "$WORK/qctx.json"
 "$PY" -I -B "$B" render "$WORK/qctx.json" -o "$WORK/qctx.html" >/dev/null
 
+# Markdown an agent writes by habit, each case a page of its own (checked in the browser below). md-owner
+# is the table of a page on 2026-11-16 that showed as raw "| | |" and "|---|---|" lines.
+MDCASES=$(cat <<'PY'
+import json, os, sys
+cases = {
+    "md-owner": "| | |\n|---|---|\n| Outcome | Lem builds Lem: each change ... |\n| Careful paths | `land.py`, `stories.py`, ... |",
+    "md-header": "| Name | Value |\n| :--- | ---: |\n| a | **b** |",
+    "md-pipe-code": "| Op | Note |\n|---|---|\n| `a|b` | x \\| y |",
+    "md-no-delim": "a | b | c\nd | e | f",
+    "md-hr": "above\n\n---\n\nbelow",
+    "md-h4": "#### Deep heading\n##### Deeper",
+    "md-nested": "- top\n  - child\n    more of the child\n- next",
+    "md-tilde": "~~~\ncode here\n~~~",
+    "md-task": "- [ ] open\n- [x] done",
+    "md-plus": "+ one\n+ two",
+    "md-start": "3. three\n4. four",
+}
+for name, text in cases.items():
+    with open(os.path.join(sys.argv[1], name + ".json"), "w") as f:
+        json.dump({"prompt": "p", "context": text, "options": ["Yes", "No"]}, f)
+print(" ".join(cases))
+PY
+)
+MDNAMES=$("$PY" -I -B -c "$MDCASES" "$WORK")
+for n in $MDNAMES; do
+  "$PY" -I -B "$B" render "$WORK/$n.json" -o "$WORK/$n.html" >/dev/null
+done
+
+# A table wider than the window, in a table block, in a key-value block and in markdown, and a grid
+# of options whose preview holds a long path with no space in it (checked in the browser below).
+WIDE=$(cat <<'PY'
+import json, sys
+cell = "a cell with a long text that needs room"
+md = "| " + " | ".join(f"Column {i}" for i in range(10)) + " |\n|" + "---|" * 10 + "\n| " + " | ".join([cell] * 10) + " |"
+path = "plugins/huddle/skills/huddle/" + "a_very_long_module_name_with_no_space_in_it_" * 4 + ".py"
+spec = {"questions": [
+    {"id": "t", "prompt": "Wide tables?", "context": [{"table": {"columns": [f"Column {i}" for i in range(10)], "rows": [[cell] * 10]}},
+     {"kv": [["key", "/" + "x" * 300]]}, {"md": md}], "options": ["Yes", "No"]},
+    {"id": "g", "prompt": "Which file?", "layout": "grid", "columns": 3,
+     "options": [{"id": f"o{i}", "label": f"File {i}", "preview": {"md": f"`{path}`"}} for i in range(3)]}]}
+json.dump(spec, open(sys.argv[1], "w"))
+PY
+)
+"$PY" -I -B -c "$WIDE" "$WORK/wide.json"
+"$PY" -I -B "$B" render "$WORK/wide.json" -o "$WORK/wide.html" >/dev/null
+
 # An unattended run never opens anything.
 expect "refuses an unattended run" 3 unattended -- env CLAUDE_CODE_SESSION_ATTENDED=0 "$PY" -I -B "$B" q "Which?" A B
 # Outside agterm it opens nothing unless the browser is asked for: the agent runs huddle without checking first.
@@ -274,6 +320,142 @@ print("; ".join(problems))
 sys.exit(bool(problems))
 PY
 )
+# PROBE PAGE COPY: COPY is PAGE with a script that measures, at each of its two questions, the
+# page's width against its window and each preview of the current question against its card.
+PROBE=$(cat <<'PY'
+import sys
+page = open(sys.argv[1], encoding="utf-8").read()
+probe = """<script>setTimeout(() => {
+  const d = document.documentElement, out = {};
+  const look = () => ({page: [d.scrollWidth, d.clientWidth], prev: [...document.querySelectorAll(".hd-q.cur .hd-prev")].map(n => [n.scrollWidth, n.clientWidth])});
+  out.tables = look();
+  [...document.querySelectorAll(".hd-q")].forEach((q, i) => q.classList.toggle("cur", i === 1));
+  setTimeout(() => { out.grid = look(); d.setAttribute("data-measure", JSON.stringify(out)); }, 300);
+}, 1500);</script>"""
+open(sys.argv[2], "w", encoding="utf-8").write(page.replace("</body>", probe + "</body>", 1))
+PY
+)
+MEASURED=$(cat <<'PY'
+import html, json, re, sys
+found = re.search(r'data-measure="([^"]*)"', open(sys.argv[1], encoding="utf-8").read())
+if not found:
+    sys.exit("the probe wrote nothing")
+m = json.loads(html.unescape(found.group(1)))
+wrong = [f"the page of the {k} is {m[k]['page'][0]} px wide in a window of {m[k]['page'][1]}" for k in ("tables", "grid") if m[k]["page"][0] > m[k]["page"][1]]
+wrong += [f"a preview of the grid is {w} px wide in a card of {c}" for w, c in m["grid"]["prev"] if w > c]
+wrong += [] if len(m["grid"]["prev"]) == 3 else [f"the grid has {len(m['grid']['prev'])} previews, not 3"]
+print("; ".join(wrong))
+sys.exit(bool(wrong))
+PY
+)
+MDCHECK=$(cat <<'PY'
+import sys
+from html.parser import HTMLParser
+VOID = {"br", "hr", "img", "input", "meta", "link", "col", "area", "base", "embed", "source", "track", "wbr"}
+class Node:
+    def __init__(self, tag, attrs):
+        self.tag, self.attrs, self.kids = tag, dict(attrs), []
+    def text(self):
+        return "".join(k if isinstance(k, str) else k.text() for k in self.kids)
+    def find(self, tag):
+        out = []
+        for k in self.kids:
+            if not isinstance(k, str):
+                out += [k] if k.tag == tag else []
+                out += k.find(tag)
+        return out
+    def els(self):
+        return [k for k in self.kids if not isinstance(k, str)]
+class P(HTMLParser):
+    def __init__(self):
+        super().__init__(); self.root = Node("root", []); self.stack = [self.root]
+    def handle_starttag(self, tag, attrs):
+        n = Node(tag, attrs); self.stack[-1].kids.append(n)
+        if tag not in VOID:
+            self.stack.append(n)
+    def handle_endtag(self, tag):
+        for i in range(len(self.stack) - 1, 0, -1):
+            if self.stack[i].tag == tag:
+                del self.stack[i:]; break
+    def handle_data(self, data):
+        if self.stack[-1].tag not in ("script", "style"):
+            self.stack[-1].kids.append(data)
+p = P(); p.feed(open(sys.argv[1], encoding="utf-8").read())
+page, case = p.root, sys.argv[2]
+texts = lambda nodes: [n.text().strip() for n in nodes]
+tables = page.find("table")
+bad = []
+def want(cond, why):
+    if not cond:
+        bad.append(why)
+if case == "md-owner":
+    want(len(tables) == 1, f"{len(tables)} tables")
+    if tables:
+        t = tables[0]
+        want(t.find("th") == [], "a header row of empty cells")
+        rows = t.find("tr")
+        want([texts(r.find("td"))[0] for r in rows] == ["Outcome", "Careful paths"], f"rows {[texts(r.find('td')) for r in rows]}")
+        want(texts(t.find("code")) == ["land.py", "stories.py"], f"code {texts(t.find('code'))}")
+    shown = page.text()
+    want("|---" not in shown and "| |" not in shown and "| Outcome" not in shown, "raw table text on the page")
+elif case == "md-header":
+    want(len(tables) == 1, f"{len(tables)} tables")
+    if tables:
+        t = tables[0]
+        want(texts(t.find("th")) == ["Name", "Value"], f"header {texts(t.find('th'))}")
+        want(texts(t.find("td")) == ["a", "b"] and texts(t.find("b")) == ["b"], f"cells {texts(t.find('td'))}")
+        want("right" in t.find("td")[1].attrs.get("style", "") if len(t.find("td")) > 1 else False, "the ---: column is not right-aligned")
+elif case == "md-pipe-code":
+    tds = tables[0].find("tr")[-1].find("td") if tables else []
+    want(len(tds) == 2, f"{len(tds)} cells in the row")
+    if len(tds) == 2:
+        want(texts(tds[0].find("code")) == ["a|b"], f"code {texts(tds[0].find('code'))}")
+        want(tds[1].text().strip() == "x | y", f"escaped pipe cell {tds[1].text()!r}")
+elif case == "md-no-delim":
+    want(tables == [], "a table with no delimiter line")
+    want(any("a | b | c" in t for t in texts(page.find("p"))), "the lines are not a paragraph")
+elif case == "md-hr":
+    want(len(page.find("hr")) == 1, f"{len(page.find('hr'))} rules")
+    want("---" not in page.text(), "raw --- on the page")
+elif case == "md-h4":
+    want(texts(page.find("h4")) == ["Deep heading"] and texts(page.find("h5")) == ["Deeper"], "no h4 and h5")
+    want("####" not in page.text(), "raw #### on the page")
+elif case == "md-nested":
+    top = [u for u in page.find("ul") if any(li.text().startswith("top") for li in u.els())]
+    want(len(top) == 1 and len(top[0].els()) == 2, "the outer list has not two items")
+    if top:
+        inner = top[0].els()[0].find("ul")
+        want(len(inner) == 1 and "child" in inner[0].text() and "more of the child" in inner[0].text(), "the child is not a list in the first item")
+elif case == "md-tilde":
+    pres = [x for x in page.find("pre") if x.text() == "code here"]
+    want(len(pres) == 1, "no code block")
+    want("~~~" not in page.text(), "raw ~~~ on the page")
+elif case == "md-task":
+    shown = page.text()
+    want("[ ]" not in shown and "[x]" not in shown, "raw task boxes on the page")
+    want("☐" in shown and "☑" in shown, "no box glyphs")
+elif case == "md-plus":
+    want(any(texts(u.els()) == ["one", "two"] for u in page.find("ul")), "no list of two items")
+elif case == "md-start":
+    ols = page.find("ol")
+    want(len(ols) == 1 and ols[0].attrs.get("start") == "3", "the list does not start at 3")
+said = {
+    "md-owner": "a table with an empty header row renders its rows and code, and no raw |---|",
+    "md-header": "a table with a header row renders it, with the alignment marks",
+    "md-pipe-code": "a pipe in a code span, or escaped, stays in its cell",
+    "md-no-delim": "lines with pipes and no delimiter line stay a paragraph",
+    "md-hr": "a --- line is a rule",
+    "md-h4": "a heading of level 4 or 5 is a heading",
+    "md-nested": "an indented item is a list in its parent item",
+    "md-tilde": "a ~~~ fence is a code block",
+    "md-task": "a task item shows a box",
+    "md-plus": "a + item is a list item",
+    "md-start": "an ordered list keeps its first number",
+}[case]
+print(f"markdown {case}: " + ("; ".join(bad) if bad else said))
+sys.exit(bool(bad))
+PY
+)
 chrome=""
 for c in google-chrome chromium chromium-browser "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"; do
   if command -v "$c" >/dev/null 2>&1 || [ -x "$c" ]; then chrome=$c; break; fi
@@ -314,6 +496,21 @@ shown = " ".join(p.text)
 sys.exit(not ("QCTX-MARKER-ONE" in shown and "QCTX-MARKER-TWO" in shown))
 PY
   then pass "a question's own context and body are shown"; else fail "a question's own context and body are shown"; fi
+  for n in $MDNAMES; do
+    if why=$("$PY" -I -B -c "$MDCHECK" "$WORK/$n.dom" "$n"); then pass "$why"; else fail "$why"; fi
+  done
+  # At 900 px a wide table scrolls inside its own box and the page stays as wide as its window; the
+  # grid's previews keep their path inside the card. A script added to a copy of the page measures
+  # both questions of the spec and writes the numbers into the page Chrome prints.
+  mkdir -p "$WORK/measure"
+  "$PY" -I -B -c "$PROBE" "$WORK/wide.html" "$WORK/measure/wide.html"
+  "$chrome" --headless=new --disable-gpu --no-sandbox --no-first-run --use-mock-keychain --user-data-dir="$WORK/chrome" \
+    --window-size=900,900 --virtual-time-budget=4000 --dump-dom "file://$WORK/measure/wide.html" > "$WORK/measure/wide.dom" 2>/dev/null || true
+  if why=$("$PY" -I -B -c "$MEASURED" "$WORK/measure/wide.dom"); then
+    pass "at 900 px a wide table scrolls inside its own box and the page is no wider than its window; a long path in a grid's preview breaks inside the card"
+  else
+    fail "a wide table or a long path: $why"
+  fi
 else
   printf 'SKIP page loads: no Chrome or Chromium found\n'
 fi

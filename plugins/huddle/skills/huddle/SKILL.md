@@ -226,8 +226,14 @@ under it), `badge` (replaces the "Recommended" word), `tags` (small chips: effor
 ### Blocks
 
 Used in `context`, `body`, `detail`, `preview`. A plain string is markdown (`**bold**`, `*em*`,
-`` `code` ``, lists, `> quote`, `[link](https://…)`, fenced code). Any block takes `title`, `caption` and
-`card: true`.
+`~~strike~~`, `` `code` ``, `[link](https://…)`, headings `#` to `######`, lists with `-`, `*`, `+` or
+`1.`, nested by indent, `- [ ]` task items, `> quote`, `---` rules, fenced code with ```` ``` ```` or
+`~~~`, and GFM pipe tables with a `|---|` delimiter line and `:` alignment marks). A table whose header
+cells are all empty renders with no header row; a pipe inside a code span stays in its cell, and `\|`
+is a pipe in the text; a cell past the header's count is dropped, as in GFM. A wide table scrolls
+sideways in its own box. HTML in markdown shows as text, and so do `_em_`, `__bold__` and a link that
+is not `http(s)`; `![alt](url)` shows as a link, so use the image block. Any block takes `title`,
+`caption` and `card: true`.
 
 | Block | Shape |
 | --- | --- |

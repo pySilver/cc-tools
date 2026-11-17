@@ -28,28 +28,92 @@
       .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2">$1</a>');
     return s.replace(/\u0000(\d+)\u0000/g, (_, i) => "<code>" + codes[+i] + "</code>");
   }
+  const FENCE = /^\s{0,3}(`{3,}|~{3,})(.*)$/, HEAD = /^(#{1,6})\s+(.*)/, RULE = /^\s{0,3}([-*_])(\s*\1){2,}\s*$/;
+  const ITEM = /^(\s*)([-*+]|(\d+)[.)])\s+(.*)$/;
+  // A table row's cells: split on "|" outside code spans, "\|" is a pipe in the text, and one outer pipe
+  // on each side is dropped. Returns null for a line with no splitting pipe, which is no row.
+  function cells(line) {
+    const s = line.trim(), out = [];
+    let cur = "", splits = 0, lead = false, trail = false;
+    for (let k = 0; k < s.length; k++) {
+      const c = s[k];
+      trail = false;
+      if (c === "\\" && s[k + 1] === "|") { cur += "|"; k++; continue; }
+      if (c === "`") {
+        let n = 1; while (s[k + n] === "`") n++;
+        const tick = "`".repeat(n), end = s.indexOf(tick, k + n);
+        if (end > 0 && s[end + n] !== "`") { cur += s.slice(k, end + n).replace(/\\\|/g, "|"); k = end + n - 1; continue; }
+        cur += tick; k += n - 1; continue;
+      }
+      if (c === "|") { out.push(cur); cur = ""; splits++; lead = lead || k === 0; trail = true; continue; }
+      cur += c;
+    }
+    out.push(cur);
+    if (!splits) return null;
+    if (lead) out.shift();
+    if (trail && out.length > 1) out.pop();
+    return out.map((x) => x.trim());
+  }
+  // GFM: a header row, then a delimiter row of as many cells, each of dashes with optional ":" marks.
+  function tableAt(lines, i) {
+    const head = cells(lines[i]), delim = i + 1 < lines.length ? cells(lines[i + 1]) : null;
+    if (!head || !delim || head.length !== delim.length || !delim.every((d) => /^:?-+:?$/.test(d))) return null;
+    return { head, align: delim.map((d) => (d.endsWith(":") ? (d.startsWith(":") ? "center" : "right") : d.startsWith(":") ? "left" : "")) };
+  }
+  // The table ends at a blank line or a line with no pipe. A header of empty cells is how GFM writes a
+  // table with no header, so it gets no <thead>: an empty row would still take its padding and border.
+  function table(lines, i, t) {
+    const td = (tag, v, k) => `<${tag}${t.align[k] ? ` style="text-align:${t.align[k]}"` : ""}>${inline(v || "")}</${tag}>`;
+    // in a box of its own that scrolls sideways, so a wide table never makes the page wider than its window
+    let h = '<div class="hd-tablewrap"><table class="hd-table">';
+    if (t.head.some((c) => c)) h += "<thead><tr>" + t.head.map((c, k) => td("th", c, k)).join("") + "</tr></thead>";
+    h += "<tbody>"; i += 2;
+    let row;
+    while (i < lines.length && lines[i].trim() && (row = cells(lines[i]))) { h += "<tr>" + t.head.map((_, k) => td("td", row[k], k)).join("") + "</tr>"; i++; }
+    return [h + "</tbody></table></div>", i];
+  }
+  const task = (s) => s.replace(/^\[([ xX])\]\s+/, (_, x) => `<span class="hd-task">${x === " " ? "☐" : "☑"}</span> `);
+  // A list: an item indented past this list's own items opens a list inside the item before it, and an
+  // indented line that is no item continues that item. An item of the other kind (bullet, number) at
+  // this level starts a list of its own.
+  function list(lines, i) {
+    const first = ITEM.exec(lines[i]), base = first[1].length, ordered = first[3] != null;
+    let h = ordered ? `<ol${+first[3] !== 1 ? ` start="${+first[3]}"` : ""}>` : "<ul>";
+    while (i < lines.length) {
+      const m = ITEM.exec(lines[i]);
+      if (!m || m[1].length !== base || (m[3] != null) !== ordered || RULE.test(lines[i])) break;
+      let body = task(inline(m[4]));
+      i++;
+      while (i < lines.length && lines[i].trim()) {
+        const n = ITEM.exec(lines[i]), ind = lines[i].length - lines[i].trimStart().length;
+        if (n && n[1].length > base) { const [sub, j] = list(lines, i); body += sub; i = j; }
+        else if (!n && ind > base) body += "<br>" + inline(lines[i++].trim());
+        else break;
+      }
+      h += `<li>${body}</li>`;
+    }
+    return [h + (ordered ? "</ol>" : "</ul>"), i];
+  }
+  const opens = (lines, i) => FENCE.test(lines[i]) || HEAD.test(lines[i]) || RULE.test(lines[i]) || /^>/.test(lines[i]) || ITEM.test(lines[i]) || !!tableAt(lines, i);
   function md(src) {
     const lines = String(src).replace(/\r/g, "").split("\n");
     let out = "", i = 0;
     while (i < lines.length) {
       const l = lines[i];
-      if (/^```/.test(l)) {
-        const lang = l.slice(3).trim(), buf = [];
-        i++; while (i < lines.length && !/^```/.test(lines[i])) buf.push(lines[i++]);
+      let m, t;
+      if ((m = FENCE.exec(l))) {
+        const lang = m[2].trim(), close = new RegExp("^\\s{0,3}" + m[1][0] + "{" + m[1].length + ",}\\s*$"), buf = [];
+        i++; while (i < lines.length && !close.test(lines[i])) buf.push(lines[i++]);
         i++; out += codeHTML(buf.join("\n"), lang); continue;
       }
-      let m;
-      if ((m = /^(#{1,3})\s+(.*)/.exec(l))) { out += `<h${m[1].length}>${inline(m[2])}</h${m[1].length}>`; i++; continue; }
-      if (/^\s*[-*]\s+/.test(l) || /^\s*\d+[.)]\s+/.test(l)) {
-        const ordered = /^\s*\d/.test(l), tag = ordered ? "ol" : "ul"; out += `<${tag}>`;
-        while (i < lines.length && (/^\s*[-*]\s+/.test(lines[i]) || /^\s*\d+[.)]\s+/.test(lines[i])))
-          out += "<li>" + inline(lines[i++].replace(/^\s*([-*]|\d+[.)])\s+/, "")) + "</li>";
-        out += `</${tag}>`; continue;
-      }
+      if ((m = HEAD.exec(l))) { out += `<h${m[1].length}>${inline(m[2])}</h${m[1].length}>`; i++; continue; }
+      if (RULE.test(l)) { out += "<hr>"; i++; continue; }
+      if (ITEM.test(l)) { const [h, j] = list(lines, i); out += h; i = j; continue; }
       if (/^>\s?/.test(l)) { const buf = []; while (i < lines.length && /^>\s?/.test(lines[i])) buf.push(lines[i++].replace(/^>\s?/, "")); out += "<blockquote>" + inline(buf.join(" ")) + "</blockquote>"; continue; }
+      if ((t = tableAt(lines, i))) { const [h, j] = table(lines, i, t); out += h; i = j; continue; }
       if (!l.trim()) { i++; continue; }
       const buf = [];
-      while (i < lines.length && lines[i].trim() && !/^(```|#{1,3}\s|>|\s*[-*]\s|\s*\d+[.)]\s)/.test(lines[i])) buf.push(lines[i++]);
+      while (i < lines.length && lines[i].trim() && !(buf.length && opens(lines, i))) buf.push(lines[i++]);
       out += "<p>" + buf.map(inline).join("<br>") + "</p>";
     }
     return out;
@@ -189,11 +253,11 @@
       const t = b.table, num = (v) => typeof v === "number";
       let h = `<table class="hd-table"><thead><tr>${(t.columns || []).map((c, i) => `<th class="${t.rows && t.rows[0] && num(t.rows[0][i]) ? "num" : ""}">${esc(c)}</th>`).join("")}</tr></thead><tbody>`;
       (t.rows || []).forEach((r) => (h += "<tr>" + r.map((v) => `<td class="${num(v) ? "num" : ""}">${num(v) ? esc(v.toLocaleString()) : inline(v)}</td>`).join("") + "</tr>"));
-      el = $("div", "", h + "</tbody></table>");
+      el = $("div", "hd-tablewrap", h + "</tbody></table>");
     } else if (b.kv) {
       let h = '<table class="hd-table"><tbody>';
       (Array.isArray(b.kv) ? b.kv : Object.entries(b.kv)).forEach(([k, v]) => (h += `<tr><th style="width:35%">${esc(k)}</th><td>${inline(v)}</td></tr>`));
-      el = $("div", "", h + "</tbody></table>");
+      el = $("div", "hd-tablewrap", h + "</tbody></table>");
     } else if (b.callout != null) el = $("div", "hd-callout hd-md " + (b.tone || ""), md(b.callout));
     else if (b.radius != null) {
       el = $("div", "hd-sample"); const box = $("div", "hd-radius-box"); box.style.borderRadius = typeof b.radius === "number" ? b.radius + "px" : b.radius; el.appendChild(box);
