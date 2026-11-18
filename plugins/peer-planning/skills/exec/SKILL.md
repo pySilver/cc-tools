@@ -519,6 +519,10 @@ Tell the user:
 - `WORK_PATH`, the branch and `RUN_DIR`, and what is left for the user: `/git:finalize-feature-branch`,
   then `/git:wrap-up`, which archives the plan and removes the worktree, its test database and this
   run's record;
+- no step an agent can do on that list. An unticked box of this plan or another, a measurement, a
+  test or a tier run is work, not a step for the user: run it before this report, the way the run
+  did its tasks (an implementer does it, Codex reviews it). When it cannot run in this session,
+  say why, and offer to start the run that does it. The user's list keeps only what needs the user;
 - that follow-up questions, finalize and wrap-up belong in a fresh session (`/clear` first). This
   one carries the whole run, and every call here pays for it. The run's record is in the plan and
   in `RUN_DIR` (`progress.md`, `events.jsonl`), where a fresh session reads what it needs.
