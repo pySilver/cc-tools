@@ -95,13 +95,6 @@ writer; Codex is read-only in the repository.
   - After "I will switch", wait until the user says it is done, then run the check again. This
     session switches with `/model` and `/effort`, which keep the conversation.
 
-## Night mode
-
-With `--night` before the argument, this skill drafts a plan unattended for a scheduled job:
-Codex is argued through a resumable `codex exec` thread instead of the pane, questions for the user
-are written into the plan instead of asked, the review runs headless, and the plan is committed on
-its night branch. `references/night.md` is the whole of it; read it first when `--night` is given.
-
 ## Questions to the user go through the gate
 
 Before any question that asks the user to rule (an approach, a size, a disagreement with Codex
